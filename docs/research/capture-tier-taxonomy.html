@@ -160,14 +160,14 @@ footer{margin-top:4rem; padding-top:1.25rem; border-top:1px solid var(--line-str
   <ul class="meta">
     <li>2026-08-27</li>
     <li>웹사이트 스냅샷 자동화</li>
-    <li>분류기 자체 테스트 6/6 통과</li>
+    <li>분류기 자체 테스트 7/7 통과</li>
   </ul>
 </header>
 
 <div class="status">
-  <span class="tag">현재 상태</span>
-  <p><strong>GDWEB 실측은 아직 돌리지 못했습니다.</strong> 이 세션의 실행 환경은 네트워크 정책상 <code>gdweb.co.kr</code>을 포함해 <strong>모든 외부 사이트 접속이 차단</strong>되어 있습니다(프록시가 CONNECT에 403 응답). 우회는 하지 않았습니다.</p>
-  <p>대신 <strong>분류 체계를 정의하고, 접속만 열리면 바로 실측이 되는 스캐너를 만들어 검증까지 끝냈습니다.</strong> 각 티어를 대표하는 테스트 페이지 6종으로 분류기가 정확히 작동하는 것을 확인했습니다(아래 §4). 실행 방법은 §5에 있습니다.</p>
+  <span class="tag">진행 상태 &mdash; 실측 완료</span>
+  <p><strong>이 분류 체계로 GDWEB 선정작 50곳을 실제로 계측했습니다.</strong> 결과는 「실측 결과」 문서에 있습니다 &mdash; 측정 49건, 실패 1건, v1 커버율 51%.</p>
+  <p>그리고 <strong>그 실측이 이 분류기의 오류를 잡아냈습니다.</strong> 49건 중 21건이 과대 판정이었고, 원인은 셋 다 같았습니다 &mdash; <em>라이브러리가 "있다"는 사실을 그 라이브러리가 "무엇을 한다"와 혼동한 것.</em> 규칙을 고쳐 회귀 테스트로 고정했습니다. <strong>아래 티어 정의 자체는 그대로 유효하고, 바뀐 것은 판정 규칙입니다.</strong></p>
 </div>
 
 <!-- ============================================================ -->
@@ -383,7 +383,7 @@ footer{margin-top:4rem; padding-top:1.25rem; border-top:1px solid var(--line-str
   </div>
 
   <h3>분류기가 실제로 맞는지 확인했습니다</h3>
-  <p class="col">각 티어를 대표하는 테스트 페이지 6종을 만들어 스캐너에 물렸습니다. 규칙을 고칠 때 회귀를 잡아 주는 자동 테스트로 고정해 두었습니다.</p>
+  <p class="col">각 티어를 대표하는 테스트 페이지와 실전 오분류 사례를 픽스처로 만들어 스캐너에 물렸습니다. 규칙을 고칠 때 회귀를 잡아 주는 자동 테스트로 고정해 두었습니다.</p>
 
   <div class="term">
 <b>ok</b>    t0-static.html           T0             <i>특별한 동적 신호 없음</i>
@@ -393,7 +393,7 @@ footer{margin-top:4rem; padding-top:1.25rem; border-top:1px solid var(--line-str
 <b>ok</b>    t4-webgl.html            T4             <i>WebGL 컨텍스트 1개 / 유휴 상태에서도 rAF 59회/초 + 대형 canvas</i>
 <b>ok</b>    gated.html               차단(challenge)  <i>특별한 동적 신호 없음</i>
 
-<b>6/6 통과</b></div>
+<b>7/7 통과</b></div>
 
   <div class="callout">
     <span class="tag">만들면서 잡은 실제 버그</span>
@@ -406,7 +406,7 @@ footer{margin-top:4rem; padding-top:1.25rem; border-top:1px solid var(--line-str
 
 <!-- ============================================================ -->
 <section id="run">
-  <div class="sec-head"><span class="sec-num">05</span><h2>실측을 돌리려면</h2></div>
+  <div class="sec-head"><span class="sec-num">05</span><h2>다시 돌리려면</h2></div>
 
   <p class="col">스캐너는 <code>tools/gdweb-scan/</code>에 있습니다. GDWEB 목록 URL을 주면 상세 페이지를 따라가 수상 사이트의 실제 주소를 뽑고, 한 곳씩 열어 분류합니다.</p>
 
@@ -422,10 +422,11 @@ $ npm run scan -- --list "&lt;GDWEB 목록 URL&gt;" --pages 1-3 --limit 60 --con
 <i>→ results.json (원 신호 + 판정 근거)
 → report.html (사람이 읽는 분류 결과)</i></div>
 
-  <h3>두 가지 방법</h3>
+  <h3>이미 한 번 돌렸습니다</h3>
   <ol class="col">
-    <li><strong>이 환경의 네트워크 정책을 열어 주시면</strong> 제가 바로 돌려서 실제 분포를 뽑아 드립니다. Claude Code 환경의 네트워크 접근 범위는 환경 생성 시 선택하는 설정이며, <a href="https://code.claude.com/docs/en/claude-code-on-the-web">Claude Code on the web 문서</a>에 설정 방법이 정리되어 있습니다.</li>
-    <li><strong>사내 PC에서 직접 돌리셔도 됩니다.</strong> Node.js만 있으면 위 두 줄로 끝납니다. 결과 <code>results.json</code>을 주시면 제가 분석해 드리겠습니다.</li>
+    <li><strong>2026-08-27, 사내 맥에서 50건 실행.</strong> 결과는 「실측 결과」 문서와 저장소의 <code>docs/research/results.gdweb-2026.csv</code>에 있습니다.</li>
+    <li><strong>분류기를 고친 뒤에는 다시 돌려야 합니다.</strong> 「실측 결과」의 수치는 기록된 판정 근거로 재계산한 값이라, 수정된 규칙으로 새로 스캔하면 확정됩니다.</li>
+    <li><strong>대상을 바꿔 돌려도 됩니다.</strong> <code>urls.gdweb-2026.txt</code>를 열어 고객사 사이트로 바꾸면 훨씬 현실적인 커버율이 나옵니다 &mdash; 어워드 수상작은 난이도 상한선이니까요.</li>
   </ol>
 
   <h3>실측 결과가 나오면 알 수 있는 것</h3>
