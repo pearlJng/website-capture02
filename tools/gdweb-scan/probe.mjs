@@ -246,34 +246,41 @@ export function classify(before, after, rafPerSec, gate) {
   if (before.hiddenReveal >= 3) revealSignals.push(`등장 대기 요소 ${before.hiddenReveal}개`);
   if (before.io >= 2) revealSignals.push(`IntersectionObserver ${before.io}회 생성`);
   if (libs.has('aos') || libs.has('scrollReveal')) revealSignals.push('등장 애니메이션 라이브러리');
+  if (libs.has('scrollTrigger')) revealSignals.push('ScrollTrigger(등장용으로 추정)');
   if (revealSignals.length > 0) { tier = Math.max(tier, 1); reasons.push(...revealSignals); }
 
   // ── T2 순환형 ────────────────────────────────────────────────
+  // 실제로 "돌고 있는" 것만 인정한다. 스타일시트에 규칙이 적혀 있다는 사실만으로는
+  // 그 규칙이 보이는 요소에 적용됐는지 알 수 없다.
   const loopSignals = [];
-  if (before.animInfinite > 0) loopSignals.push(`무한 반복 애니메이션 ${before.animInfinite}개`);
-  if (before.infiniteKeyframeRules > 0) loopSignals.push(`infinite 키프레임 규칙 ${before.infiniteKeyframeRules}건`);
+  if (before.animInfinite > 0) loopSignals.push(`실행 중인 무한 반복 애니메이션 ${before.animInfinite}개`);
   if (before.loopVideos > 0) loopSignals.push(`자동재생·루프 비디오 ${before.loopVideos}개`);
-  if (libs.has('swiper')) loopSignals.push('슬라이더 라이브러리(Swiper)');
   if (loopSignals.length > 0) { tier = Math.max(tier, 2); reasons.push(...loopSignals); }
+  // 아래는 보조 근거로만 남긴다. 단독으로 티어를 올리지 않는다.
+  if (before.infiniteKeyframeRules > 0) {
+    reasons.push(`(참고) infinite 키프레임 규칙 ${before.infiniteKeyframeRules}건 — 실행 여부는 미확인`);
+  }
+  if (libs.has('swiper')) reasons.push('(참고) 슬라이더 라이브러리(Swiper) — 자동재생 여부는 미확인');
 
   // ── T3 스크롤 연동형 ─────────────────────────────────────────
+  // DOM에서 실제로 관측된 구조만 인정한다. ScrollTrigger·Lenis가 "있다"는 사실은
+  // 핀 고정을 뜻하지 않는다 — 실측 결과 대부분 단순 등장 애니메이션에 쓰였다.
   const linkedSignals = [];
-  if (libs.has('scrollTrigger')) linkedSignals.push('GSAP ScrollTrigger');
-  if (libs.has('locomotive') || libs.has('lenis')) linkedSignals.push('스무스 스크롤 하이재킹');
-  if (libs.has('scrollMagic')) linkedSignals.push('ScrollMagic');
   if (before.stickyPinned > 0) linkedSignals.push(`핀 고정 섹션 ${before.stickyPinned}개`);
   if (before.horizontalScroll > 0) linkedSignals.push(`가로 스크롤 섹션 ${before.horizontalScroll}개`);
   if (before.scrollHijack) linkedSignals.push('body 스크롤 잠금(스크롤 탈취)');
   if (linkedSignals.length > 0) { tier = Math.max(tier, 3); reasons.push(...linkedSignals); }
 
   // ── T4 실시간 렌더형 ─────────────────────────────────────────
+  // WebGL 컨텍스트가 결정적 신호다. rAF 빈도만으로는 판정하지 않는다 —
+  // 스무스 스크롤 라이브러리들이 각자 루프를 돌리면 초당 100회를 쉽게 넘긴다.
   const liveSignals = [];
   if (before.webgl > 0) liveSignals.push(`WebGL 컨텍스트 ${before.webgl}개`);
   if (libs.has('three') || libs.has('spline') || libs.has('pixi') || libs.has('matterjs')) {
     liveSignals.push('3D·물리 렌더링 라이브러리');
   }
-  if (rafPerSec > 20 && before.biggestCanvasRatio > 0.15) {
-    liveSignals.push(`유휴 상태에서도 rAF ${rafPerSec}회/초 + 대형 canvas`);
+  if (rafPerSec > 45 && before.biggestCanvasRatio > 0.25 && before.canvas2d > 0) {
+    liveSignals.push(`캔버스에 매 프레임 그리는 중 (rAF ${rafPerSec}회/초, 화면의 ${Math.round(before.biggestCanvasRatio * 100)}%)`);
   }
   if (liveSignals.length > 0) { tier = Math.max(tier, 4); reasons.push(...liveSignals); }
 
@@ -284,6 +291,13 @@ export function classify(before, after, rafPerSec, gate) {
   const worstHeight = Math.max(before.docHeight, after?.docHeight || 0);
   if (worstHeight > CHROME_MAX_TEXTURE * 0.6) tags.push('L');
   if (before.hoverRules >= 5) tags.push('H');
+  // M — 스크롤을 라이브러리가 가로챈다. 티어와 무관하지만 프로그램적 스크롤이
+  // 평소처럼 동작하지 않으므로 캡처 시 별도 처리가 필요하다.
+  if (libs.has('lenis') || libs.has('locomotive')) tags.push('M');
+  // U — 스크롤을 끝까지 내렸는데도 문서가 화면 높이 그대로다. 렌더링이 덜 됐을
+  // 가능성이 높으므로 이 측정치는 사람이 확인해야 한다.
+  const vh = before.viewportHeight || 900;
+  if (worstHeight <= vh * 1.2 && before.hiddenReveal > 10) tags.push('U');
 
   return {
     tier: gate ? null : tier,
@@ -383,6 +397,8 @@ export const TAGS = {
   S: '고정 헤더·플로팅 요소 (Sticky)',
   L: '초장문 — 높이 한계 위험 (Long)',
   H: '호버·클릭으로만 보이는 콘텐츠 (Hidden)',
+  M: '스무스 스크롤 라이브러리 — 프로그램적 스크롤 별도 처리 (Motion)',
+  U: '문서가 펼쳐지지 않음 — 측정치 사람 확인 필요 (Uncertain)',
 };
 
 export { VIEWPORT, CHROME_MAX_TEXTURE };

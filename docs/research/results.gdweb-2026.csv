@@ -1,0 +1,51 @@
+이름,URL,티어,티어명,태그,판정근거,라이브러리,문서높이,고정요소,상태
+삼성생명 다이렉트,https://direct.samsunglife.com/,T2,순환형,S H,등장 대기 요소 116개 / infinite 키프레임 규칙 32건,,3404,10,측정됨
+파르나스호텔,https://www.parnashotel.com/,T3,스크롤 연동형,S H,지연 로딩 이미지 5개 / 등장 대기 요소 15개 / IntersectionObserver 2회 생성 / infinite 키프레임 규칙 4건 / 핀 고정 섹션 1개,,4948,6,측정됨
+화천,https://www.hwacheon.com/,T4,실시간 렌더형,S L H,등장 대기 요소 20개 / infinite 키프레임 규칙 3건 / 자동재생·루프 비디오 15개 / 슬라이더 라이브러리(Swiper) / GSAP ScrollTrigger / 스무스 스크롤 하이재킹 / 핀 고정 섹션 1개 / 유휴 상태에서도 rAF 124회/초 + 대형 canvas,gsap scrollTrigger lenis swiper,12200,14,측정됨
+토스임팩트,https://toss.im/impact,T2,순환형,S,등장 대기 요소 16개 / IntersectionObserver 2회 생성 / 자동재생·루프 비디오 1개,,7713,2,측정됨
+토스,https://toss.im/,T4,실시간 렌더형,S L,등장 대기 요소 8개 / IntersectionObserver 12회 생성 / 자동재생·루프 비디오 1개 / 스무스 스크롤 하이재킹 / 핀 고정 섹션 4개 / 유휴 상태에서도 rAF 60회/초 + 대형 canvas,lenis,50964,7,측정됨
+토스플레이스,https://tossplace.com/,T4,실시간 렌더형,S,등장 대기 요소 10개 / IntersectionObserver 4회 생성 / 자동재생·루프 비디오 1개 / WebGL 컨텍스트 1개,,909,9,측정됨
+토스증권,https://corp.tossinvest.com/ko,T3,스크롤 연동형,S,지연 로딩 이미지 7개 / 등장 대기 요소 9개 / IntersectionObserver 19회 생성 / 자동재생·루프 비디오 6개 / 핀 고정 섹션 1개,,7818,3,측정됨
+구다이글로벌,https://www.goodai-global.com/,T3,스크롤 연동형,S,등장 대기 요소 16개 / infinite 키프레임 규칙 2건 / 핀 고정 섹션 1개,,5108,1,측정됨
+케이웨딩,https://k-wedding.co.kr/,T3,스크롤 연동형,S L H,등장 대기 요소 104개 / 무한 반복 애니메이션 1개 / infinite 키프레임 규칙 4건 / 슬라이더 라이브러리(Swiper) / GSAP ScrollTrigger,gsap scrollTrigger swiper,11528,8,측정됨
+국립한국교통대 K-철도교육,https://ktiec.ut.ac.kr/,T3,스크롤 연동형,S H,등장 대기 요소 57개 / 등장 애니메이션 라이브러리 / 무한 반복 애니메이션 3개 / infinite 키프레임 규칙 4건 / 자동재생·루프 비디오 1개 / 슬라이더 라이브러리(Swiper) / GSAP ScrollTrigger / 스무스 스크롤 하이재킹 / 핀 고정 섹션 3개,gsap scrollTrigger lenis aos swiper,9803,12,측정됨
+CUCKOO,https://www.cuckoo.co.kr/,T4,실시간 렌더형,S L,등장 대기 요소 53개 / WebGL 컨텍스트 2개,gsap,10646,4,측정됨
+정원e샵,https://www.jungoneshop.com/,T4,실시간 렌더형,S H,등장 대기 요소 4개 / infinite 키프레임 규칙 5건 / 슬라이더 라이브러리(Swiper) / ScrollMagic / WebGL 컨텍스트 1개,swiper scrollMagic,9807,141,측정됨
+AI최적화랩(매스티지),https://masstige.io/index.html,T2,순환형,S H,등장 대기 요소 90개 / IntersectionObserver 3회 생성 / 무한 반복 애니메이션 8개 / infinite 키프레임 규칙 4건,,8732,5,측정됨
+교보 라이프플래닛생명,https://www.lifeplanet.co.kr/,T4,실시간 렌더형,S H,등장 대기 요소 5개 / infinite 키프레임 규칙 24건 / WebGL 컨텍스트 1개,,4000,7,측정됨
+뷰전,https://vsion.global/,T3,스크롤 연동형,S L H,등장 대기 요소 13개 / 무한 반복 애니메이션 2개 / infinite 키프레임 규칙 6건 / 슬라이더 라이브러리(Swiper) / GSAP ScrollTrigger / 스무스 스크롤 하이재킹,gsap scrollTrigger lenis swiper,21819,2,측정됨
+포스코플로우,https://www.poscoflow.com/,T3,스크롤 연동형,S L,등장 대기 요소 46개 / 무한 반복 애니메이션 4개 / infinite 키프레임 규칙 20건 / 자동재생·루프 비디오 12개 / 슬라이더 라이브러리(Swiper) / GSAP ScrollTrigger / 스무스 스크롤 하이재킹,gsap scrollTrigger lenis swiper,10959,10,측정됨
+스튜디오 엑스랩,https://www.studioxlab.co.kr/,T4,실시간 렌더형,S H,지연 로딩 이미지 2개 / 등장 대기 요소 19개 / IntersectionObserver 5회 생성 / 무한 반복 애니메이션 2개 / infinite 키프레임 규칙 17건 / 자동재생·루프 비디오 1개 / 스무스 스크롤 하이재킹 / 핀 고정 섹션 2개 / WebGL 컨텍스트 3개 / 유휴 상태에서도 rAF 118회/초 + 대형 canvas,lenis,9053,6,측정됨
+사담재,https://sadamjae.com/,T3,스크롤 연동형,S H,등장 대기 요소 76개 / 등장 애니메이션 라이브러리 / infinite 키프레임 규칙 1건 / 자동재생·루프 비디오 9개 / 슬라이더 라이브러리(Swiper) / GSAP ScrollTrigger,gsap scrollTrigger aos swiper,6157,6,측정됨
+써밋 클라비온,https://summitclavion.com/,T2,순환형,S,등장 대기 요소 467개 / 무한 반복 애니메이션 4개 / infinite 키프레임 규칙 4건,,900,4,측정됨
+도아 DOA,https://e-doa.co.kr/,T3,스크롤 연동형,S L,등장 대기 요소 44개 / 등장 애니메이션 라이브러리 / 무한 반복 애니메이션 4개 / infinite 키프레임 규칙 4건 / 자동재생·루프 비디오 3개 / 슬라이더 라이브러리(Swiper) / GSAP ScrollTrigger / 핀 고정 섹션 2개,gsap scrollTrigger aos swiper,18592,4,측정됨
+NHN클라우드,https://www.nhncloud.com/kr,T4,실시간 렌더형,S,등장 대기 요소 84개 / IntersectionObserver 72회 생성 / infinite 키프레임 규칙 4건 / 핀 고정 섹션 2개 / WebGL 컨텍스트 1개,,6220,3,측정됨
+빨간펜(교원),https://www.kyowonedu.com/,T4,실시간 렌더형,S H,등장 대기 요소 39개 / IntersectionObserver 12회 생성 / infinite 키프레임 규칙 3건 / 자동재생·루프 비디오 1개 / 슬라이더 라이브러리(Swiper) / GSAP ScrollTrigger / WebGL 컨텍스트 1개,gsap scrollTrigger swiper,7523,5,측정됨
+one grove,https://www.onegrove.kr/,T2,순환형,S H,지연 로딩 이미지 44개 / 등장 대기 요소 10개 / IntersectionObserver 2회 생성 / infinite 키프레임 규칙 5건,,4704,5,측정됨
+언플러,https://www.onflou.com/,T3,스크롤 연동형,S H,등장 대기 요소 4개 / 자동재생·루프 비디오 8개 / GSAP ScrollTrigger / 스무스 스크롤 하이재킹,gsap scrollTrigger lenis,4417,7,측정됨
+코오롱몰,https://www.kolonmall.com/,T2,순환형,S L H,지연 로딩 이미지 286개 / 등장 대기 요소 125개 / IntersectionObserver 11회 생성 / infinite 키프레임 규칙 6건 / 슬라이더 라이브러리(Swiper),swiper,16381,3,측정됨
+이화여자대학교,https://www.ewha.ac.kr/,T3,스크롤 연동형,S H,등장 대기 요소 30개 / 등장 애니메이션 라이브러리 / 무한 반복 애니메이션 1개 / infinite 키프레임 규칙 4건 / 자동재생·루프 비디오 1개 / 슬라이더 라이브러리(Swiper) / GSAP ScrollTrigger,gsap scrollTrigger aos swiper,6704,9,측정됨
+제니하우스,https://www.jennyhouse.co.kr/index.php,T3,스크롤 연동형,S L,지연 로딩 이미지 10개 / 등장 대기 요소 32개 / 등장 애니메이션 라이브러리 / 무한 반복 애니메이션 2개 / infinite 키프레임 규칙 1건 / 슬라이더 라이브러리(Swiper) / GSAP ScrollTrigger / 스무스 스크롤 하이재킹,gsap scrollTrigger lenis aos swiper,11104,6,측정됨
+엔코스,https://www.ancors.co.kr/,T3,스크롤 연동형,S L H,등장 대기 요소 31개 / IntersectionObserver 8회 생성 / 무한 반복 애니메이션 1개 / infinite 키프레임 규칙 16건 / 자동재생·루프 비디오 1개 / GSAP ScrollTrigger / 핀 고정 섹션 3개,gsap scrollTrigger,10226,11,측정됨
+백록담,https://www.baekrokdam.com/,T4,실시간 렌더형,S H,지연 로딩 이미지 1개 / 등장 대기 요소 6개 / IntersectionObserver 3회 생성 / 무한 반복 애니메이션 1개 / infinite 키프레임 규칙 2건 / 유휴 상태에서도 rAF 55회/초 + 대형 canvas,,6902,4,측정됨
+삼성서울병원 영문,https://www.samsunghospital.com/en/,T4,실시간 렌더형,S,지연 로딩 이미지 6개 / 등장 대기 요소 34개 / 무한 반복 애니메이션 8개 / infinite 키프레임 규칙 8건 / 자동재생·루프 비디오 1개 / 슬라이더 라이브러리(Swiper) / GSAP ScrollTrigger / 스무스 스크롤 하이재킹 / 핀 고정 섹션 1개 / 유휴 상태에서도 rAF 187회/초 + 대형 canvas,gsap scrollTrigger lenis swiper,9356,6,측정됨
+K뉴딜아카데미,https://knda.korchamhrd.net/,T0,정적,,특별한 동적 신호 없음,,1228,0,측정됨
+불닭닷컴,https://buldak.com/kr/,T2,순환형,S,지연 로딩 이미지 17개 / 등장 대기 요소 151개 / IntersectionObserver 11회 생성 / 무한 반복 애니메이션 3개 / infinite 키프레임 규칙 17건 / 자동재생·루프 비디오 1개,,5731,7,측정됨
+크림,https://www.crea-m.com/,T2,순환형,S H,등장 대기 요소 41개 / IntersectionObserver 3회 생성 / infinite 키프레임 규칙 14건 / 자동재생·루프 비디오 8개,,8871,3,측정됨
+영림프라임창호,http://ylchem.co.kr,T3,스크롤 연동형,S H,등장 대기 요소 9개 / infinite 키프레임 규칙 8건 / 자동재생·루프 비디오 1개 / 슬라이더 라이브러리(Swiper) / GSAP ScrollTrigger,gsap scrollTrigger swiper,6571,8,측정됨
+센트레빌 아스테이룸 거제,https://xn--v69aw3t99ak5in9d1rcn6g6ods3d556ajsd.com/,T3,스크롤 연동형,S,등장 대기 요소 84개 / 등장 애니메이션 라이브러리 / 무한 반복 애니메이션 88개 / 자동재생·루프 비디오 10개 / GSAP ScrollTrigger,gsap scrollTrigger aos,5784,11,측정됨
+모리스,https://morris.co.kr/,T3,스크롤 연동형,S H,등장 대기 요소 6개 / infinite 키프레임 규칙 1건 / 슬라이더 라이브러리(Swiper) / GSAP ScrollTrigger,gsap scrollTrigger swiper,8923,4,측정됨
+이스트소프트,https://estsoft.ai/,T3,스크롤 연동형,S L H,지연 로딩 이미지 98개 / 등장 대기 요소 129개 / IntersectionObserver 80회 생성 / infinite 키프레임 규칙 1건 / 자동재생·루프 비디오 1개 / 가로 스크롤 섹션 1개,,21079,2,측정됨
+밀크T초등 바로체험,https://web.milkt.co.kr/,T4,실시간 렌더형,S,등장 대기 요소 4개 / 무한 반복 애니메이션 6개 / 자동재생·루프 비디오 1개 / 슬라이더 라이브러리(Swiper) / WebGL 컨텍스트 1개,swiper,950,5,측정됨
+퓨어글로벌,https://thepureglobal.com/,T3,스크롤 연동형,S H,지연 로딩 이미지 7개 / 등장 대기 요소 16개 / 무한 반복 애니메이션 8개 / infinite 키프레임 규칙 3건 / 자동재생·루프 비디오 2개 / GSAP ScrollTrigger / 스무스 스크롤 하이재킹 / 핀 고정 섹션 1개,gsap scrollTrigger lenis,4064,5,측정됨
+크리에이츠,https://mycreatz.com/,T3,스크롤 연동형,S L H,등장 대기 요소 42개 / 무한 반복 애니메이션 15개 / infinite 키프레임 규칙 11건 / 슬라이더 라이브러리(Swiper) / GSAP ScrollTrigger / 핀 고정 섹션 6개,gsap scrollTrigger swiper,9835,12,측정됨
+브리비,https://brivyy.co.kr/,T3,스크롤 연동형,S H,지연 로딩 이미지 91개 / 등장 대기 요소 16개 / IntersectionObserver 7회 생성 / 무한 반복 애니메이션 6개 / infinite 키프레임 규칙 15건 / 핀 고정 섹션 2개 / 가로 스크롤 섹션 1개,,5565,6,측정됨
+모두의매트,https://modoomat.com,T4,실시간 렌더형,S L,지연 로딩 이미지 19개 / 등장 대기 요소 110개 / IntersectionObserver 98회 생성 / infinite 키프레임 규칙 1건 / 스무스 스크롤 하이재킹 / 핀 고정 섹션 4개 / WebGL 컨텍스트 1개 / 유휴 상태에서도 rAF 256회/초 + 대형 canvas,lenis,23590,8,측정됨
+더 신라,https://www.shillahotels.com/,T2,순환형,S,등장 대기 요소 12개 / infinite 키프레임 규칙 1건 / 자동재생·루프 비디오 1개 / 슬라이더 라이브러리(Swiper),swiper,8599,22,측정됨
+KIM SEUNGHYUK 포트폴리오,https://seunghyuk.com,T4,실시간 렌더형,S,등장 대기 요소 6개 / 스무스 스크롤 하이재킹 / WebGL 컨텍스트 1개 / 유휴 상태에서도 rAF 168회/초 + 대형 canvas,lenis,4974,20,측정됨
+한국전광,https://keoc.kr/,T3,스크롤 연동형,S L,등장 대기 요소 39개 / infinite 키프레임 규칙 1건 / 자동재생·루프 비디오 2개 / 슬라이더 라이브러리(Swiper) / GSAP ScrollTrigger,gsap scrollTrigger swiper,11029,4,측정됨
+더가든피부과,https://thegardenclinic.co.kr/,T3,스크롤 연동형,S L H,지연 로딩 이미지 55개 / 등장 대기 요소 16개 / IntersectionObserver 3회 생성 / 등장 애니메이션 라이브러리 / 무한 반복 애니메이션 4개 / infinite 키프레임 규칙 17건 / 자동재생·루프 비디오 1개 / 슬라이더 라이브러리(Swiper) / GSAP ScrollTrigger,gsap scrollTrigger aos swiper,17446,12,측정됨
+윌비랩,https://willbe-lab.co.kr/,T4,실시간 렌더형,S H,등장 대기 요소 96개 / infinite 키프레임 규칙 1건 / 슬라이더 라이브러리(Swiper) / 핀 고정 섹션 1개 / WebGL 컨텍스트 1개,swiper,8683,6,측정됨
+더샵천안라크원,https://더샵천안라크원.kr,T3,스크롤 연동형,S H,등장 대기 요소 117개 / 무한 반복 애니메이션 4개 / infinite 키프레임 규칙 8건 / 슬라이더 라이브러리(Swiper) / GSAP ScrollTrigger,scrollTrigger swiper,900,7,측정됨
+한빛산업,https://hanvit-ind.com/,T3,스크롤 연동형,S H,등장 대기 요소 44개 / 무한 반복 애니메이션 4개 / infinite 키프레임 규칙 4건 / 자동재생·루프 비디오 6개 / 슬라이더 라이브러리(Swiper) / GSAP ScrollTrigger / 스무스 스크롤 하이재킹,gsap scrollTrigger lenis swiper,9812,3,측정됨
+대한항공,https://www.koreanair.com/,,,,,,,,실패: goto: page.goto: net::ERR_HTTP2_PROTOCOL_ERROR at https://www.koreanair.com/

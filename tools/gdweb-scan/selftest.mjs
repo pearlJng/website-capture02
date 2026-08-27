@@ -21,6 +21,9 @@ const PORT = 8824;
 const CASES = [
   { file: 't0-static.html', tier: 0, tags: [] },
   { file: 't1-reveal.html', tier: 1, tags: [] },
+  // 실전 스캔에서 발견한 오분류를 고정한다: ScrollTrigger/Lenis/Swiper 가 있어도
+  // 핀 고정이나 실행 중인 무한 애니메이션이 없으면 T1 이다.
+  { file: 't1-scrolltrigger-nopin.html', tier: 1, tags: ['M'] },
   { file: 't2-loop.html', tier: 2, tags: [] },
   { file: 't3-scrolllinked.html', tier: 3, tags: ['S'] },
   { file: 't4-webgl.html', tier: 4, tags: [] },

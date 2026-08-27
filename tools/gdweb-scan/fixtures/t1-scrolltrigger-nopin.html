@@ -1,0 +1,25 @@
+<!doctype html><meta charset="utf-8"><title>T1 — ScrollTrigger를 등장 애니메이션에만 쓰는 페이지</title>
+<style>body{font-family:sans-serif;margin:0;overflow-x:hidden}
+section{padding:120px 40px;min-height:620px;border-bottom:1px solid #eee}
+.reveal{opacity:0;transform:translateY(40px)}
+.card{width:420px;height:220px;background:#dde;margin:20px 0}
+.slider{display:flex;gap:12px;overflow:hidden}
+.slide{flex:0 0 300px;height:160px;background:#cdd}</style>
+<section><h1>ScrollTrigger는 있지만 핀 고정은 없습니다</h1></section>
+<section><div class="reveal card">A</div><div class="reveal card">B</div></section>
+<section><div class="slider"><div class="slide">1</div><div class="slide">2</div><div class="slide">3</div></div></section>
+<section><img loading="lazy" width="400" height="200"
+  src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='200'%3E%3Crect width='400' height='200' fill='%23bcd'/%3E%3C/svg%3E"></section>
+<script>
+// 실전에서 가장 흔한 형태: GSAP/ScrollTrigger/Lenis/Swiper 가 로드되어 있지만
+// 하는 일은 "스크롤하면 나타나기"뿐이고, 핀 고정 섹션은 없다.
+window.gsap = { plugins: {} };
+window.ScrollTrigger = { create(){} };
+window.Lenis = function(){};
+window.Swiper = function(){};
+const io = new IntersectionObserver(es=>es.forEach(e=>{
+  if(e.isIntersecting){ e.target.style.opacity=1; e.target.style.transform='none'; }
+}),{threshold:.2});
+document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+new IntersectionObserver(()=>{}).observe(document.body);
+</script>
