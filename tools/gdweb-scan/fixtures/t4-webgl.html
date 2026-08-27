@@ -1,0 +1,12 @@
+<!doctype html><meta charset="utf-8"><title>T4 실시간 렌더형 페이지</title>
+<style>body{margin:0;font-family:sans-serif}canvas{display:block;width:100vw;height:100vh}
+section{padding:100px 40px}</style>
+<canvas id="c"></canvas>
+<section><h1>WebGL 배경</h1><p>매 프레임 다시 그립니다.</p></section>
+<script>
+const c=document.getElementById('c');
+const gl=c.getContext('webgl')||c.getContext('experimental-webgl');
+let t=0;
+function loop(){ t+=0.01; if(gl){gl.clearColor(Math.abs(Math.sin(t)),0.2,0.5,1);gl.clear(gl.COLOR_BUFFER_BIT);} requestAnimationFrame(loop); }
+requestAnimationFrame(loop);
+</script>

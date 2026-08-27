@@ -1,0 +1,6 @@
+http://127.0.0.1:8824/t0-static.html        기대 T0
+http://127.0.0.1:8824/t1-reveal.html        기대 T1
+http://127.0.0.1:8824/t2-loop.html          기대 T2
+http://127.0.0.1:8824/t3-scrolllinked.html  기대 T3
+http://127.0.0.1:8824/t4-webgl.html         기대 T4
+http://127.0.0.1:8824/gated.html            기대 차단

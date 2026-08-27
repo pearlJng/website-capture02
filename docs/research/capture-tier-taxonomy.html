@@ -1,0 +1,448 @@
+<title>캡처 난이도 티어 T0–T4</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&display=swap">
+
+<style>
+:root{
+  --ground:#F5F4F7; --surface:#FFFFFF; --surface-2:#EFEDF3;
+  --ink:#1B1720; --ink-2:#453D52; --muted:#6E677A;
+  --line:#E1DDE8; --line-strong:#CBC4D6;
+  --accent:#C41E82; --accent-ink:#8E1560; --accent-soft:#FAEAF3;
+  --t0:#1C6F53; --t1:#3D7A4E; --t2:#9C610A; --t3:#B2531F; --t4:#A93529;
+  --t0-soft:#E4F1EB; --t1-soft:#E7F0E8; --t2-soft:#F6EEDD; --t3-soft:#F8EBE2; --t4-soft:#F7E9E7;
+  --ok:#1C6F53; --ok-soft:#E4F1EB; --risk:#A93529;
+  --sans:"IBM Plex Sans KR", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --measure:41rem; --wide:64rem;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#141219; --surface:#1D1A23; --surface-2:#25212D;
+    --ink:#EEEBF3; --ink-2:#C8C1D4; --muted:#A099AE;
+    --line:#2F2A38; --line-strong:#453E52;
+    --accent:#FF74C6; --accent-ink:#FF9BD5; --accent-soft:#32152A;
+    --t0:#5BC79C; --t1:#79C489; --t2:#E2A947; --t3:#EE9560; --t4:#F0827A;
+    --t0-soft:#14291F; --t1-soft:#182A1C; --t2-soft:#2C2314; --t3-soft:#2E2018; --t4-soft:#2E1917;
+    --ok:#5BC79C; --ok-soft:#14291F; --risk:#F0827A;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#141219; --surface:#1D1A23; --surface-2:#25212D;
+  --ink:#EEEBF3; --ink-2:#C8C1D4; --muted:#A099AE;
+  --line:#2F2A38; --line-strong:#453E52;
+  --accent:#FF74C6; --accent-ink:#FF9BD5; --accent-soft:#32152A;
+  --t0:#5BC79C; --t1:#79C489; --t2:#E2A947; --t3:#EE9560; --t4:#F0827A;
+  --t0-soft:#14291F; --t1-soft:#182A1C; --t2-soft:#2C2314; --t3-soft:#2E2018; --t4-soft:#2E1917;
+  --ok:#5BC79C; --ok-soft:#14291F; --risk:#F0827A;
+}
+
+*{box-sizing:border-box;}
+body{
+  margin:0; background:var(--ground); color:var(--ink);
+  font-family:var(--sans); font-size:16px; line-height:1.75;
+  letter-spacing:-0.003em; -webkit-font-smoothing:antialiased; word-break:keep-all;
+}
+.page{max-width:var(--wide); margin:0 auto; padding:0 1.5rem 6rem;}
+.col{max-width:var(--measure);}
+a{color:var(--accent-ink); text-underline-offset:2px;}
+a:focus-visible{outline:2px solid var(--accent); outline-offset:3px; border-radius:2px;}
+
+/* masthead */
+.masthead{padding:4.5rem 0 2.5rem; border-bottom:1px solid var(--line-strong); display:flex; flex-direction:column; gap:1.4rem;}
+.eyebrow{font-family:var(--mono); font-size:.7rem; font-weight:500; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); margin:0;}
+h1{margin:0; font-size:clamp(2.1rem,5.5vw,3.1rem); line-height:1.14; font-weight:700; letter-spacing:-0.035em; text-wrap:balance; max-width:17ch;}
+.standfirst{margin:0; max-width:var(--measure); font-size:1.06rem; color:var(--ink-2);}
+.meta{display:flex; flex-wrap:wrap; gap:.4rem 1.5rem; font-family:var(--mono); font-size:.72rem; letter-spacing:.04em; color:var(--muted); margin:0; padding:0; list-style:none;}
+
+/* status banner */
+.status{
+  margin:2.5rem 0 0; padding:1.3rem 1.5rem; background:var(--surface);
+  border:1px solid var(--line); border-left:2px solid var(--accent); border-radius:0 3px 3px 0;
+}
+.status .tag{font-family:var(--mono); font-size:.66rem; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); display:block; margin-bottom:.5rem;}
+.status p{margin:0 0 .7rem; max-width:46rem;}
+.status p:last-child{margin-bottom:0;}
+
+/* sections */
+section{padding-top:4rem;}
+.sec-head{display:flex; align-items:baseline; gap:1rem; border-bottom:1px solid var(--line-strong); padding-bottom:.75rem; margin-bottom:1.9rem;}
+.sec-num{font-family:var(--mono); font-size:.8rem; font-weight:600; color:var(--accent); letter-spacing:.05em; flex:none;}
+h2{margin:0; font-size:clamp(1.45rem,3.2vw,1.8rem); font-weight:600; letter-spacing:-0.03em; line-height:1.3;}
+h3{margin:2.5rem 0 .8rem; font-size:1.08rem; font-weight:600; letter-spacing:-0.02em;}
+p{margin:0 0 1.05rem; max-width:var(--measure);}
+strong{font-weight:600; color:var(--ink);}
+em{font-style:normal; background:var(--accent-soft); color:var(--accent-ink); padding:.05em .3em; border-radius:2px; font-weight:500;}
+ul,ol{max-width:var(--measure); margin:0 0 1.05rem; padding-left:1.15rem;}
+li{margin-bottom:.5rem;} li::marker{color:var(--muted);}
+code{font-family:var(--mono); font-size:.86em; background:var(--surface-2); border:1px solid var(--line); border-radius:3px; padding:.08em .35em; color:var(--ink-2); white-space:nowrap;}
+
+/* tier ladder */
+.ladder{display:flex; flex-direction:column; gap:1rem;}
+.tier{background:var(--surface); border:1px solid var(--line); border-radius:3px; overflow:hidden; border-left:3px solid var(--tc);}
+.tier.t0{--tc:var(--t0); --tsoft:var(--t0-soft);}
+.tier.t1{--tc:var(--t1); --tsoft:var(--t1-soft);}
+.tier.t2{--tc:var(--t2); --tsoft:var(--t2-soft);}
+.tier.t3{--tc:var(--t3); --tsoft:var(--t3-soft);}
+.tier.t4{--tc:var(--t4); --tsoft:var(--t4-soft);}
+.tier>header{display:flex; align-items:baseline; gap:.6rem 1rem; flex-wrap:wrap; padding:1.05rem 1.4rem; background:var(--tsoft); border-bottom:1px solid var(--line);}
+.tier .code{font-family:var(--mono); font-size:.9rem; font-weight:600; color:var(--tc); flex:none;}
+.tier h3{margin:0; font-size:1.12rem; flex:1 1 14rem; line-height:1.4;}
+.tier .verdict{font-family:var(--mono); font-size:.68rem; font-weight:600; letter-spacing:.05em; padding:.2rem .55rem .24rem; border-radius:2px; background:var(--surface); color:var(--tc); border:1px solid var(--tc);}
+.tier dl{margin:0; padding:1.15rem 1.4rem 1.35rem; display:grid; grid-template-columns:7rem 1fr; gap:.8rem 1.4rem; font-size:.95rem;}
+.tier dt{font-family:var(--mono); font-size:.65rem; letter-spacing:.1em; text-transform:uppercase; color:var(--muted); padding-top:.42rem;}
+.tier dd{margin:0; line-height:1.72; max-width:44rem;}
+.tier dd .ex{color:var(--muted); font-size:.9rem;}
+@media (max-width:38rem){
+  .tier dl{grid-template-columns:1fr; gap:.2rem;}
+  .tier dt{padding-top:.75rem;}
+}
+
+/* tables */
+.scroller{overflow-x:auto; margin:0 0 1.5rem; border:1px solid var(--line); border-radius:3px; background:var(--surface);}
+table{border-collapse:collapse; width:100%; min-width:36rem; font-size:.9rem;}
+caption{caption-side:top; text-align:left; padding:1rem 1.1rem .35rem; font-family:var(--mono); font-size:.68rem; letter-spacing:.11em; text-transform:uppercase; color:var(--muted);}
+th,td{text-align:left; padding:.68rem 1.1rem; border-bottom:1px solid var(--line); vertical-align:top; line-height:1.6;}
+thead th{font-family:var(--mono); font-size:.68rem; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); border-bottom:1px solid var(--line-strong); white-space:nowrap;}
+tbody tr:last-child td{border-bottom:none;}
+th[scope="row"]{font-weight:600; white-space:nowrap;}
+td.mono{font-family:var(--mono); font-size:.83rem;}
+.pill{display:inline-block; font-family:var(--mono); font-size:.66rem; font-weight:600; letter-spacing:.05em; padding:.16rem .5rem .2rem; border-radius:2px; white-space:nowrap;}
+.pill.ok{background:var(--ok-soft); color:var(--ok);}
+.pill.no{background:var(--t4-soft); color:var(--t4);}
+.pill.mid{background:var(--t2-soft); color:var(--t2);}
+
+/* diagram */
+figure{margin:2rem 0; max-width:var(--wide);}
+.diagram{background:var(--surface); border:1px solid var(--line); border-radius:3px; padding:1.6rem 1.4rem 1.1rem; overflow-x:auto;}
+.diagram svg{display:block; width:100%; min-width:34rem; height:auto;}
+figcaption{margin-top:.7rem; font-size:.85rem; color:var(--muted); max-width:var(--measure); line-height:1.65;}
+.diagram .d-box{fill:var(--surface-2); stroke:var(--line-strong);}
+.diagram .d-lbl{fill:var(--muted); font-family:var(--mono); font-size:11px; letter-spacing:.06em;}
+.diagram .d-head{fill:var(--ink); font-family:var(--sans); font-size:12px; font-weight:600;}
+.diagram .d-note{fill:var(--muted); font-family:var(--sans); font-size:11px;}
+.diagram .d-track{stroke:var(--line-strong); stroke-width:2; fill:none;}
+.diagram .d-go{stroke:var(--t1); stroke-width:2.5; fill:none;}
+.diagram .d-loop{stroke:var(--t2); stroke-width:2.5; fill:none;}
+.diagram .d-bad{stroke:var(--t3); stroke-width:2.5; fill:none;}
+.diagram .d-dot-ok{fill:var(--t1);}
+.diagram .d-dot-loop{fill:var(--t2);}
+.diagram .d-dot-bad{fill:var(--t3);}
+.diagram .d-ok-t{fill:var(--t1); font-family:var(--mono); font-size:11px; font-weight:600;}
+.diagram .d-loop-t{fill:var(--t2); font-family:var(--mono); font-size:11px; font-weight:600;}
+.diagram .d-bad-t{fill:var(--t3); font-family:var(--mono); font-size:11px; font-weight:600;}
+.diagram .d-arrowhead{fill:var(--t1);}
+.diagram .d-shot{fill:none; stroke:var(--accent); stroke-width:1.5; stroke-dasharray:3 2;}
+
+/* callout */
+.callout{border-left:2px solid var(--accent); background:var(--surface); padding:1.25rem 1.4rem; margin:2rem 0; max-width:var(--measure); border-radius:0 3px 3px 0;}
+.callout>*:first-child{margin-top:0;} .callout>*:last-child{margin-bottom:0;}
+.callout .tag{font-family:var(--mono); font-size:.66rem; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); display:block; margin-bottom:.45rem;}
+
+/* terminal */
+.term{
+  background:var(--surface-2); border:1px solid var(--line); border-radius:3px;
+  padding:1rem 1.2rem; overflow-x:auto; font-family:var(--mono); font-size:.8rem;
+  line-height:1.85; color:var(--ink-2); margin:0 0 1.5rem; max-width:var(--wide);
+}
+.term b{color:var(--ok); font-weight:600;}
+.term i{color:var(--muted); font-style:normal;}
+
+footer{margin-top:4rem; padding-top:1.25rem; border-top:1px solid var(--line-strong); font-family:var(--mono); font-size:.7rem; letter-spacing:.05em; color:var(--muted);}
+</style>
+
+<div class="page">
+
+<header class="masthead">
+  <p class="eyebrow">캡처 가능 범위 정의</p>
+  <h1>캡처 난이도 티어 T0&ndash;T4</h1>
+  <p class="standfirst">웹사이트를 "애니메이션이 많다 / 적다"로 나누면 캡처 범위를 정할 수 없습니다. 캡처를 실패시키는 건 애니메이션의 화려함이 아니라 <strong>종류</strong>이기 때문입니다. 무엇이 우리 도구를 무너뜨리는지를 기준으로 5단계를 정의하고, 그 판정을 사람 눈이 아니라 브라우저 계측으로 하도록 만들었습니다.</p>
+  <ul class="meta">
+    <li>2026-08-27</li>
+    <li>웹사이트 스냅샷 자동화</li>
+    <li>분류기 자체 테스트 6/6 통과</li>
+  </ul>
+</header>
+
+<div class="status">
+  <span class="tag">현재 상태</span>
+  <p><strong>GDWEB 실측은 아직 돌리지 못했습니다.</strong> 이 세션의 실행 환경은 네트워크 정책상 <code>gdweb.co.kr</code>을 포함해 <strong>모든 외부 사이트 접속이 차단</strong>되어 있습니다(프록시가 CONNECT에 403 응답). 우회는 하지 않았습니다.</p>
+  <p>대신 <strong>분류 체계를 정의하고, 접속만 열리면 바로 실측이 되는 스캐너를 만들어 검증까지 끝냈습니다.</strong> 각 티어를 대표하는 테스트 페이지 6종으로 분류기가 정확히 작동하는 것을 확인했습니다(아래 §4). 실행 방법은 §5에 있습니다.</p>
+</div>
+
+<!-- ============================================================ -->
+<section id="axis">
+  <div class="sec-head"><span class="sec-num">01</span><h2>어떤 기준으로 나눴나</h2></div>
+
+  <p class="col">기준은 하나입니다 &mdash; <strong>"제대로 찍으려면 캡처 엔진이 무엇을 해야 하는가."</strong></p>
+
+  <p class="col">겉보기로 나누면 안 되는 이유가 있습니다. <em>스크롤하면 요소가 스르륵 나타나는 사이트</em>와 <em>스크롤에 맞춰 화면이 재생되는 사이트</em>는 보는 사람 눈에는 둘 다 "스크롤 애니메이션"이지만, 캡처 난이도는 정반대입니다. 앞의 것은 <strong>끝 상태가 정해져 있어서</strong> 그 상태로 건너뛰고 찍으면 그만이고, 뒤의 것은 <strong>스크롤 위치가 곧 재생 시점이라</strong> "이 페이지의 올바른 전체 이미지"라는 게 애초에 존재하지 않습니다.</p>
+
+  <p class="col">그래서 티어를 가르는 질문은 <strong>"애니메이션에 끝이 있는가, 있다면 그 끝을 우리가 만들 수 있는가"</strong>입니다.</p>
+
+  <figure>
+    <div class="diagram">
+      <svg viewBox="0 0 780 250" role="img" aria-label="T1은 애니메이션의 끝 상태로 건너뛸 수 있고, T2는 끝이 없어 정답 프레임이 없으며, T3는 스크롤 위치가 곧 타임라인이라 하나의 전체 이미지가 성립하지 않는다는 것을 나타낸 그림">
+        <!-- T1 -->
+        <text class="d-head" x="0" y="16">T1 등장형 &mdash; 끝이 있다</text>
+        <line class="d-track" x1="0" y1="60" x2="200" y2="60"/>
+        <circle class="d-dot-ok" cx="0" cy="60" r="4"/>
+        <circle class="d-dot-ok" cx="200" cy="60" r="6"/>
+        <text class="d-lbl" x="0" y="82">시작</text>
+        <text class="d-lbl" x="180" y="82">끝</text>
+        <path class="d-go" d="M8 44 Q100 10 190 42"/>
+        <path class="d-arrowhead" d="M186 34 L196 44 L182 46 z"/>
+        <text class="d-ok-t" x="58" y="26">끝으로 건너뛰기</text>
+        <rect class="d-shot" x="176" y="46" width="48" height="28" rx="2"/>
+        <text class="d-note" x="0" y="118">브라우저가 유한 애니메이션을 완료 시점으로</text>
+        <text class="d-note" x="0" y="134">빨리감기 해 준다. 찍을 순간이 명확하다.</text>
+
+        <!-- T2 -->
+        <text class="d-head" x="280" y="16">T2 순환형 &mdash; 끝이 없다</text>
+        <circle class="d-loop" cx="350" cy="62" r="34"/>
+        <path class="d-loop" d="M350 28 L344 20 M350 28 L358 22"/>
+        <circle class="d-dot-loop" cx="384" cy="62" r="4"/>
+        <circle class="d-dot-loop" cx="330" cy="30" r="4"/>
+        <circle class="d-dot-loop" cx="326" cy="90" r="4"/>
+        <text class="d-loop-t" x="400" y="66">어디를 찍어도</text>
+        <text class="d-loop-t" x="400" y="82">매번 다른 그림</text>
+        <text class="d-note" x="280" y="118">틀린 프레임은 없지만 정답 프레임도 없다.</text>
+        <text class="d-note" x="280" y="134">재캡처하면 결과가 달라진다 &rarr; AI 검수가 흔들린다.</text>
+
+        <!-- T3 -->
+        <text class="d-head" x="0" y="182">T3 스크롤 연동형 &mdash; 스크롤이 곧 타임라인</text>
+        <line class="d-track" x1="0" y1="205" x2="0" y2="243"/>
+        <text class="d-lbl" x="8" y="212">스크롤 0%</text>
+        <text class="d-lbl" x="8" y="228">스크롤 50%</text>
+        <text class="d-lbl" x="8" y="243">스크롤 100%</text>
+        <path class="d-bad" d="M92 208 L150 224"/>
+        <path class="d-bad" d="M92 224 L150 224"/>
+        <path class="d-bad" d="M92 239 L150 224"/>
+        <rect class="d-box" x="152" y="196" width="120" height="56" rx="2"/>
+        <text class="d-lbl" x="164" y="228">화면은 한 자리</text>
+        <text class="d-bad-t" x="292" y="212">문서 높이는 3배인데 실제 화면은 한 장.</text>
+        <text class="d-bad-t" x="292" y="228">이어 붙이면 같은 섹션이 반복되거나</text>
+        <text class="d-bad-t" x="292" y="244">중간 상태만 남는다 &mdash; 풀페이지가 성립하지 않는다.</text>
+      </svg>
+    </div>
+    <figcaption>세 티어의 차이는 "예쁘냐"가 아니라 <strong>찍을 순간이 정의되는가</strong>입니다. T1은 정의되고, T2는 여러 개이며, T3는 존재하지 않습니다.</figcaption>
+  </figure>
+</section>
+
+<!-- ============================================================ -->
+<section id="tiers">
+  <div class="sec-head"><span class="sec-num">02</span><h2>다섯 단계</h2></div>
+
+  <p class="col">티어는 <strong>가장 높은 신호를 따릅니다.</strong> 등장 애니메이션과 WebGL 배경이 함께 있으면 T4입니다. 파이프라인이 감당해야 할 난이도는 가장 어려운 요소가 결정하기 때문입니다.</p>
+
+  <div class="ladder">
+
+    <article class="tier t0">
+      <header>
+        <span class="code">T0</span>
+        <h3>정적 &mdash; 그냥 찍으면 된다</h3>
+        <span class="verdict">v1 커버</span>
+      </header>
+      <dl>
+        <dt>정의</dt><dd>스크롤만 끝까지 내리면 모든 콘텐츠가 보입니다. 움직이는 것이 없거나, 있어도 장식 수준입니다.</dd>
+        <dt>대표</dt><dd class="ex">기업 소개, 공공기관, 병원·학교, 관리자 화면, 문서형 페이지</dd>
+        <dt>대응</dt><dd>추가 처리 없이 풀페이지 캡처. 고정 헤더만 숨기면 끝입니다.</dd>
+        <dt>주의</dt><dd>여기서도 <strong>페이지가 길면 잘립니다.</strong> 티어와 무관하게 붙는 <code>L</code> 태그를 보세요.</dd>
+      </dl>
+    </article>
+
+    <article class="tier t1">
+      <header>
+        <span class="code">T1</span>
+        <h3>등장형 &mdash; 스크롤하면 나타난다</h3>
+        <span class="verdict">v1 커버</span>
+      </header>
+      <dl>
+        <dt>정의</dt><dd>요소가 처음엔 투명하거나 아래로 밀려 있다가, 화면에 들어오면 제자리로 옵니다. 이미지는 필요할 때 로드됩니다. <strong>끝 상태가 명확히 하나입니다.</strong></dd>
+        <dt>대표</dt><dd class="ex">요즘 브랜드 사이트 대부분. AOS·ScrollReveal, <code>IntersectionObserver</code> 기반 페이드인, <code>loading="lazy"</code> 이미지</dd>
+        <dt>대응</dt><dd>끝까지 천천히 스크롤해 전부 발동시킨 뒤, 브라우저가 유한 애니메이션을 완료 시점으로 빨리감기 하게 만듭니다. <strong>기획안 기능 1이 정확히 겨냥한 지점이고, 이미 표준 기능입니다.</strong></dd>
+        <dt>검증</dt><dd>스크롤 전후로 "등장 대기 요소" 수를 세면 실제로 해소됐는지 확인됩니다. 남아 있으면 캡처가 이른 것입니다.</dd>
+      </dl>
+    </article>
+
+    <article class="tier t2">
+      <header>
+        <span class="code">T2</span>
+        <h3>순환형 &mdash; 계속 움직인다</h3>
+        <span class="verdict">조건부 커버</span>
+      </header>
+      <dl>
+        <dt>정의</dt><dd>끝나지 않고 반복됩니다. 정지할 "완료 상태"가 없습니다.</dd>
+        <dt>대표</dt><dd class="ex">자동 넘어가는 캐러셀, 흐르는 텍스트(마퀴), 루프 배경 영상, 반짝이는 배지, 파티클 장식</dd>
+        <dt>대응</dt><dd>무한 애니메이션은 초기 상태로 되돌린 뒤 찍고 다시 재생시킵니다(브라우저 자동화의 기본 동작). 영상은 첫 프레임이나 포스터로 고정합니다.</dd>
+        <dt>진짜 문제</dt><dd><strong>결과가 매번 달라진다는 점입니다.</strong> 틀린 프레임은 없지만 정답 프레임도 없어서, <strong>기능 2의 AI 검수가 "달라졌다 = 잘못됐다"로 오판하기 쉽습니다.</strong> 순환 영역을 검수 대상에서 빼거나 별도 기준을 두어야 합니다.</dd>
+      </dl>
+    </article>
+
+    <article class="tier t3">
+      <header>
+        <span class="code">T3</span>
+        <h3>스크롤 연동형 &mdash; 스크롤이 곧 타임라인</h3>
+        <span class="verdict">별도 모드 필요</span>
+      </header>
+      <dl>
+        <dt>정의</dt><dd>스크롤을 내리는 만큼 애니메이션이 재생됩니다. 화면은 고정된 채(pin) 내용만 바뀌거나, 세로 스크롤이 가로 이동으로 변환됩니다.</dd>
+        <dt>대표</dt><dd class="ex">GSAP ScrollTrigger 핀 섹션, 스크롤리텔링, 가로 스크롤 갤러리, Lenis·Locomotive 스무스 스크롤</dd>
+        <dt>왜 다른가</dt><dd><strong>여기서는 "풀페이지 캡처"라는 개념 자체가 성립하지 않습니다.</strong> 문서 높이는 스크롤 길이를 만들려고 부풀린 값이라 실제 콘텐츠 양과 무관합니다. 이어 붙이면 같은 섹션이 여러 번 나오거나 중간 상태만 남습니다. <strong>기존 캡처 도구가 이 사이트들에서 무너지는 진짜 이유입니다.</strong></dd>
+        <dt>대응</dt><dd>문제를 다시 정의해야 합니다 &mdash; 한 장이 아니라 <strong>"스크롤 구간별 스냅샷 시퀀스"</strong>. 이건 기능 1의 개선이 아니라 별개 모드입니다.</dd>
+        <dt>권고</dt><dd><strong>v1 범위에서 빼고, 감지되면 사용자에게 알리는 것</strong>을 권합니다. 조용히 이상한 결과를 내는 것보다 낫습니다.</dd>
+      </dl>
+    </article>
+
+    <article class="tier t4">
+      <header>
+        <span class="code">T4</span>
+        <h3>실시간 렌더형 &mdash; 매 프레임 다시 그린다</h3>
+        <span class="verdict">범위 밖</span>
+      </header>
+      <dl>
+        <dt>정의</dt><dd>화면이 HTML 요소가 아니라 <code>&lt;canvas&gt;</code>에 매 프레임 새로 그려집니다. 3D, 셰이더, 물리 시뮬레이션.</dd>
+        <dt>대표</dt><dd class="ex">three.js·Spline 3D 히어로, WebGL 셰이더 배경, 마우스를 따라다니는 파티클, 물리 인터랙션</dd>
+        <dt>왜 안 되나</dt><dd>애니메이션 정지 기능은 <strong>CSS 애니메이션과 Web Animations만 멈춥니다.</strong> 코드가 직접 캔버스에 그리는 것은 멈추지 않습니다. 게다가 <strong>"다 그려졌다"는 시점이 원리적으로 존재하지 않습니다</strong> &mdash; 계속 그리는 게 정상 동작이니까요.</dd>
+        <dt>결과</dt><dd>같은 URL을 두 번 찍으면 다른 이미지가 나옵니다. <strong>결정론적 캡처가 불가능합니다.</strong> 재캡처 로직에 넣으면 영원히 수렴하지 않습니다.</dd>
+      </dl>
+    </article>
+
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="tags">
+  <div class="sec-head"><span class="sec-num">03</span><h2>티어와 별개로 붙는 태그</h2></div>
+
+  <p class="col">난이도와 <strong>직교하는</strong> 조건들입니다. T0 정적 페이지에도 붙을 수 있고, 붙으면 그 자체로 캡처를 망칩니다. 티어에 섞지 않고 따로 두는 이유입니다.</p>
+
+  <div class="scroller">
+    <table>
+      <caption>직교 태그</caption>
+      <thead><tr><th>태그</th><th>무엇</th><th>캡처에 미치는 영향</th><th>대응</th></tr></thead>
+      <tbody>
+        <tr>
+          <th scope="row"><span class="pill no">G</span> Gated</th>
+          <td>봇 차단 화면, 로그인 벽, 나이 확인</td>
+          <td>페이지 자체를 못 봅니다. <strong>검수가 "로딩 실패"로 오인해 재캡처를 반복하면 차단이 더 강해집니다.</strong></td>
+          <td>별도 상태로 분리하고 <strong>재캡처하지 않습니다</strong></td>
+        </tr>
+        <tr>
+          <th scope="row"><span class="pill mid">S</span> Sticky</th>
+          <td>고정 헤더, 플로팅 버튼, 하단 배너</td>
+          <td>나눠 찍어 이어 붙일 때 화면마다 따라와 <strong>여러 번 겹쳐 나옵니다</strong></td>
+          <td>촬영 직전 일시 숨김</td>
+        </tr>
+        <tr>
+          <th scope="row"><span class="pill mid">L</span> Long</th>
+          <td>문서 높이가 브라우저 한계에 근접</td>
+          <td>16,384px를 넘으면 잘립니다. <strong>2배율로 찍으면 절반 길이에서 잘립니다</strong></td>
+          <td>슬라이스 분할 + 배율 자동 강등</td>
+        </tr>
+        <tr>
+          <th scope="row"><span class="pill mid">H</span> Hidden</th>
+          <td>호버·클릭해야 보이는 메가메뉴, 탭, 아코디언</td>
+          <td>그냥 찍으면 <strong>콘텐츠가 통째로 빠집니다</strong></td>
+          <td>알려진 패턴만 미리 열기(v1은 제한적)</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout">
+    <span class="tag">읽는 법</span>
+    <p>예를 들어 <code>T1 · S L</code>은 <strong>"등장 애니메이션이 있고, 고정 헤더가 있고, 페이지가 아주 길다"</strong>는 뜻입니다. 셋 다 우리가 이미 대응 가능한 조합이므로 <strong>v1에서 문제없이 찍힙니다.</strong></p>
+    <p>반면 <code>T3 · G</code>는 <strong>스크롤 연동형인데 봇 차단까지 걸린 사이트</strong> &mdash; v1에서는 손대지 않는 것이 맞습니다.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="how">
+  <div class="sec-head"><span class="sec-num">04</span><h2>판정은 눈이 아니라 계측으로</h2></div>
+
+  <p class="col">사람이 보고 "이건 T3 같다"고 정하면 사이트 60개를 일관되게 분류할 수 없습니다. 그래서 <strong>페이지 안에서 실제로 셀 수 있는 신호</strong>만 쓰도록 스캐너를 만들었습니다. 계측 코드는 페이지 스크립트보다 먼저 심어 라이브러리 호출을 가로챕니다.</p>
+
+  <div class="scroller">
+    <table>
+      <caption>신호 → 티어</caption>
+      <thead><tr><th>신호</th><th>측정 방법</th><th>티어</th></tr></thead>
+      <tbody>
+        <tr><td>IntersectionObserver 생성 횟수</td><td class="mono">생성자 후킹</td><td>T1</td></tr>
+        <tr><td>지연 로딩 이미지</td><td class="mono">img[loading=lazy], [data-src]</td><td>T1</td></tr>
+        <tr><td>등장 대기 요소</td><td class="mono">opacity:0 또는 transform 적용 상태</td><td>T1</td></tr>
+        <tr><td>무한 반복 애니메이션</td><td class="mono">getAnimations() → iterations === Infinity</td><td>T2</td></tr>
+        <tr><td>자동재생·루프 영상</td><td class="mono">video[autoplay], video[loop]</td><td>T2</td></tr>
+        <tr><td>핀 고정 섹션</td><td class="mono">뷰포트 2배 높이 부모 안의 position:sticky</td><td>T3</td></tr>
+        <tr><td>가로 스크롤 섹션</td><td class="mono">overflow-x:auto|scroll + scrollWidth 초과</td><td>T3</td></tr>
+        <tr><td>스크롤 탈취</td><td class="mono">세로축 잠김 + 문서 비스크롤 + 내부 스크롤러</td><td>T3</td></tr>
+        <tr><td>WebGL 컨텍스트</td><td class="mono">canvas.getContext('webgl') 후킹</td><td>T4</td></tr>
+        <tr><td>유휴 상태 rAF 빈도</td><td class="mono">requestAnimationFrame 후킹 후 1초 측정</td><td>T4</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>분류기가 실제로 맞는지 확인했습니다</h3>
+  <p class="col">각 티어를 대표하는 테스트 페이지 6종을 만들어 스캐너에 물렸습니다. 규칙을 고칠 때 회귀를 잡아 주는 자동 테스트로 고정해 두었습니다.</p>
+
+  <div class="term">
+<b>ok</b>    t0-static.html           T0             <i>특별한 동적 신호 없음</i>
+<b>ok</b>    t1-reveal.html           T1             <i>지연 로딩 이미지 2개 / 등장 대기 요소 4개 / IntersectionObserver 3회 생성</i>
+<b>ok</b>    t2-loop.html             T2             <i>무한 반복 애니메이션 2개 / infinite 키프레임 규칙 2건 / 자동재생·루프 비디오 1개</i>
+<b>ok</b>    t3-scrolllinked.html     T3             <i>핀 고정 섹션 1개 / 가로 스크롤 섹션 1개</i>
+<b>ok</b>    t4-webgl.html            T4             <i>WebGL 컨텍스트 1개 / 유휴 상태에서도 rAF 59회/초 + 대형 canvas</i>
+<b>ok</b>    gated.html               차단(challenge)  <i>특별한 동적 신호 없음</i>
+
+<b>6/6 통과</b></div>
+
+  <div class="callout">
+    <span class="tag">만들면서 잡은 실제 버그</span>
+    <p>첫 실행에서 <strong>T2 페이지가 T3로 잘못 분류</strong>됐습니다. 원인은 <code>body { overflow-x: hidden }</code>을 "스크롤 탈취"로 오인한 것이었습니다. 이 선언은 가로 스크롤바를 없애려고 <strong>거의 모든 사이트가 쓰는 관용구</strong>라, 그대로 뒀다면 실측에서 평범한 사이트가 무더기로 T3로 분류됐을 것입니다.</p>
+    <p>지금은 세로축이 잠겨 있고, 문서 자체가 스크롤되지 않으며, 내부에 진짜 스크롤 컨테이너가 있을 때 &mdash; <strong>세 조건을 모두 만족할 때만</strong> 스크롤 탈취로 인정합니다. 판정 근거를 전부 기록해 두었기 때문에 잡을 수 있었던 버그입니다.</p>
+  </div>
+
+  <p class="col">모든 결과에는 사람이 읽는 <code>reasons</code>와 원 신호 <code>evidence</code>가 함께 저장됩니다. 분류가 이상해 보이면 신호를 직접 열어 규칙을 고칠 수 있습니다 &mdash; <strong>"AI가 그렇다더라"로 끝나는 결과는 만들지 않는다</strong>는 것이 이 도구의 설계 원칙입니다.</p>
+</section>
+
+<!-- ============================================================ -->
+<section id="run">
+  <div class="sec-head"><span class="sec-num">05</span><h2>실측을 돌리려면</h2></div>
+
+  <p class="col">스캐너는 <code>tools/gdweb-scan/</code>에 있습니다. GDWEB 목록 URL을 주면 상세 페이지를 따라가 수상 사이트의 실제 주소를 뽑고, 한 곳씩 열어 분류합니다.</p>
+
+  <div class="term">$ cd tools/gdweb-scan &amp;&amp; npm install
+$ npm run scan -- --list "&lt;GDWEB 목록 URL&gt;" --pages 1-3 --limit 60 --concurrency 4
+
+<i>  목록 1쪽 → 누적 60건
+  상세 페이지 60건에서 사이트 URL 추출 중…
+  [1/60] T1       https://...
+  [2/60] T3       https://...
+  [3/60] 차단(challenge) https://...</i>
+
+<i>→ results.json (원 신호 + 판정 근거)
+→ report.html (사람이 읽는 분류 결과)</i></div>
+
+  <h3>두 가지 방법</h3>
+  <ol class="col">
+    <li><strong>이 환경의 네트워크 정책을 열어 주시면</strong> 제가 바로 돌려서 실제 분포를 뽑아 드립니다. Claude Code 환경의 네트워크 접근 범위는 환경 생성 시 선택하는 설정이며, <a href="https://code.claude.com/docs/en/claude-code-on-the-web">Claude Code on the web 문서</a>에 설정 방법이 정리되어 있습니다.</li>
+    <li><strong>사내 PC에서 직접 돌리셔도 됩니다.</strong> Node.js만 있으면 위 두 줄로 끝납니다. 결과 <code>results.json</code>을 주시면 제가 분석해 드리겠습니다.</li>
+  </ol>
+
+  <h3>실측 결과가 나오면 알 수 있는 것</h3>
+  <ul class="col">
+    <li><strong>v1 커버율</strong> &mdash; T0+T1+T2 비중이 곧 "지금 설계로 찍을 수 있는 사이트 비율"입니다.</li>
+    <li><strong>T3 비중</strong> &mdash; 이 숫자가 크면 스크롤 시퀀스 모드를 v1으로 당겨야 한다는 뜻입니다. 작으면 예외 처리로 충분합니다.</li>
+    <li><strong>G 태그 비중</strong> &mdash; 봇 차단 대응에 돈을 쓸 필요가 있는지를 결정합니다.</li>
+    <li><strong>L 태그 비중</strong> &mdash; 슬라이스 분할이 예외인지 기본값인지를 결정합니다.</li>
+  </ul>
+
+  <div class="callout">
+    <span class="tag">표본에 대한 주의</span>
+    <p>GDWEB 선정작은 <strong>디자인 어워드 수상작</strong>이라 인터랙션이 평균보다 훨씬 화려합니다. 여기서 나온 T3·T4 비중은 <strong>웹 전체의 분포가 아니라 상한선</strong>으로 읽어야 합니다. 팀이 실제로 캡처하는 대상(고객사 사이트, 경쟁사 랜딩)은 이보다 쉬울 가능성이 높습니다.</p>
+    <p>거꾸로 말하면 <strong>가장 어려운 표본으로 먼저 테스트하는 셈</strong>이라, 도구의 한계를 빨리 드러내는 데는 좋은 선택입니다.</p>
+  </div>
+</section>
+
+<footer>웹사이트 스냅샷 자동화 · 캡처 난이도 티어 정의 · 2026-08-27</footer>
+
+</div>

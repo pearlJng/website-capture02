@@ -1,0 +1,14 @@
+{
+  "name": "gdweb-capture-scan",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "웹사이트의 캡처 난이도를 실측해 T0~T4로 분류하는 스캐너",
+  "scripts": {
+    "scan": "node scan.mjs",
+    "test:fixtures": "node selftest.mjs"
+  },
+  "dependencies": {
+    "playwright": "1.56.1"
+  }
+}

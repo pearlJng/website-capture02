@@ -1,0 +1,19 @@
+<!doctype html><meta charset="utf-8"><title>T1 등장형 페이지</title>
+<style>body{font-family:sans-serif;margin:0}
+section{padding:120px 40px;min-height:600px;border-bottom:1px solid #eee}
+.reveal{opacity:0;transform:translateY(40px);transition:opacity .8s,transform .8s}
+.reveal.on{opacity:1;transform:none}
+.card{width:400px;height:200px;background:#dde;margin:20px 0}</style>
+<section><h1>스크롤하면 나타납니다</h1></section>
+<section><div class="reveal card">A</div><div class="reveal card">B</div></section>
+<section><div class="reveal card">C</div><div class="reveal card">D</div></section>
+<section>
+  <img loading="lazy" data-src="/x1.jpg" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='200'%3E%3Crect width='400' height='200' fill='%23bcd'/%3E%3C/svg%3E" width="400" height="200">
+  <img loading="lazy" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='200'%3E%3Crect width='400' height='200' fill='%23cbd'/%3E%3C/svg%3E" width="400" height="200">
+</section>
+<script>
+const io1 = new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting)e.target.classList.add('on')}),{threshold:.2});
+document.querySelectorAll('.reveal').forEach(el=>io1.observe(el));
+const io2 = new IntersectionObserver(()=>{}); io2.observe(document.body);
+const io3 = new IntersectionObserver(()=>{});
+</script>

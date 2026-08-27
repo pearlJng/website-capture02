@@ -1,0 +1,10 @@
+<!doctype html><meta charset="utf-8"><title>T2 순환형 페이지</title>
+<style>body{font-family:sans-serif;margin:0;overflow-x:hidden}
+@keyframes marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.marquee{white-space:nowrap;animation:marquee 12s linear infinite;font-size:48px}
+.dot{width:60px;height:60px;border-radius:50%;background:#c36;animation:pulse 1.5s ease-in-out infinite}
+section{padding:100px 40px;min-height:500px}</style>
+<section><div class="marquee">끝없이 흐르는 텍스트 · 끝없이 흐르는 텍스트 · 끝없이 흐르는 텍스트 ·</div></section>
+<section><div class="dot"></div><p>계속 깜빡입니다.</p></section>
+<section><video autoplay loop muted playsinline width="400" height="220"></video></section>
