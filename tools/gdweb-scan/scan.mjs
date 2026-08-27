@@ -179,6 +179,35 @@ ${Object.entries(TAGS).map(([k, v]) => `<tr><td><b>${k}</b></td><td>${esc(v)}</t
 <p><small>원 신호 전체는 <code>results.json</code>의 <code>evidence</code> 필드를 보세요.</small></p>`;
 }
 
+/** 스프레드시트에 바로 붙일 수 있는 CSV. 엑셀 한글 깨짐을 막으려 BOM을 붙인다. */
+function renderCsv(rows) {
+  const cell = (v) => {
+    const s = String(v ?? '');
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const header = ['이름', 'URL', '티어', '티어명', '태그', '판정근거', '라이브러리', '문서높이', '고정요소', '상태'];
+  const lines = [header.join(',')];
+  for (const r of rows) {
+    const status = !r.ok ? `실패: ${r.error}` : r.gate ? `차단: ${r.gate}` : '측정됨';
+    const ev = r.evidence || {};
+    lines.push(
+      [
+        r.name || r.title || '',
+        r.url,
+        r.ok && !r.gate ? TIERS[r.tier].key : '',
+        r.ok && !r.gate ? TIERS[r.tier].name : '',
+        (r.tags || []).join(' '),
+        (r.reasons || []).join(' / '),
+        (ev.libs || []).join(' '),
+        ev.docHeight ?? '',
+        ev.fixedOrSticky ?? '',
+        status,
+      ].map(cell).join(',')
+    );
+  }
+  return '\ufeff' + lines.join('\n') + '\n';
+}
+
 async function main() {
   const args = parseArgs(process.argv);
   const browser = await chromium.launch({
@@ -224,6 +253,20 @@ async function main() {
   }
 
   entries = entries.slice(0, args.limit);
+
+  if (args['dry-run'] !== undefined) {
+    // 네트워크 없이 목록이 제대로 파싱됐는지만 확인한다.
+    process.stderr.write(`\n${entries.length}개 항목 파싱 완료 (측정 안 함)\n\n`);
+    entries.forEach((e, i) => {
+      let host = '?';
+      try { host = new URL(e.url).host; } catch { host = '!! URL 파싱 실패'; }
+      process.stderr.write(`  ${String(i + 1).padStart(3)}. ${(e.name || '(이름 없음)').padEnd(24)} ${host}\n`);
+    });
+    await context.close();
+    await browser.close();
+    return;
+  }
+
   process.stderr.write(`\n${entries.length}개 사이트 측정 시작 (동시 ${args.concurrency})\n`);
 
   let done = 0;
@@ -242,13 +285,14 @@ async function main() {
   const meta = { scannedAt: new Date().toISOString(), viewport: VIEWPORT, args };
   writeFileSync(join(args.outDir, 'results.json'), JSON.stringify({ meta, summary, rows }, null, 2));
   writeFileSync(join(args.outDir, 'report.html'), renderReport(rows, summary, meta));
+  writeFileSync(join(args.outDir, 'results.csv'), renderCsv(rows));
 
   process.stderr.write('\n== 티어 분포 ==\n');
   for (const n of [0, 1, 2, 3, 4]) {
     process.stderr.write(`  ${TIERS[n].key} ${TIERS[n].name.padEnd(8)} ${summary.byTier[n] || 0}\n`);
   }
   process.stderr.write(`  차단 ${summary.gated} · 실패 ${summary.failed}\n`);
-  process.stderr.write(`\nresults.json / report.html 생성 완료 (${args.outDir})\n`);
+  process.stderr.write(`\nresults.json / results.csv / report.html 생성 완료 (${args.outDir})\n`);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
@@ -258,4 +302,4 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   });
 }
 
-export { classify, summarize, renderReport, pickSiteUrl, expandPages };
+export { classify, summarize, renderReport, renderCsv, pickSiteUrl, expandPages };

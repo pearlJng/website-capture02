@@ -1,0 +1,52 @@
+# GDWEB 선정작 50건 — 사용자 제공 (2026-08-27)
+# 사용법: npm run scan -- --urls urls.gdweb-2026.txt --concurrency 4
+https://direct.samsunglife.com/	삼성생명 다이렉트
+https://www.parnashotel.com/	파르나스호텔
+https://www.hwacheon.com/	화천
+https://toss.im/impact	토스임팩트
+https://toss.im/	토스
+https://tossplace.com/	토스플레이스
+https://corp.tossinvest.com/ko	토스증권
+https://www.goodai-global.com/	구다이글로벌
+https://k-wedding.co.kr/	케이웨딩
+https://ktiec.ut.ac.kr/	국립한국교통대 K-철도교육
+https://www.cuckoo.co.kr/	CUCKOO
+https://www.jungoneshop.com/	정원e샵
+https://masstige.io/index.html	AI최적화랩(매스티지)
+https://www.lifeplanet.co.kr/	교보 라이프플래닛생명
+https://vsion.global/	뷰전
+https://www.poscoflow.com/	포스코플로우
+https://www.studioxlab.co.kr/	스튜디오 엑스랩
+https://sadamjae.com/	사담재
+https://summitclavion.com/	써밋 클라비온
+https://e-doa.co.kr/	도아 DOA
+https://www.nhncloud.com/kr	NHN클라우드
+https://www.kyowonedu.com/	빨간펜(교원)
+https://www.onegrove.kr/	one grove
+https://www.onflou.com/	언플러
+https://www.kolonmall.com/	코오롱몰
+https://www.ewha.ac.kr/	이화여자대학교
+https://www.jennyhouse.co.kr/index.php	제니하우스
+https://www.ancors.co.kr/	엔코스
+https://www.baekrokdam.com/	백록담
+https://www.samsunghospital.com/en/	삼성서울병원 영문
+https://knda.korchamhrd.net/	K뉴딜아카데미
+https://buldak.com/kr/	불닭닷컴
+https://www.crea-m.com/	크림
+http://ylchem.co.kr	영림프라임창호
+https://xn--v69aw3t99ak5in9d1rcn6g6ods3d556ajsd.com/	센트레빌 아스테이룸 거제
+https://morris.co.kr/	모리스
+https://estsoft.ai/	이스트소프트
+https://web.milkt.co.kr/	밀크T초등 바로체험
+https://thepureglobal.com/	퓨어글로벌
+https://mycreatz.com/	크리에이츠
+https://brivyy.co.kr/	브리비
+https://modoomat.com	모두의매트
+https://www.shillahotels.com/	더 신라
+https://seunghyuk.com	KIM SEUNGHYUK 포트폴리오
+https://keoc.kr/	한국전광
+https://thegardenclinic.co.kr/	더가든피부과
+https://willbe-lab.co.kr/	윌비랩
+https://더샵천안라크원.kr	더샵천안라크원
+https://hanvit-ind.com/	한빛산업
+https://www.koreanair.com/	대한항공
