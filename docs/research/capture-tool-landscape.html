@@ -1,0 +1,837 @@
+<title>웹사이트 스냅샷 타당성 검토</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&display=swap">
+
+<style>
+:root{
+  --ground:#F5F4F7;
+  --surface:#FFFFFF;
+  --surface-2:#EFEDF3;
+  --ink:#1B1720;
+  --ink-2:#453D52;
+  --muted:#6E677A;
+  --line:#E1DDE8;
+  --line-strong:#CBC4D6;
+  --accent:#C41E82;
+  --accent-ink:#8E1560;
+  --accent-soft:#FAEAF3;
+  --ok:#1C6F53;
+  --ok-soft:#E4F1EB;
+  --warn:#9C610A;
+  --warn-soft:#F6EEDD;
+  --risk:#A93529;
+  --risk-soft:#F7E9E7;
+  --shadow:0 1px 2px rgba(27,23,32,.05), 0 8px 24px -16px rgba(27,23,32,.18);
+
+  --sans:"IBM Plex Sans KR", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --measure:41rem;
+  --wide:62rem;
+}
+
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#141219;
+    --surface:#1D1A23;
+    --surface-2:#25212D;
+    --ink:#EEEBF3;
+    --ink-2:#C8C1D4;
+    --muted:#A099AE;
+    --line:#2F2A38;
+    --line-strong:#453E52;
+    --accent:#FF74C6;
+    --accent-ink:#FF9BD5;
+    --accent-soft:#32152A;
+    --ok:#5BC79C;
+    --ok-soft:#14291F;
+    --warn:#E2A947;
+    --warn-soft:#2C2314;
+    --risk:#F0827A;
+    --risk-soft:#2E1917;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 28px -18px rgba(0,0,0,.9);
+  }
+}
+
+:root[data-theme="dark"]{
+  --ground:#141219;
+  --surface:#1D1A23;
+  --surface-2:#25212D;
+  --ink:#EEEBF3;
+  --ink-2:#C8C1D4;
+  --muted:#A099AE;
+  --line:#2F2A38;
+  --line-strong:#453E52;
+  --accent:#FF74C6;
+  --accent-ink:#FF9BD5;
+  --accent-soft:#32152A;
+  --ok:#5BC79C;
+  --ok-soft:#14291F;
+  --warn:#E2A947;
+  --warn-soft:#2C2314;
+  --risk:#F0827A;
+  --risk-soft:#2E1917;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 8px 28px -18px rgba(0,0,0,.9);
+}
+
+*{box-sizing:border-box;}
+
+body{
+  margin:0;
+  background:var(--ground);
+  color:var(--ink);
+  font-family:var(--sans);
+  font-weight:400;
+  font-size:16px;
+  line-height:1.75;
+  letter-spacing:-0.003em;
+  -webkit-font-smoothing:antialiased;
+  word-break:keep-all;
+}
+
+.page{
+  max-width:var(--wide);
+  margin:0 auto;
+  padding:0 1.5rem 6rem;
+}
+
+.col{max-width:var(--measure);}
+
+a{color:var(--accent-ink);text-decoration-thickness:1px;text-underline-offset:2px;}
+a:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px;}
+
+/* ---------- masthead ---------- */
+.masthead{
+  padding:4.5rem 0 2.75rem;
+  border-bottom:1px solid var(--line-strong);
+  display:flex;
+  flex-direction:column;
+  gap:1.5rem;
+}
+.eyebrow{
+  font-family:var(--mono);
+  font-size:.7rem;
+  font-weight:500;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  color:var(--accent);
+  margin:0;
+}
+h1{
+  margin:0;
+  font-size:clamp(2.1rem,5.5vw,3.15rem);
+  line-height:1.15;
+  font-weight:700;
+  letter-spacing:-0.035em;
+  text-wrap:balance;
+  max-width:16ch;
+}
+.standfirst{
+  margin:0;
+  max-width:var(--measure);
+  font-size:1.06rem;
+  color:var(--ink-2);
+  font-weight:400;
+}
+.meta{
+  display:flex;
+  flex-wrap:wrap;
+  gap:.4rem 1.5rem;
+  font-family:var(--mono);
+  font-size:.72rem;
+  letter-spacing:.04em;
+  color:var(--muted);
+  margin:0;
+  padding:0;
+  list-style:none;
+}
+
+/* ---------- verdicts ---------- */
+.verdicts{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(15rem,1fr));
+  gap:1px;
+  background:var(--line);
+  border:1px solid var(--line);
+  border-radius:3px;
+  margin:2.75rem 0 0;
+  overflow:hidden;
+}
+.verdict{
+  background:var(--surface);
+  padding:1.5rem 1.4rem 1.6rem;
+  display:flex;
+  flex-direction:column;
+  gap:.55rem;
+}
+.verdict .q{
+  font-family:var(--mono);
+  font-size:.68rem;
+  letter-spacing:.1em;
+  text-transform:uppercase;
+  color:var(--muted);
+  margin:0;
+}
+.verdict .a{
+  margin:0;
+  font-size:1.28rem;
+  font-weight:600;
+  line-height:1.35;
+  letter-spacing:-0.02em;
+  text-wrap:balance;
+}
+.verdict p:last-child{margin:0;font-size:.9rem;color:var(--ink-2);line-height:1.65;}
+.verdict.is-accent .a{color:var(--accent);}
+
+/* ---------- sections ---------- */
+section{padding-top:4.25rem;}
+.sec-head{
+  display:flex;
+  align-items:baseline;
+  gap:1rem;
+  border-bottom:1px solid var(--line-strong);
+  padding-bottom:.75rem;
+  margin-bottom:2rem;
+}
+.sec-num{
+  font-family:var(--mono);
+  font-size:.8rem;
+  font-weight:600;
+  color:var(--accent);
+  letter-spacing:.05em;
+  flex:none;
+}
+h2{
+  margin:0;
+  font-size:clamp(1.45rem,3.2vw,1.85rem);
+  font-weight:600;
+  letter-spacing:-0.03em;
+  line-height:1.3;
+}
+h3{
+  margin:2.75rem 0 .85rem;
+  font-size:1.1rem;
+  font-weight:600;
+  letter-spacing:-0.02em;
+  line-height:1.45;
+}
+h4{
+  margin:2rem 0 .6rem;
+  font-family:var(--mono);
+  font-size:.72rem;
+  font-weight:600;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  color:var(--muted);
+}
+p{margin:0 0 1.05rem;max-width:var(--measure);}
+strong{font-weight:600;color:var(--ink);}
+em{font-style:normal;background:var(--accent-soft);color:var(--accent-ink);padding:.05em .3em;border-radius:2px;font-weight:500;}
+
+ul,ol{max-width:var(--measure);margin:0 0 1.05rem;padding-left:1.15rem;}
+li{margin-bottom:.5rem;}
+li::marker{color:var(--muted);}
+
+code{
+  font-family:var(--mono);
+  font-size:.86em;
+  background:var(--surface-2);
+  border:1px solid var(--line);
+  border-radius:3px;
+  padding:.08em .35em;
+  color:var(--ink-2);
+  white-space:nowrap;
+}
+
+/* ---------- tier stack ---------- */
+.tiers{display:flex;flex-direction:column;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:3px;overflow:hidden;}
+.tier{
+  background:var(--surface);
+  display:grid;
+  grid-template-columns:7.5rem 1fr;
+  gap:0 1.5rem;
+  padding:1.5rem 1.4rem;
+}
+.tier .label{
+  font-family:var(--mono);
+  font-size:.68rem;
+  letter-spacing:.09em;
+  text-transform:uppercase;
+  color:var(--muted);
+  line-height:1.6;
+  padding-top:.28rem;
+}
+.tier .label b{display:block;color:var(--accent);font-weight:600;}
+.tier .body>*:first-child{margin-top:0;}
+.tier .body>*:last-child{margin-bottom:0;}
+.tier .body h3{margin:0 0 .5rem;font-size:1.05rem;}
+.tier .body p{max-width:46rem;font-size:.95rem;}
+.tier .body ul{max-width:46rem;font-size:.95rem;}
+@media (max-width:36rem){
+  .tier{grid-template-columns:1fr;gap:.6rem;}
+  .tier .label{padding-top:0;}
+  .tier .label b{display:inline;margin-right:.5rem;}
+}
+
+/* ---------- tables ---------- */
+.scroller{overflow-x:auto;margin:0 0 1.5rem;border:1px solid var(--line);border-radius:3px;background:var(--surface);}
+table{border-collapse:collapse;width:100%;min-width:38rem;font-size:.9rem;}
+caption{
+  caption-side:top;
+  text-align:left;
+  padding:1rem 1.1rem .35rem;
+  font-family:var(--mono);
+  font-size:.68rem;
+  letter-spacing:.11em;
+  text-transform:uppercase;
+  color:var(--muted);
+}
+th,td{text-align:left;padding:.7rem 1.1rem;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.6;}
+thead th{
+  font-family:var(--mono);
+  font-size:.68rem;
+  font-weight:600;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  color:var(--muted);
+  border-bottom:1px solid var(--line-strong);
+  white-space:nowrap;
+}
+tbody tr:last-child td{border-bottom:none;}
+td.num,td.mono{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:.83rem;white-space:nowrap;}
+th[scope="row"]{font-weight:600;white-space:nowrap;}
+
+.pill{
+  display:inline-block;
+  font-family:var(--mono);
+  font-size:.66rem;
+  font-weight:600;
+  letter-spacing:.06em;
+  padding:.16rem .5rem .2rem;
+  border-radius:2px;
+  white-space:nowrap;
+}
+.pill.ok{background:var(--ok-soft);color:var(--ok);}
+.pill.warn{background:var(--warn-soft);color:var(--warn);}
+.pill.risk{background:var(--risk-soft);color:var(--risk);}
+.pill.gap{background:var(--accent-soft);color:var(--accent-ink);}
+
+/* ---------- diagram ---------- */
+figure{margin:2rem 0;max-width:var(--wide);}
+.diagram{
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:3px;
+  padding:1.75rem 1.4rem 1.25rem;
+  overflow-x:auto;
+}
+.diagram svg{display:block;width:100%;min-width:32rem;height:auto;}
+figcaption{
+  margin-top:.7rem;
+  font-size:.85rem;
+  color:var(--muted);
+  max-width:var(--measure);
+  line-height:1.65;
+}
+
+/* ---------- diagram svg ---------- */
+.diagram .d-surf{fill:var(--surface-2);stroke:var(--line-strong);}
+.diagram .d-block{fill:var(--line);}
+.diagram .d-win{fill:none;stroke:var(--accent);stroke-width:2;}
+.diagram .d-win-ghost{stroke-dasharray:4 3;opacity:.55;}
+.diagram .d-win-ghost2{stroke-dasharray:4 3;opacity:.35;}
+.diagram .d-lbl{fill:var(--muted);font-family:var(--mono);font-size:11px;letter-spacing:.08em;}
+.diagram .d-note{font-size:10px;}
+.diagram .d-acc{fill:var(--accent);font-family:var(--mono);font-size:10px;}
+.diagram .d-mark{fill:var(--accent-soft);stroke:var(--accent);stroke-dasharray:3 2;}
+.diagram .d-marktxt{fill:var(--accent-ink);font-family:var(--sans);font-size:10px;}
+.diagram .d-arrow{stroke:var(--line-strong);stroke-width:1.5;}
+.diagram .d-seam{stroke:var(--accent);stroke-width:1.5;stroke-dasharray:3 3;}
+.diagram .d-head{fill:var(--line-strong);}
+
+/* ---------- callout ---------- */
+.callout{
+  border-left:2px solid var(--accent);
+  background:var(--surface);
+  padding:1.25rem 1.4rem;
+  margin:2rem 0;
+  max-width:var(--measure);
+  border-radius:0 3px 3px 0;
+  box-shadow:var(--shadow);
+}
+.callout>*:first-child{margin-top:0;}
+.callout>*:last-child{margin-bottom:0;}
+.callout .tag{
+  font-family:var(--mono);
+  font-size:.66rem;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  color:var(--accent);
+  display:block;
+  margin-bottom:.45rem;
+}
+
+/* ---------- kid explainer ---------- */
+.steps{list-style:none;padding:0;margin:1.5rem 0;max-width:var(--measure);display:flex;flex-direction:column;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:3px;overflow:hidden;}
+.steps li{
+  margin:0;
+  background:var(--surface);
+  padding:1.05rem 1.3rem;
+  display:grid;
+  grid-template-columns:1.6rem 1fr;
+  gap:0 .9rem;
+  font-size:.95rem;
+  line-height:1.7;
+}
+.steps li .n{
+  font-family:var(--mono);
+  font-size:.75rem;
+  font-weight:600;
+  color:var(--accent);
+  padding-top:.22rem;
+  font-variant-numeric:tabular-nums;
+}
+.steps li b{display:block;font-weight:600;}
+
+/* ---------- deltas ---------- */
+.deltas{list-style:none;padding:0;margin:1.5rem 0 0;display:flex;flex-direction:column;gap:1rem;max-width:var(--measure);}
+.deltas li{
+  margin:0;
+  padding:1.1rem 1.3rem;
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-radius:3px;
+  font-size:.95rem;
+  line-height:1.7;
+}
+.deltas .where{
+  display:block;
+  font-family:var(--mono);
+  font-size:.66rem;
+  letter-spacing:.1em;
+  text-transform:uppercase;
+  color:var(--muted);
+  margin-bottom:.35rem;
+}
+
+/* ---------- sources ---------- */
+.sources{padding-top:4.25rem;}
+.sources ol{max-width:var(--wide);font-size:.86rem;color:var(--muted);columns:2;column-gap:2.5rem;}
+.sources li{margin-bottom:.55rem;break-inside:avoid;}
+@media (max-width:44rem){.sources ol{columns:1;}}
+
+footer{
+  margin-top:4rem;
+  padding-top:1.25rem;
+  border-top:1px solid var(--line-strong);
+  font-family:var(--mono);
+  font-size:.7rem;
+  letter-spacing:.05em;
+  color:var(--muted);
+}
+</style>
+
+<div class="page">
+
+<header class="masthead">
+  <p class="eyebrow">경쟁 분석 &amp; 기술 타당성 검토</p>
+  <h1>웹사이트 스냅샷 자동화</h1>
+  <p class="standfirst">인터랙션·애니메이션이 많은 페이지를 정확히 캡처하는 서비스를 만들 수 있는가. 시중 도구가 이미 어디까지 왔는지, 무료와 유료를 가르는 진짜 기준이 무엇인지, 그리고 기획안의 세 기능이 기술적으로 성립하는지를 정리했습니다.</p>
+  <ul class="meta">
+    <li>작성 2026-08-27</li>
+    <li>대상 워크플로우 · 웹사이트 스냅샷</li>
+    <li>조사 범위 · 확장 프로그램 / 스크린샷 API / 비주얼 테스팅</li>
+  </ul>
+</header>
+
+<div class="verdicts">
+  <div class="verdict">
+    <p class="q">Q1. 애니메이션 정확 캡처 사례</p>
+    <p class="a">있습니다. 그것도 아주 많이.</p>
+    <p>다만 전부 <strong>사람이 셀렉터와 대기시간을 직접 지정</strong>하는 방식입니다. 자동으로 판단하는 제품은 없습니다.</p>
+  </div>
+  <div class="verdict">
+    <p class="q">Q2. 무료와 유료의 경계</p>
+    <p class="a">캡처 품질이 아니라 출력과 물량.</p>
+    <p>PDF 내보내기·일괄 처리·월 사용량이 유료선입니다. <strong>"제대로 찍히느냐"로 과금하는 곳은 아직 없습니다.</strong></p>
+  </div>
+  <div class="verdict is-accent">
+    <p class="q">Q3. 기술적으로 가능한가</p>
+    <p class="a">1·3번 기능은 확실히 가능, 2번이 진짜 승부처.</p>
+    <p>대기·스크롤·애니메이션 정지는 이미 표준 기능입니다. <strong>기준 이미지 없이 품질을 판정하는 부분</strong>이 비어 있는 자리입니다.</p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<section id="landscape">
+  <div class="sec-head">
+    <span class="sec-num">01</span>
+    <h2>시중 도구는 어디까지 와 있나</h2>
+  </div>
+
+  <p class="col">웹사이트 캡처 도구는 하나의 시장이 아니라 <strong>목적이 다른 네 개의 계층</strong>입니다. 기획안이 경쟁 상대로 삼아야 하는 곳은 팀이 지금 쓰고 있는 크롬 확장 프로그램(계층 2)이 아니라, 계층 3과 4입니다.</p>
+
+  <div class="tiers">
+
+    <div class="tier">
+      <div class="label"><b>계층 1</b>브라우저 내장</div>
+      <div class="body">
+        <h3>Chrome DevTools · Edge 웹 캡처 · Firefox 스크린샷</h3>
+        <p>설치가 필요 없고 완전 무료입니다. 대신 <strong>지연 로딩과 스크롤 트리거를 전혀 처리하지 않습니다.</strong> 크롬은 한 장에 담을 수 있는 세로 길이가 <code>16,384px</code>로 하드코딩되어 있어, 요즘 랜딩 페이지 길이면 그냥 잘려 나옵니다. 팀이 겪는 문제를 그대로 재현하는 계층입니다.</p>
+      </div>
+    </div>
+
+    <div class="tier">
+      <div class="label"><b>계층 2</b>크롬 확장</div>
+      <div class="body">
+        <h3>GoFullPage · FireShot · Awesome Screenshot · CaptureX</h3>
+        <p>팀이 현재 쓰는 계층입니다. 자동으로 스크롤하며 여러 장을 찍어 이어 붙이는(stitching) 방식이라, 무한 스크롤·sticky 헤더·iframe 구간에서 <strong>이미지가 비거나 중복</strong>됩니다.</p>
+        <p>애니메이션 대응 수단은 사실상 하나뿐입니다 &mdash; FireShot의 <em>캡처 전 대기 시간(Wait time before capturing)</em> 옵션. 즉 이 계층은 <strong>"기다리기"는 있지만 "판단하기"는 없습니다.</strong> 몇 초를 기다려야 하는지는 매번 사람이 감으로 넣어야 합니다.</p>
+      </div>
+    </div>
+
+    <div class="tier">
+      <div class="label"><b>계층 3</b>스크린샷 API</div>
+      <div class="body">
+        <h3>ScreenshotOne · Urlbox · ApiFlash · ScreenshotAPI.net · ScreenshotCore · CustomJS</h3>
+        <p><strong>여기가 실제로 "애니메이션을 정확히 캡처하려고" 만들어진 계층입니다.</strong> 기획안이 풀려는 문제를 이미 옵션 이름으로 갖고 있습니다.</p>
+        <ul>
+          <li><code>full_page_scroll</code> · <code>lazy_load</code> &mdash; 찍기 전에 페이지 끝까지 자동 스크롤해 지연 로딩과 스크롤 애니메이션을 미리 발동시킵니다. <strong>기획안 기능 1의 핵심 동작이 이미 기본 옵션입니다.</strong></li>
+          <li><code>full_page_scroll_delay</code> (기본 400) · <code>full_page_scroll_by</code> &mdash; 스크롤 속도를 조절합니다. 문서에 <em>"어떤 사이트는 400보다 큰 값이 있어야 지연 로딩 이미지가 뜬다"</em>고 명시되어 있습니다. 즉 <strong>업계 1등도 이 값을 자동으로 못 정합니다.</strong></li>
+          <li><code>reduced_motion</code> &mdash; <code>prefers-reduced-motion</code>을 켜서 사이트가 스스로 애니메이션을 줄이게 만듭니다.</li>
+          <li><code>freeze_fixed</code> (Urlbox) &mdash; 스크롤·분할 촬영 때 <strong>sticky 헤더/푸터가 이미지 중간에 반복되는 문제</strong> 전용 옵션. 기획안 기능 2의 "찍기 직전 고정 메뉴바 숨김"이 이미 상용 기능으로 존재합니다.</li>
+          <li><code>wait_for</code> · <code>wait_until</code> · <code>wait_for_selector</code> · <code>delay</code> &mdash; 특정 요소가 나타날 때까지 대기.</li>
+          <li><code>click</code> · <code>hover</code> · <code>scripts</code> · <code>hide_selectors</code> &mdash; 캡처 전 클릭/호버/커스텀 JS 실행. <strong>"마우스를 올려야 나오는 요소" 캡처도 이미 상용화되어 있습니다.</strong> 단, 어디를 올릴지는 사람이 셀렉터로 지정해야 합니다.</li>
+          <li><code>full_page_max_height</code> · <code>full_page_slices</code> (기본 슬라이스 4,000px) &mdash; 긴 페이지를 세로로 잘라 여러 장으로 반환. ScreenshotOne 문서는 이 기능의 용도를 명시적으로 <em>"AI 분석 워크플로우용"</em>이라고 적어 두었습니다. 기획안 기능 2의 섹션 단위 분할과 정확히 같은 발상입니다.</li>
+        </ul>
+        <p>이 계층이 여전히 어렵다는 증거도 남아 있습니다. ScreenshotOne은 2026년 5월에야 <strong>"일부 사이트가 실제 콘텐츠보다 작은 scroll height를 보고해서 이어 붙인 이미지가 상한을 넘는"</strong> 스티칭 버그를 고쳤습니다. 3년 넘게 이 문제만 파온 팀도 아직 다듬는 중이라는 뜻입니다.</p>
+      </div>
+    </div>
+
+    <div class="tier">
+      <div class="label"><b>계층 4</b>비주얼 테스팅</div>
+      <div class="body">
+        <h3>Playwright · Applitools Eyes · Percy · BrowserStack</h3>
+        <p>캡처가 목적이 아니라 <strong>"화면이 바뀌었는지 검사"</strong>가 목적인 도구들입니다. 그래서 애니메이션 대응이 가장 정교합니다.</p>
+        <ul>
+          <li><strong>Playwright <code>animations: 'disabled'</code></strong> &mdash; 이게 이번 조사에서 가장 중요한 발견입니다. CSS 애니메이션·트랜지션·Web Animations를 모두 멈추는데, 처리 방식이 두 갈래입니다. <em>길이가 정해진 애니메이션은 완료 시점으로 빨리감기</em>(그래서 <code>transitionend</code>까지 정상 발생), <em>무한 반복 애니메이션은 초기 상태로 되돌렸다가 캡처 후 다시 재생</em>. 게다가 <strong>이게 기본값</strong>입니다.</li>
+          <li><strong>Applitools <code>waitBeforeCapture</code></strong> &mdash; CSS 셀렉터가 나타나거나 사라질 때까지, 또는 커스텀 async 함수(예: <code>.spinner</code>가 숨겨질 때까지 루프)가 끝날 때까지 대기.</li>
+          <li><strong>Applitools Eyes / Percy</strong> &mdash; 픽셀 대조가 아니라 UI 구조를 이해하는 AI 비교로 오탐을 줄입니다. 로딩 스피너·스켈레톤·GIF 같은 <em>"로딩 잔재(loading artifact)"</em>를 별도 개념으로 정의해 다룹니다.</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+
+  <h3>애니메이션을 정확히 찍으려는 시도, 네 가지 접근법</h3>
+  <p class="col">시중 도구들이 쓰는 방법을 정리하면 딱 네 갈래로 수렴합니다. 그리고 <strong>세 개는 이미 성숙했고, 네 번째만 비어 있습니다.</strong></p>
+
+  <div class="scroller">
+    <table>
+      <caption>접근법별 성숙도</caption>
+      <thead>
+        <tr><th>접근법</th><th>대표 구현</th><th>한계</th><th>성숙도</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row">① 기다린다</th>
+          <td class="mono">delay / wait_until / wait_for_selector</td>
+          <td>몇 초를 기다릴지 사람이 정해야 함. 너무 짧으면 깨지고 너무 길면 느림</td>
+          <td><span class="pill ok">성숙</span></td>
+        </tr>
+        <tr>
+          <th scope="row">② 미리 스크롤해 발동시킨다</th>
+          <td class="mono">full_page_scroll / lazy_load</td>
+          <td>스크롤 속도·간격이 사이트마다 다름. 무한 스크롤은 별도 방어 필요</td>
+          <td><span class="pill ok">성숙</span></td>
+        </tr>
+        <tr>
+          <th scope="row">③ 애니메이션을 강제 종료시킨다</th>
+          <td class="mono">animations:'disabled' / reduced_motion</td>
+          <td>JS로 직접 그리는 캔버스·스크롤 연동 효과는 못 멈춤. <strong>크롬 확장에는 이 수단이 아예 없음</strong></td>
+          <td><span class="pill ok">성숙</span></td>
+        </tr>
+        <tr>
+          <th scope="row">④ 찍은 뒤 검사해 다시 찍는다</th>
+          <td class="mono">Applitools Eyes / Percy</td>
+          <td><strong>비교할 기준 이미지(baseline)가 있어야만 동작.</strong> 처음 보는 URL 한 장을 "잘 찍혔나" 판정하는 제품은 사실상 없음</td>
+          <td><span class="pill gap">빈 자리</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout">
+    <span class="tag">이 조사의 결론</span>
+    <p>기획안이 "우리만의 차별점"으로 적은 것 중 <strong>호버·클릭 상태 캡처는 이미 상용 API에 있습니다</strong>(<code>hover</code>, <code>click</code>, <code>scripts</code>). 문장을 그대로 두면 실사용 검증에서 바로 반박당합니다.</p>
+    <p>진짜로 비어 있는 자리는 두 개입니다. <strong>(1) 셀렉터와 대기시간을 사람이 지정하지 않아도 되는 자동 튜닝</strong> &mdash; 업계 1등도 문서에 "값을 직접 찾아보라"고 적어 둡니다. <strong>(2) 기준 이미지 없는 단독 품질 판정</strong> &mdash; 비주얼 테스팅 도구는 전부 baseline 비교 전제입니다. 이 두 문장으로 차별점을 다시 쓰는 편이 훨씬 방어 가능합니다.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="pricing">
+  <div class="sec-head">
+    <span class="sec-num">02</span>
+    <h2>무료와 유료를 가르는 것</h2>
+  </div>
+
+  <p class="col">확장 프로그램 계층과 API 계층에서 유료선이 그어지는 위치가 다릅니다. 둘 다 확인해야 가격 정책을 잡을 수 있습니다.</p>
+
+  <h4>확장 프로그램 계층</h4>
+  <div class="scroller">
+    <table>
+      <caption>크롬 확장 &mdash; 무료판과 유료판의 실제 차이</caption>
+      <thead>
+        <tr><th>도구</th><th>무료판</th><th>유료판</th><th>가격</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row">GoFullPage</th>
+          <td>전체 페이지 캡처, PNG/JPG. 워터마크·강제 가입 없음</td>
+          <td><strong>PDF 내보내기</strong>, 주석 도구</td>
+          <td class="num">유료 티어</td>
+        </tr>
+        <tr>
+          <th scope="row">FireShot</th>
+          <td>Lite &mdash; PNG 저장만</td>
+          <td><strong>JPEG·PDF 내보내기, 여러 탭 일괄 캡처</strong>, 내장 편집기, 공유</td>
+          <td class="num">$60 평생 / $7.95 월</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="col">주목할 점: <strong>캡처 성능은 무료판과 유료판이 같습니다.</strong> FireShot Pro를 산다고 애니메이션이 더 잘 찍히지 않습니다. 유료선은 전부 <em>결과물의 형태</em>(PDF·JPEG·편집)와 <em>처리량</em>(여러 탭 일괄)에 그어져 있습니다.</p>
+
+  <h4>API 계층</h4>
+  <div class="scroller">
+    <table>
+      <caption>스크린샷 API &mdash; 무료 티어와 유료 진입선</caption>
+      <thead>
+        <tr><th>서비스</th><th>무료 티어</th><th>유료 시작가</th><th>1,000장당</th></tr>
+      </thead>
+      <tbody>
+        <tr><th scope="row">ScreenshotOne</th><td>100장 / 월</td><td class="num">$17&ndash;19 / 2,000장</td><td class="num">약 $8.50</td></tr>
+        <tr><th scope="row">Urlbox</th><td><strong>없음</strong> (7일 트라이얼)</td><td class="num">$19 / 2,000장</td><td class="num">$6.60 &rarr; $3 (엔터프라이즈 $498+)</td></tr>
+        <tr><th scope="row">ApiFlash</th><td>100장 / 월</td><td class="num">$16 / 1,000장</td><td class="num">약 $16 &rarr; $4.90</td></tr>
+        <tr><th scope="row">Microlink</th><td>50 요청 / 일</td><td class="num">&mdash;</td><td class="num">&mdash;</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="col">무료 티어의 공통 제약은 <strong>월 100&ndash;1,000장 상한, 낮은 rate limit, 우선 렌더링 없음, 출력 포맷 제한(PNG·JPEG만), 경우에 따라 워터마크</strong>입니다. 여기서도 "잘 찍히는 정도"는 등급을 나누는 기준이 아닙니다.</p>
+
+  <div class="callout">
+    <span class="tag">가장 큰 차이, 한 문장</span>
+    <p><strong>무료와 유료를 가르는 건 언제나 ① 결과물의 형태(PDF·편집·일괄)와 ② 처리량(수량·속도·안정성)이지, 캡처 정확도가 아닙니다.</strong></p>
+    <p>이건 기획안에 두 가지 의미가 있습니다. 좋은 쪽 &mdash; <strong>정확도로 과금하는 경쟁자가 없으니 그 축은 비어 있습니다.</strong> 위험한 쪽 &mdash; <strong>비어 있는 이유가 "아무도 그걸로 돈을 안 내기 때문"일 수도 있습니다.</strong> 그리고 기획안 기능 3(IMG/PDF 선택 출력)은 이미 남들이 유료로 파는 바로 그 지점이므로, 무료로 제공하면 그 자체로 강한 진입 무기가 됩니다.</p>
+  </div>
+
+  <p class="col">원가 측면에서 한 가지 더. 캡처 1장의 원가는 <strong>브라우저 하나를 띄우는 비용</strong>이라 0이 될 수 없습니다(그래서 어느 서비스도 무제한 무료가 없습니다). 여기에 기능 2의 AI 검수를 얹으면 <strong>장당 비용이 상용 API보다 비싸질 수 있습니다.</strong> 기획안이 이미 적어 둔 "값싼 규칙 검사로 먼저 거르고, 애매한 것만 비전 모델에 넘긴다"는 2단계 설계는 이 때문에 반드시 필요한 구조입니다.</p>
+</section>
+
+<!-- ============================================================ -->
+<section id="feasibility">
+  <div class="sec-head">
+    <span class="sec-num">03</span>
+    <h2>기술적으로 되는가</h2>
+  </div>
+
+  <p class="col">먼저 <strong>왜 지금 깨지는지</strong>를 그림 하나로 정리하고, 그 다음 기능별로 가능 여부를 매기겠습니다.</p>
+
+  <figure>
+    <div class="diagram">
+      <svg viewBox="0 0 720 264" role="img" aria-label="웹페이지를 창문처럼 좁은 화면으로 나눠 찍고 이어 붙이는 과정과, 그 과정에서 깨지는 네 지점을 나타낸 그림">
+        <defs>
+          <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path class="d-head" d="M0 0 L10 5 L0 10 z"/>
+          </marker>
+        </defs>
+
+        <text class="d-lbl" x="0" y="14">긴 페이지 (두루마리)</text>
+        <rect class="d-surf" x="0" y="26" width="120" height="210" rx="3"/>
+        <rect class="d-block" x="12" y="38" width="96" height="26" rx="2"/>
+        <rect class="d-block" x="12" y="74" width="70" height="8" rx="2"/>
+        <rect class="d-block" x="12" y="90" width="96" height="34" rx="2"/>
+        <rect class="d-block" x="12" y="134" width="96" height="34" rx="2"/>
+        <rect class="d-block" x="12" y="178" width="60" height="8" rx="2"/>
+        <rect class="d-block" x="12" y="196" width="96" height="28" rx="2"/>
+
+        <rect class="d-win" x="4" y="32" width="112" height="52" rx="2"/>
+        <rect class="d-win d-win-ghost" x="4" y="96" width="112" height="52" rx="2"/>
+        <rect class="d-win d-win-ghost2" x="4" y="160" width="112" height="52" rx="2"/>
+        <text class="d-acc" x="126" y="62">화면 = 창문</text>
+
+        <line class="d-arrow" x1="196" y1="130" x2="246" y2="130" marker-end="url(#ar)"/>
+
+        <text class="d-lbl" x="256" y="14">조각 사진</text>
+        <rect class="d-surf" x="256" y="26" width="104" height="60" rx="3"/>
+        <rect class="d-surf" x="256" y="94" width="104" height="60" rx="3"/>
+        <rect class="d-surf" x="256" y="162" width="104" height="60" rx="3"/>
+
+        <rect class="d-mark" x="266" y="36" width="84" height="18" rx="2"/>
+        <text class="d-marktxt" x="272" y="49">메뉴바 또 나옴</text>
+        <rect class="d-mark" x="266" y="104" width="84" height="18" rx="2"/>
+        <text class="d-marktxt" x="272" y="117">아직 안 그려짐</text>
+        <rect class="d-mark" x="266" y="172" width="84" height="18" rx="2"/>
+        <text class="d-marktxt" x="272" y="185">움직이는 중</text>
+
+        <line class="d-arrow" x1="380" y1="130" x2="430" y2="130" marker-end="url(#ar)"/>
+
+        <text class="d-lbl" x="440" y="14">이어 붙인 결과</text>
+        <rect class="d-surf" x="440" y="26" width="120" height="210" rx="3"/>
+        <line class="d-seam" x1="440" y1="96" x2="560" y2="96"/>
+        <line class="d-seam" x1="440" y1="166" x2="560" y2="166"/>
+        <text class="d-acc" x="568" y="100">이음새</text>
+        <text class="d-acc" x="568" y="170">이음새</text>
+        <text class="d-lbl d-note" x="440" y="256">최대 16,384px에서 잘림</text>
+      </svg>
+    </div>
+    <figcaption>지금 깨지는 네 지점 &mdash; 아직 안 그려진 이미지, 움직이는 중인 애니메이션, 조각마다 따라오는 sticky 메뉴바, 그리고 크롬이 한 장에 담을 수 있는 세로 길이 한계.</figcaption>
+  </figure>
+
+  <h3>초등학생에게 설명한다면</h3>
+  <ol class="steps">
+    <li><span class="n">1</span><span><b>웹사이트는 아주 긴 두루마리 그림이에요.</b> 그런데 컴퓨터 화면은 그 위에 올려놓은 작은 창문이라, 한 번에 조금밖에 못 봐요.</span></li>
+    <li><span class="n">2</span><span><b>사진기는 창문에 보이는 만큼만 찍을 수 있어요.</b> 그래서 창문을 조금씩 내리면서 여러 장 찍고, 나중에 풀로 이어 붙여요.</span></li>
+    <li><span class="n">3</span><span><b>문제 하나 &mdash; 어떤 그림은 창문이 와야 그때부터 그려지기 시작해요.</b> 안 기다리고 찍으면 회색 네모만 나와요.</span></li>
+    <li><span class="n">4</span><span><b>문제 둘 &mdash; 어떤 그림은 움직여요.</b> 움직이는 중에 찍으면 반쯤 나온 모습으로 찍혀요.</span></li>
+    <li><span class="n">5</span><span><b>문제 셋 &mdash; 맨 위 메뉴바는 창문에 딱 붙어서 따라와요.</b> 그래서 이어 붙이면 메뉴바가 세 번, 네 번 나와요.</span></li>
+    <li><span class="n">6</span><span><b>문제 넷 &mdash; 사진기가 한 장에 담을 수 있는 길이가 정해져 있어요.</b> 노트북 화면 스무 개쯤 되는 길이(16,384픽셀)를 넘으면 그냥 잘려요.</span></li>
+  </ol>
+
+  <p class="col">그래서 해결책도 아주 단순합니다. <strong>천천히 스크롤을 내려서 그림이 다 그려지게 만들고 → 움직이는 그림은 "다 끝난 모습"으로 점프시키고 → 따라오는 메뉴바는 잠깐 숨기고 → 조각으로 나눠서 찍는다.</strong> 이 네 가지는 브라우저를 대신 조종해 주는 프로그램(Playwright)에 <em>이미 스위치로 들어 있습니다.</em> 특히 "움직이는 그림 점프" 스위치는 켜는 게 <strong>기본값</strong>입니다.</p>
+
+  <p class="col">어려운 건 그 다음입니다. <strong>"이 사진, 제대로 찍혔나?"를 컴퓨터가 스스로 판단하는 일.</strong> 사람은 한눈에 아는데, 컴퓨터 입장에서는 <em>원래 디자인이 하얀 여백인 것</em>과 <em>이미지가 안 나온 것</em>이 똑같이 하얗게 보이기 때문입니다.</p>
+
+  <h3>기능별 가능 여부</h3>
+  <div class="scroller">
+    <table>
+      <caption>기획안 기능 &times; 기술 난이도</caption>
+      <thead>
+        <tr><th>기획안 기능</th><th>가능?</th><th>근거</th><th>난이도</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row">기능 1 &mdash; 완전 렌더링 대기 후 캡처</th>
+          <td><span class="pill ok">확실히 가능</span></td>
+          <td>자동 스크롤·네트워크 대기·애니메이션 강제 종료가 모두 표준 기능. Playwright는 애니메이션 정지가 기본값</td>
+          <td class="mono">★★☆☆☆</td>
+        </tr>
+        <tr>
+          <th scope="row">└ sticky 메뉴바 숨김</th>
+          <td><span class="pill ok">확실히 가능</span></td>
+          <td>Urlbox <code>freeze_fixed</code>처럼 전용 옵션이 이미 상용화</td>
+          <td class="mono">★★☆☆☆</td>
+        </tr>
+        <tr>
+          <th scope="row">└ 호버·클릭 요소 캡처</th>
+          <td><span class="pill warn">조건부</span></td>
+          <td>셀렉터를 지정하면 쉬움. <strong>처음 보는 사이트에서 스스로 찾아내는 건 별개의 어려운 문제</strong> &mdash; v1에서는 nav·드롭다운 등 알려진 패턴만 시도할 것을 권장</td>
+          <td class="mono">★★★★☆</td>
+        </tr>
+        <tr>
+          <th scope="row">기능 2 &mdash; AI 누락 판정 &amp; 자동 재캡처</th>
+          <td><span class="pill warn">가능하나 이게 승부처</span></td>
+          <td>비전 모델에게 "여기 비었나?"를 묻는 것 자체는 가능. 어려운 건 <strong>(a) 의도된 여백 vs 로딩 실패 구분 (b) 재캡처해도 같으면 무한 루프 (c) 장당 비용·지연</strong>. 재시도 상한(2회)과 신뢰도 임계값, 사람 확인용 플래그가 필수</td>
+          <td class="mono">★★★★☆</td>
+        </tr>
+        <tr>
+          <th scope="row">기능 3 &mdash; 정렬 &amp; IMG/PDF 출력</th>
+          <td><span class="pill ok">확실히 가능</span></td>
+          <td>가장 쉬운 부분. 단 <strong>16,384px 상한 때문에 긴 페이지는 반드시 슬라이스 방식</strong>(4,000px 단위 권장)으로 처리해야 함</td>
+          <td class="mono">★☆☆☆☆</td>
+        </tr>
+        <tr>
+          <th scope="row">확장 &mdash; 피그마 레이어 반출</th>
+          <td><span class="pill risk">별개 파이프라인</span></td>
+          <td>캡처(픽셀)와 레이어 반출(DOM 해석)은 완전히 다른 기술. html.to.design 등 선행 제품이 이미 존재하며 무료 티어는 30일 10회. <strong>로드맵 후반으로 분리 권장</strong></td>
+          <td class="mono">★★★★★</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>미리 알아야 할 리스크 네 가지</h3>
+  <div class="scroller">
+    <table>
+      <caption>리스크와 대응</caption>
+      <thead><tr><th>리스크</th><th>내용</th><th>대응</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">봇 차단</th><td>Cloudflare 등이 자동 브라우저를 막아 캡처가 실패</td><td>상용 API들이 "stealth mode"를 파는 이유. 자체 구축 시 이 비용을 계산에 넣어야 함</td></tr>
+        <tr><th scope="row">높이 상한</th><td>크롬이 한 장에 16,384px까지만 렌더링</td><td>슬라이스 &rarr; 병합 구조를 처음부터 전제. 사이트가 잘못된 scroll height를 보고하는 경우까지 방어 필요</td></tr>
+        <tr><th scope="row">AI 오탐</th><td>정상 여백을 "누락"으로 판정해 무한 재캡처</td><td>신뢰도 임계값 + 재시도 상한 + 성공/실패 예시 세트로 기준 보정</td></tr>
+        <tr><th scope="row">권리 문제</th><td>타사 사이트를 편집 가능한 형태로 반출하는 것은 회색지대</td><td>사내 참고·자사 사이트로 용도 한정. 로그인 뒤 페이지는 별도 정책 필요</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="deltas">
+  <div class="sec-head">
+    <span class="sec-num">04</span>
+    <h2>기획안에 반영할 것</h2>
+  </div>
+
+  <p class="col">조사 결과를 기획안 문장에 그대로 대입하면 고칠 곳이 네 군데 나옵니다.</p>
+
+  <ul class="deltas">
+    <li>
+      <span class="where">전체 기획 요약 &mdash; 차별점 문장</span>
+      "마우스를 올려야 나오는 요소를 다루지 않는다"는 서술은 <strong>사실과 다릅니다.</strong> ScreenshotCore·CustomJS·AddScreenshots 모두 <code>hover</code>/<code>click</code>/커스텀 JS를 지원합니다. 차별점을 <strong>"셀렉터·대기시간을 사람이 지정하지 않아도 되는 자동 튜닝"</strong>과 <strong>"기준 이미지 없는 단독 품질 판정"</strong>으로 다시 쓰는 편이 훨씬 방어됩니다.
+    </li>
+    <li>
+      <span class="where">기능 1 &mdash; 완료 판정 기준</span>
+      "10&ndash;15초 타임아웃"은 안전장치로 유지하되, <strong>완료 판정을 시간이 아니라 조건의 조합</strong>으로 바꾸는 걸 권장합니다 &mdash; ① 네트워크 유휴 ② 페이지 끝까지 스크롤 완료 ③ 애니메이션 강제 종료 완료. 시간만 기준으로 삼으면 지금 크롬 확장이 겪는 문제를 그대로 물려받습니다.
+    </li>
+    <li>
+      <span class="where">기능 2 &mdash; 입력 정의</span>
+      입력에 <strong>"섹션 슬라이스(4,000px 단위)"</strong>를 명시하세요. 상용 API가 AI 분석 워크플로우용으로 정확히 이 형태를 제공합니다. 재캡처 좌표를 되돌려주는 인터페이스도 슬라이스 인덱스 + offset_y 형태가 자연스럽습니다.
+    </li>
+    <li>
+      <span class="where">기능 3 &mdash; 가격 포지션</span>
+      IMG/PDF 선택 출력은 <strong>남들이 유료로 파는 바로 그 기능</strong>입니다(GoFullPage Pro의 PDF, FireShot Pro의 JPEG·PDF·일괄). 사내 도구라면 이 사실이 곧 "왜 사서 쓰지 않고 만드는가"에 대한 답이 되고, 외부 판매를 검토한다면 여기가 과금선입니다.
+    </li>
+  </ul>
+</section>
+
+<!-- ============================================================ -->
+<section class="sources">
+  <div class="sec-head">
+    <span class="sec-num">＊</span>
+    <h2>출처</h2>
+  </div>
+  <ol>
+    <li><a href="https://playwright.dev/docs/api/class-page">Playwright &mdash; Page.screenshot <code>animations</code> 옵션</a></li>
+    <li><a href="https://github.com/microsoft/playwright/blob/32095eac6a944a6d9eb38198f68a4cee9562b3b9/docs/src/api/params.md">Playwright docs &mdash; screenshot params (finite/infinite 애니메이션 처리)</a></li>
+    <li><a href="https://github.com/microsoft/playwright/issues/19861">Playwright issue #19861 &mdash; lazy-load 페이지 풀페이지 캡처 문제</a></li>
+    <li><a href="https://screenshotone.com/docs/options/">ScreenshotOne &mdash; Screenshot Options (full_page_scroll, reduced_motion, slices)</a></li>
+    <li><a href="https://screenshotone.com/docs/guides/how-to-customize-any-website-before-screenshotting/">ScreenshotOne &mdash; 캡처 전 사이트 커스터마이즈 (hide_selectors, click, scripts)</a></li>
+    <li><a href="https://screenshotone.com/changelog/fixed-full-page-screenshot-stitching-max-height/">ScreenshotOne changelog &mdash; 스티칭 최대 높이 버그 수정 (2026-05)</a></li>
+    <li><a href="https://urlbox.com/docs/screenshots/full-page-screenshots">Urlbox &mdash; Full page screenshots (skip_scroll, freeze_fixed)</a></li>
+    <li><a href="https://urlbox.com/docs/options">Urlbox &mdash; Render Options (wait_for, wait_timeout)</a></li>
+    <li><a href="https://urlbox.com/pricing">Urlbox &mdash; Pricing</a></li>
+    <li><a href="https://www.screenshotapi.net/blog/urlbox-alternative-a-faster-and-more-affordable-screenshot-api-for-developers">ScreenshotAPI.net &mdash; lazy_load / block_ads / no_cookie_banners</a></li>
+    <li><a href="https://screenshotapi.net/docs/renderScreenshot/lazy-loading-and-delay">ScreenshotAPI &mdash; Lazy Loading &amp; Delay</a></li>
+    <li><a href="https://medium.com/codex/5-best-screenshot-apis-for-developers-in-2026-compared-4516d5f1eb81">5 Best Screenshot APIs for Developers in 2026 &mdash; 무료 티어 비교</a></li>
+    <li><a href="https://len.sh/blog/best-screenshot-api-2026/">Best Screenshot API in 2026: An Honest Comparison</a></li>
+    <li><a href="https://snap-render.com/blog/screenshot-api-pricing-compared">Screenshot API Pricing Compared (2026)</a></li>
+    <li><a href="https://screenshotapi.to/blog/best-free-screenshot-apis">Best Free Screenshot APIs in 2026 &mdash; 무료 티어 제약</a></li>
+    <li><a href="https://tryhoverify.com/blog/10-best-screenshot-extensions-for-chrome-in-2025-free-paid/">10 Best Screenshot Extensions for Chrome (Free &amp; Paid)</a></li>
+    <li><a href="https://gofullpage.com/">GoFullPage</a></li>
+    <li><a href="https://resources.oreateai.com/resources/why-fireshot-is-still-the-only-chrome-extension-you-need-for-full-page-screenshots">FireShot &mdash; Wait time before capturing 옵션</a></li>
+    <li><a href="https://attentioninsight.com/best-full-page-screenshot-extensions-chrome/">Best Full-Page Screenshot Extensions for Chrome (2026)</a></li>
+    <li><a href="https://applitools.com/blog/handling-animations-and-loading-artifacts-in-visual-testing/">Applitools &mdash; Handling Animations and Loading Artifacts in Visual Testing</a></li>
+    <li><a href="https://percy.io/blog/ai-visual-testing-tools">Percy &mdash; AI Visual Testing Tools</a></li>
+    <li><a href="https://github.com/puppeteer/puppeteer/issues/359">Puppeteer issue #359 &mdash; 크롬 16,384px 하드 리밋</a></li>
+    <li><a href="https://stackoverflow.com/questions/44599858/max-height-of-16-384px-for-headless-chrome-screenshots">Stack Overflow &mdash; Max height of 16,384px for headless Chrome screenshots</a></li>
+    <li><a href="https://stackoverflow.com/questions/77896738/sticky-navbar-appears-in-middle-of-full-page-screenshot-using-puppeteer">Stack Overflow &mdash; sticky navbar가 풀페이지 캡처 중간에 나타나는 문제</a></li>
+    <li><a href="https://www.figma.com/community/plugin/1159123024924461424/html-to-design-by-divriots-import-websites-to-figma-designs-web-html-css">html.to.design &mdash; 웹사이트를 피그마 레이어로 반출</a></li>
+    <li><a href="https://www.customjs.space/blog/best-screenshot-api/">CustomJS &mdash; 캡처 전 클릭·입력·로그인 자동화</a></li>
+    <li><a href="https://www.addscreenshots.com/screenshot-hover-element">AddScreenshots &mdash; hover 상태 캡처</a></li>
+  </ol>
+</section>
+
+<footer>웹사이트 스냅샷 자동화 · 경쟁 분석 및 기술 타당성 검토 · 2026-08-27</footer>
+
+</div>
