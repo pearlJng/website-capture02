@@ -13,17 +13,53 @@
 
 ## 실행
 
-```bash
-npm install                 # playwright 1.56.1 (브라우저는 이미 설치돼 있다고 가정)
-npx playwright install chromium   # 브라우저가 없다면
+처음이라면 이 순서대로 하면 됩니다. 터미널(맥: 터미널 / 윈도우: PowerShell)에서 실행합니다.
 
-# GDWEB 목록에서 자동으로 사이트를 뽑아 스캔
+```bash
+# 0) Node.js가 있는지 확인. 없으면 nodejs.org 에서 LTS 설치
+node -v
+
+# 1) 코드 받기 (처음 한 번만)
+git clone https://github.com/pearlJng/website-capture02.git
+cd website-capture02
+git checkout claude/website-snapshot-automation-wdjs4i
+
+# 2) 준비 (처음 한 번만)
+cd tools/gdweb-scan
+npm install
+npx playwright install chromium
+
+# 3) 실행 — GDWEB 선정작 50건
+npm run scan -- --urls urls.gdweb-2026.txt --concurrency 4
+```
+
+**`--urls` 뒤에는 URL이 아니라 "URL이 적힌 파일 이름"이 들어갑니다.**
+`urls.gdweb-2026.txt` 에 이미 50건이 들어 있으므로 URL을 직접 입력할 필요는 없습니다.
+다른 사이트를 넣고 싶으면 그 파일을 텍스트 편집기로 열어 한 줄에 하나씩 적으면 됩니다.
+
+먼저 목록만 확인하고 싶다면(네트워크 접속 없이 파싱만):
+
+```bash
+npm run scan -- --urls urls.gdweb-2026.txt --dry-run
+```
+
+GDWEB 목록 페이지에서 사이트를 자동으로 뽑아 스캔할 수도 있습니다.
+
+```bash
 npm run scan -- --list "https://www.gdweb.co.kr/sub/list.asp?...&Page=1" \
                 --pages 1-3 --limit 60 --concurrency 4
-
-# 직접 만든 URL 목록으로 스캔
-npm run scan -- --urls urls.txt --concurrency 4
 ```
+
+### 옵션
+
+| 옵션 | 값 | 설명 |
+| --- | --- | --- |
+| `--urls` | 파일 경로 | URL 목록 파일 (한 줄에 `URL[탭 또는 공백]이름`) |
+| `--list` | GDWEB 목록 URL | 목록에서 사이트를 자동 추출 |
+| `--pages` | `1` / `1-3` | `--list` 사용 시 훑을 목록 쪽수 |
+| `--limit` | 숫자 (기본 60) | 최대 측정 건수 |
+| `--concurrency` | 숫자 (기본 4) | 동시 실행 수. 올리면 빨라지지만 메모리를 더 씁니다 |
+| `--dry-run` | (값 없음) | 측정하지 않고 목록 파싱만 확인 |
 
 `urls.txt` 형식 — URL 뒤에 이름을 붙일 수 있습니다.
 
@@ -36,8 +72,11 @@ https://another.co.kr  다른 사이트
 
 | 파일 | 내용 |
 | --- | --- |
+| `results.csv` | 스프레드시트에 바로 붙이는 표 (엑셀 한글 깨짐 방지용 BOM 포함) |
+| `report.html` | 브라우저로 여는 분류 결과 |
 | `results.json` | 사이트별 원 신호 + 티어 + 판정 근거(`evidence`) |
-| `report.html` | 사람이 읽는 분류 결과 |
+
+50건 기준 동시 4개로 대략 4~6분 걸립니다.
 
 브라우저 경로가 다른 환경이면 `PLAYWRIGHT_CHROMIUM_PATH=/path/to/chromium` 으로 지정합니다.
 

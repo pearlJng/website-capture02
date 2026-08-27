@@ -23,13 +23,23 @@ const UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 ' +
   '(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
+const FLAGS = new Set(['dry-run', 'help']); // 값을 받지 않는 스위치
+const NUMERIC = new Set(['limit', 'concurrency']);
+
 function parseArgs(argv) {
   const out = { pages: '1', limit: 60, concurrency: 4, outDir: HERE };
-  for (let i = 2; i < argv.length; i += 2) {
-    const k = argv[i].replace(/^--/, '');
-    const v = argv[i + 1];
-    if (k === 'limit' || k === 'concurrency') out[k] = Number(v);
-    else out[k] = v;
+  for (let i = 2; i < argv.length; i++) {
+    const token = argv[i];
+    if (!token.startsWith('--')) continue;
+    const key = token.slice(2);
+    if (FLAGS.has(key)) { out[key] = true; continue; }
+    const value = argv[i + 1];
+    if (value === undefined || value.startsWith('--')) {
+      console.error(`--${key} 에 값이 필요합니다.`);
+      process.exit(1);
+    }
+    out[key] = NUMERIC.has(key) ? Number(value) : value;
+    i++;
   }
   return out;
 }
@@ -254,7 +264,7 @@ async function main() {
 
   entries = entries.slice(0, args.limit);
 
-  if (args['dry-run'] !== undefined) {
+  if (args['dry-run']) {
     // 네트워크 없이 목록이 제대로 파싱됐는지만 확인한다.
     process.stderr.write(`\n${entries.length}개 항목 파싱 완료 (측정 안 함)\n\n`);
     entries.forEach((e, i) => {
