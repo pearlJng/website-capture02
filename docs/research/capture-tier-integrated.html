@@ -11,6 +11,7 @@
   --accent:#C41E82; --accent-ink:#8E1560; --accent-soft:#FAEAF3;
   --t0:#1C6F53; --t1:#3D7A4E; --t2:#9C610A; --t3:#B2531F; --t4:#A93529;
   --t0-soft:#E4F1EB; --t1-soft:#E7F0E8; --t2-soft:#F6EEDD; --t3-soft:#F8EBE2; --t4-soft:#F7E9E7;
+  --s1:#C41E82; --s2:#A66A00;
   --ok:#1C6F53; --ok-soft:#E4F1EB; --warn:#9C610A; --warn-soft:#F6EEDD; --risk:#A93529; --risk-soft:#F7E9E7;
   --sans:"IBM Plex Sans KR", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
   --mono:"IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -24,6 +25,7 @@
     --accent:#FF74C6; --accent-ink:#FF9BD5; --accent-soft:#32152A;
     --t0:#5BC79C; --t1:#79C489; --t2:#E2A947; --t3:#EE9560; --t4:#F0827A;
     --t0-soft:#14291F; --t1-soft:#182A1C; --t2-soft:#2C2314; --t3-soft:#2E2018; --t4-soft:#2E1917;
+    --s1:#DB4C9E; --s2:#BC8420;
     --ok:#5BC79C; --ok-soft:#14291F; --warn:#E2A947; --warn-soft:#2C2314; --risk:#F0827A; --risk-soft:#2E1917;
   }
 }
@@ -34,6 +36,7 @@
   --accent:#FF74C6; --accent-ink:#FF9BD5; --accent-soft:#32152A;
   --t0:#5BC79C; --t1:#79C489; --t2:#E2A947; --t3:#EE9560; --t4:#F0827A;
   --t0-soft:#14291F; --t1-soft:#182A1C; --t2-soft:#2C2314; --t3-soft:#2E2018; --t4-soft:#2E1917;
+  --s1:#DB4C9E; --s2:#BC8420;
   --ok:#5BC79C; --ok-soft:#14291F; --warn:#E2A947; --warn-soft:#2C2314; --risk:#F0827A; --risk-soft:#2E1917;
 }
 *{box-sizing:border-box;}
@@ -84,6 +87,20 @@ td.tr{white-space:nowrap;font-family:var(--mono);font-size:.82rem;font-weight:60
 .verd{white-space:nowrap;font-size:.82rem;}
 .v-ok{color:var(--ok);} .v-mid{color:var(--warn);} .v-no{color:var(--risk);}
 .note{font-size:.8rem;color:var(--muted);line-height:1.55;}
+.est{font-family:var(--mono);font-size:.8rem;color:var(--muted);}
+.delta{font-family:var(--mono);font-size:.7rem;font-weight:600;margin-left:.25rem;}
+.delta.up{color:var(--t4);} .delta.down{color:var(--t0);}
+.bars{display:flex;flex-direction:column;gap:.5rem;margin:1.25rem 0 0;}
+.brow{display:grid;grid-template-columns:6.5rem 1fr;gap:.9rem;align-items:center;font-size:.85rem;}
+.brow .bl{font-family:var(--mono);font-size:.78rem;}
+.btrack{display:flex;align-items:center;gap:.5rem;}
+.bfill{height:14px;border-radius:0 4px 4px 0;background:var(--s1);min-width:2px;}
+.bfill.was{background:var(--s2);}
+.bval{font-family:var(--mono);font-size:.74rem;color:var(--ink-2);font-variant-numeric:tabular-nums;white-space:nowrap;}
+.legend{display:flex;gap:1.1rem;flex-wrap:wrap;margin:.2rem 0 1rem;font-size:.8rem;color:var(--ink-2);}
+.legend span{display:inline-flex;align-items:center;gap:.4rem;}
+.sw{width:11px;height:11px;border-radius:2px;flex:none;}
+.sw1{background:var(--s1);} .sw2{background:var(--s2);}
 .meas{background:var(--accent-soft);color:var(--accent-ink);font-family:var(--mono);font-size:.66rem;font-weight:600;padding:.05rem .35rem;border-radius:2px;white-space:nowrap;}
 .fix{background:var(--surface);border:1px solid var(--line);border-left:2px solid var(--accent);border-radius:0 3px 3px 0;padding:1.2rem 1.4rem;margin:1.75rem 0;max-width:var(--measure);}
 .fix>*:first-child{margin-top:0;} .fix>*:last-child{margin-bottom:0;}
@@ -102,21 +119,22 @@ footer{margin-top:4rem;padding-top:1.25rem;border-top:1px solid var(--line-stron
 <div class="page">
 
 <header class="masthead">
-  <p class="eyebrow">통합 판정 · 외부 문서 반영</p>
+  <p class="eyebrow">통합 판정 · 실측 완료</p>
   <h1>티어 통합 판정 30건</h1>
-  <p class="standfirst">앞선 리서치 3부작의 <strong>T0&ndash;T4 티어와 G/S/H/L 태그 체계를 그대로 채택해</strong> 30개 사이트를 재분류하고, 티어마다 현존 브라우저 자동화로 fullPage 캡처가 어디까지 되는지 판정한 문서입니다. 외부에서 작성된 내용을 옮기면서 <strong>집계를 재계산하고 실측 데이터와 대조</strong>했습니다.</p>
+  <p class="standfirst">외부 문서의 <strong>추정 티어 30건을 실제로 계측했습니다.</strong> 결과는 단호합니다 &mdash; <strong>추정이 맞은 건 25건 중 3건(12%)</strong>. 그리고 어긋난 방향이 예상과 반대였습니다. 저는 "실측하면 대부분 내려갈 것"이라고 했는데, <strong>상향 17건 : 하향 5건</strong>으로 정반대였습니다.</p>
   <ul class="meta">
     <li>2026-08-27</li>
     <li>기준 프레임 T0&ndash;T4 (분류기 v2)</li>
     <li>도구 가정 Playwright + CDP + Sharp</li>
-    <li>30건 중 실측 2건</li>
+    <li>측정 29건 · 실패 1건</li>
+    <li>2026-08-31 실측</li>
   </ul>
 </header>
 
 <div class="status">
-  <span class="tag">이 문서를 읽는 법</span>
-  <p><strong>30개 사이트의 티어는 실측이 아니라 추정입니다.</strong> 도메인·이름·업계 지식만으로 매긴 값이며, 원문도 이 점을 명시하고 있습니다. 앞선 GDWEB 실측에서 <strong>분류기가 49건 중 21건을 과대 판정</strong>했던 것처럼, 이 표도 계측하면 상당수가 하향될 가능성이 높습니다.</p>
-  <p>옮기면서 두 가지를 확인했습니다 &mdash; <strong>①</strong> 분포 집계의 합계가 항목 수와 맞지 않아 <strong>재계산했고</strong>, <strong>②</strong> 30개 중 2곳은 GDWEB 스캔에서 <strong>이미 실측된 사이트</strong>라 그 값을 채웠습니다. 아래에 <span class="meas">실측</span> 표시가 붙은 항목이 그것입니다.</p>
+  <span class="tag">실측 완료 &mdash; 이 문서에서 바뀐 것</span>
+  <p>이전 판은 <strong>추정 티어</strong>를 옮긴 것이었습니다. 이제 <strong>30건 전부를 브라우저로 열어 계측한 값</strong>으로 대체했습니다. 아래 표의 티어는 모두 실측이고, 추정값은 대조용으로 왼쪽에 남겨 두었습니다.</p>
+  <p><strong>그리고 이 실측이 제 판단도 뒤집었습니다.</strong> 두 가지입니다 &mdash; <strong>①</strong> 추정의 오차 방향이 제 예상과 반대였고, <strong>②</strong> 앞선 GDWEB 데이터에 대한 제 재판정에도 오류가 있었습니다. 둘 다 아래 &sect;06에 적었습니다.</p>
 </div>
 
 <!-- ============================================================ -->
@@ -209,124 +227,187 @@ footer{margin-top:4rem;padding-top:1.25rem;border-top:1px solid var(--line-stron
 
 <!-- ============================================================ -->
 <section id="sites">
-  <div class="sec-head"><span class="sec-num">04</span><h2>30개 사이트 &mdash; 예상 티어</h2></div>
+  <div class="sec-head"><span class="sec-num">04</span><h2>30개 사이트 &mdash; 실측</h2></div>
 
-  <p class="col"><strong>이 표는 추정입니다.</strong> <span class="guess">회색 물음표</span>가 붙은 항목은 확신도가 낮다는 원문의 표시이고, <span class="meas">실측</span> 표시는 GDWEB 스캔에서 실제로 계측된 값입니다.</p>
+  <p class="col">왼쪽이 <strong>추정</strong>, 오른쪽이 <strong>실측</strong>입니다. <span class="delta up">▲</span>는 실측이 더 어려웠던 경우, <span class="delta down">▼</span>는 더 쉬웠던 경우이고 숫자는 어긋난 단계입니다.</p>
 
   <div class="scroller">
     <table>
-      <caption>예상 티어 &middot; 태그 &middot; fullPage 가능성</caption>
-      <thead><tr><th>사이트</th><th>티어</th><th>태그</th><th>fullPage</th><th>비고</th></tr></thead>
+      <caption>추정 &rarr; 실측 (측정 29건 · 실패 1건)</caption>
+      <thead><tr><th>사이트</th><th>추정</th><th>실측</th><th>fullPage</th><th>결정적 신호</th></tr></thead>
       <tbody>
-        <tr><td class="nm">토스<span>toss.im</span></td><td class="tr tt3">T3</td><td><span class="tg">S</span><span class="tg">H</span></td><td class="verd v-mid">◯ 별도 모드</td><td class="note"><span class="meas">실측</span> 티어 <strong>일치</strong>. 다만 태그는 <strong>S L M</strong> &mdash; 문서 높이 <strong>50,964px</strong>로 표본 최장이라 <strong>L을 반드시 붙여야</strong> 합니다. H 대신 M(스무스 스크롤 Lenis)</td></tr>
-        <tr><td class="nm">삼성 디자인<span>design.samsung.com/kr</span></td><td class="tr tt4">T4 <span class="guess">?</span></td><td><span class="tg">S</span><span class="tg">H</span></td><td class="verd v-no">⛔ 불가 예상</td><td class="note">확인 필요</td></tr>
-        <tr><td class="nm">the-jey (LG Signature)<span>the-jey.co.kr</span></td><td class="tr tt4">T4 <span class="guess">?</span></td><td><span class="tg">S</span></td><td class="verd v-no">⛔ 불가 예상</td><td class="note">확인 필요</td></tr>
-        <tr><td class="nm">모니모<span>monimo.com</span></td><td class="tr tt2">T2</td><td><span class="tg">S</span></td><td class="verd v-mid">◯ 이미지 나옴</td><td class="note">&mdash;</td></tr>
-        <tr><td class="nm">JDB<span>jdbent.co.kr</span></td><td class="tr tt2">T2 <span class="guess">?</span></td><td><span class="tg">S</span></td><td class="verd v-mid">◯ 이미지 나옴</td><td class="note">&mdash;</td></tr>
-        <tr><td class="nm">MYZ Studio<span>myz-studio.com</span></td><td class="tr tt3">T3 <span class="guess">?</span></td><td><span class="tg">S</span><span class="tg">H</span></td><td class="verd v-mid">◯ 별도 모드</td><td class="note">확인 필요</td></tr>
-        <tr><td class="nm">Duko Studio<span>dukostudio.com</span></td><td class="tr tt3">T3 <span class="guess">?</span></td><td><span class="tg">S</span><span class="tg">H</span></td><td class="verd v-mid">◯ 별도 모드</td><td class="note">확인 필요</td></tr>
-        <tr><td class="nm">Studio505<span>studio505.co.kr</span></td><td class="tr tt3">T3 <span class="guess">?</span></td><td><span class="tg">S</span><span class="tg">H</span></td><td class="verd v-mid">◯ 별도 모드</td><td class="note">확인 필요</td></tr>
-        <tr><td class="nm">Studio264<span>studio264.kr</span></td><td class="tr tt2">T2 <span class="guess">?</span></td><td><span class="tg">S</span><span class="tg">H</span></td><td class="verd v-mid">◯ 이미지 나옴</td><td class="note">&mdash;</td></tr>
-        <tr><td class="nm">Snax<span>snax.team</span></td><td class="tr tt3">T3 <span class="guess">?</span></td><td><span class="tg">S</span><span class="tg">H</span></td><td class="verd v-mid">◯ 별도 모드</td><td class="note">확인 필요</td></tr>
-        <tr><td class="nm">Higher Stage<span>higherstage.co.kr</span></td><td class="tr tt2">T2 <span class="guess">?</span></td><td><span class="tg">S</span><span class="tg">H</span></td><td class="verd v-mid">◯ 이미지 나옴</td><td class="note">&mdash;</td></tr>
-        <tr><td class="nm">One Direction<span>onedirection.co.kr</span></td><td class="tr tt2">T2 <span class="guess">?</span></td><td><span class="tg">S</span></td><td class="verd v-mid">◯ 이미지 나옴</td><td class="note">&mdash;</td></tr>
-        <tr><td class="nm">CODE-X<span>code-x.kr</span></td><td class="tr tt2">T2 <span class="guess">?</span></td><td><span class="tg">S</span><span class="tg">H</span></td><td class="verd v-mid">◯ 이미지 나옴</td><td class="note">&mdash;</td></tr>
-        <tr><td class="nm">Sorow (v6)<span>soroweb.co.kr/v6</span></td><td class="tr tt2">T2 <span class="guess">?</span></td><td><span class="tg">S</span><span class="tg">H</span></td><td class="verd v-mid">◯ 이미지 나옴</td><td class="note">&mdash;</td></tr>
-        <tr><td class="nm">PXD<span>pxd.co.kr</span></td><td class="tr tt1">T1</td><td><span class="tg">S</span></td><td class="verd v-ok">✅ 완전 가능</td><td class="note">&mdash;</td></tr>
-        <tr><td class="nm">카카오게임즈<span>kakaogamescorp.com</span></td><td class="tr tt2">T2</td><td><span class="tg">S</span><span class="tg">L</span></td><td class="verd v-mid">◯ 이미지 나옴</td><td class="note">&mdash;</td></tr>
-        <tr><td class="nm">카카오뱅크 채용<span>recruit.kakaobank.com</span></td><td class="tr tt1">T1</td><td><span class="tg">S</span></td><td class="verd v-ok">✅ 완전 가능</td><td class="note">&mdash;</td></tr>
-        <tr><td class="nm">디캠프<span>dcamp.kr</span></td><td class="tr tt1">T1</td><td><span class="tg">S</span></td><td class="verd v-ok">✅ 완전 가능</td><td class="note">&mdash;</td></tr>
-        <tr><td class="nm">KT&amp;G<span>ktng.com</span></td><td class="tr tt2">T2</td><td><span class="tg">S</span></td><td class="verd v-mid">◯ 이미지 나옴</td><td class="note">&mdash;</td></tr>
-        <tr><td class="nm">잇다<span>itddaa.com</span></td><td class="tr tt1">T1 <span class="guess">?</span></td><td><span class="tg">S</span></td><td class="verd v-ok">✅ 완전 가능</td><td class="note">&mdash;</td></tr>
-        <tr><td class="nm">Allink Beauty<span>allinkbeauty.com</span></td><td class="tr tt2">T2 <span class="guess">?</span></td><td><span class="tg">S</span></td><td class="verd v-mid">◯ 이미지 나옴</td><td class="note">&mdash;</td></tr>
-        <tr><td class="nm">삼천리<span>samchully.co.kr</span></td><td class="tr tt0">T0</td><td><span class="tg">S</span></td><td class="verd v-ok">✅ 완전 가능</td><td class="note">&mdash;</td></tr>
-        <tr><td class="nm">동서식품<span>dongsuh.co.kr</span></td><td class="tr tt0">T0</td><td><span class="tg">S</span></td><td class="verd v-ok">✅ 완전 가능</td><td class="note">&mdash;</td></tr>
-        <tr><td class="nm">신도리코<span>sindoh.com</span></td><td class="tr tt1">T1</td><td><span class="tg">S</span></td><td class="verd v-ok">✅ 완전 가능</td><td class="note">&mdash;</td></tr>
-        <tr><td class="nm">클루닉스<span>clunix.com</span></td><td class="tr tt0">T0</td><td><span class="tg">S</span></td><td class="verd v-ok">✅ 완전 가능</td><td class="note">&mdash;</td></tr>
-        <tr><td class="nm">CarLab<span>carlab.kr</span></td><td class="tr tt0">T0</td><td><span class="tg">S</span></td><td class="verd v-ok">✅ 완전 가능</td><td class="note">&mdash;</td></tr>
-        <tr><td class="nm">Ancors<span>ancors.co.kr</span></td><td class="tr tt3">T3</td><td><span class="tg">S</span><span class="tg">L</span><span class="tg">H</span></td><td class="verd v-mid">◯ 별도 모드</td><td class="note"><span class="meas">실측</span> 원문은 "확인 필요"였습니다. GDWEB 스캔에서 <strong>엔코스</strong>로 계측됨 &mdash; 핀 고정 섹션 3개, 높이 10,226px, GSAP ScrollTrigger</td></tr>
-        <tr><td class="nm">Project PEF<span>project-pef.com</span></td><td class="tr guess">확인 필요</td><td>&mdash;</td><td class="verd">&mdash;</td><td class="note">&mdash;</td></tr>
-        <tr><td class="nm">Kelim<span>kelim.net</span></td><td class="tr guess">확인 필요</td><td>&mdash;</td><td class="verd">&mdash;</td><td class="note">&mdash;</td></tr>
-        <tr><td class="nm">Carbonomy<span>carbonomy.net</span></td><td class="tr guess">확인 필요</td><td>&mdash;</td><td class="verd">&mdash;</td><td class="note">&mdash;</td></tr>
+<tr><td class="nm">Allink Beauty<span>allinkbeauty.com/</span></td><td><span class="est">T2</span></td><td class="tr tt1">T1 <span class="delta down">▼1</span></td><td class="verd v-ok">✅</td><td class="note">특별한 구조 신호 없음</td></tr>
+<tr><td class="nm">Duko Studio<span>dukostudio.com/</span></td><td><span class="est">T3</span></td><td class="tr tt1">T1 <span class="delta down">▼2</span></td><td class="verd v-ok">✅</td><td class="note">특별한 구조 신호 없음</td></tr>
+<tr><td class="nm">Higher Stage<span>higherstage.co.kr/</span></td><td><span class="est">T2</span></td><td class="tr tt1">T1 <span class="delta down">▼1</span></td><td class="verd v-ok">✅</td><td class="note">특별한 구조 신호 없음</td></tr>
+<tr><td class="nm">Project PEF<span>project-pef.com/</span></td><td><span class="est guess">—</span></td><td class="tr tt1">T1 </td><td class="verd v-ok">✅</td><td class="note">특별한 구조 신호 없음</td></tr>
+<tr><td class="nm">CarLab<span>carlab.kr/</span></td><td><span class="est">T0</span></td><td class="tr tt2">T2 <span class="delta up">▲2</span></td><td class="verd v-mid">◯</td><td class="note">자동재생·루프 비디오 3개</td></tr>
+<tr><td class="nm">PXD<span>pxd.co.kr/</span></td><td><span class="est">T1</span></td><td class="tr tt2">T2 <span class="delta up">▲1</span></td><td class="verd v-mid">◯</td><td class="note">자동재생·루프 비디오 1개</td></tr>
+<tr><td class="nm">Snax<span>snax.team/</span></td><td><span class="est">T3</span></td><td class="tr tt2">T2 <span class="delta down">▼1</span></td><td class="verd v-mid">◯</td><td class="note">실행 중인 무한 반복 애니메이션 1개 · 자동재생·루프 비디오 1개</td></tr>
+<tr><td class="nm">Studio264<span>studio264.kr/</span></td><td><span class="est">T2</span></td><td class="tr tt2">T2 </td><td class="verd v-mid">◯</td><td class="note">실행 중인 무한 반복 애니메이션 1개</td></tr>
+<tr><td class="nm">동서식품<span>www.dongsuh.co.kr/</span></td><td><span class="est">T0</span></td><td class="tr tt2">T2 <span class="delta up">▲2</span></td><td class="verd v-mid">◯</td><td class="note">자동재생·루프 비디오 3개</td></tr>
+<tr><td class="nm">디캠프<span>dcamp.kr/</span></td><td><span class="est">T1</span></td><td class="tr tt2">T2 <span class="delta up">▲1</span></td><td class="verd v-mid">◯</td><td class="note">실행 중인 무한 반복 애니메이션 3개 · 자동재생·루프 비디오 1개</td></tr>
+<tr><td class="nm">삼성 디자인<span>design.samsung.com/kr</span></td><td><span class="est">T4</span></td><td class="tr tt2">T2 <span class="delta down">▼2</span></td><td class="verd v-mid">◯</td><td class="note">실행 중인 무한 반복 애니메이션 2개</td></tr>
+<tr><td class="nm">삼천리<span>www.samchully.co.kr/</span></td><td><span class="est">T0</span></td><td class="tr tt2">T2 <span class="delta up">▲2</span></td><td class="verd v-mid">◯</td><td class="note">실행 중인 무한 반복 애니메이션 2개 · 자동재생·루프 비디오 4개</td></tr>
+<tr><td class="nm">잇다<span>itddaa.com/</span></td><td><span class="est">T1</span></td><td class="tr tt2">T2 <span class="delta up">▲1</span></td><td class="verd v-mid">◯</td><td class="note">실행 중인 무한 반복 애니메이션 30개 · 자동재생·루프 비디오 1개</td></tr>
+<tr><td class="nm">카카오게임즈<span>kakaogamescorp.com/</span></td><td><span class="est">T2</span></td><td class="tr tt2">T2 </td><td class="verd v-mid">◯</td><td class="note">자동재생·루프 비디오 1개</td></tr>
+<tr><td class="nm">카카오뱅크 채용<span>recruit.kakaobank.com/</span></td><td><span class="est">T1</span></td><td class="tr tt2">T2 <span class="delta up">▲1</span></td><td class="verd v-mid">◯</td><td class="note">자동재생·루프 비디오 1개</td></tr>
+<tr><td class="nm">Ancors (엔코스)<span>www.ancors.co.kr/</span></td><td><span class="est guess">—</span></td><td class="tr tt3">T3 </td><td class="verd v-mid">◯</td><td class="note">실행 중인 무한 반복 애니메이션 1개 · 자동재생·루프 비디오 1개 · 핀 고정 섹션 3개</td></tr>
+<tr><td class="nm">CODE-X<span>code-x.kr/</span></td><td><span class="est">T2</span></td><td class="tr tt3">T3 <span class="delta up">▲1</span></td><td class="verd v-mid">◯</td><td class="note">실행 중인 무한 반복 애니메이션 7개 · 자동재생·루프 비디오 1개 · 핀 고정 섹션 2개</td></tr>
+<tr><td class="nm">Carbonomy<span>carbonomy.net/</span></td><td><span class="est guess">—</span></td><td class="tr tt3">T3 </td><td class="verd v-mid">◯</td><td class="note">실행 중인 무한 반복 애니메이션 1개 · 자동재생·루프 비디오 9개 · 핀 고정 섹션 6개</td></tr>
+<tr><td class="nm">Kelim<span>kelim.net/</span></td><td><span class="est guess">—</span></td><td class="tr tt3">T3 </td><td class="verd v-mid">◯</td><td class="note">핀 고정 섹션 1개</td></tr>
+<tr><td class="nm">Sorow v6<span>soroweb.co.kr/v6</span></td><td><span class="est">T2</span></td><td class="tr tt3">T3 <span class="delta up">▲1</span></td><td class="verd v-mid">◯</td><td class="note">실행 중인 무한 반복 애니메이션 124개 · 자동재생·루프 비디오 21개 · 핀 고정 섹션 7개</td></tr>
+<tr><td class="nm">Studio505<span>studio505.co.kr/</span></td><td><span class="est">T3</span></td><td class="tr tt3">T3 </td><td class="verd v-mid">◯</td><td class="note">실행 중인 무한 반복 애니메이션 2개 · 자동재생·루프 비디오 2개 · 핀 고정 섹션 2개</td></tr>
+<tr><td class="nm">모니모<span>monimo.com/</span></td><td><span class="est">T2</span></td><td class="tr tt3">T3 <span class="delta up">▲1</span></td><td class="verd v-mid">◯</td><td class="note">실행 중인 무한 반복 애니메이션 11개 · 핀 고정 섹션 1개</td></tr>
+<tr><td class="nm">JDB<span>jdbent.co.kr/</span></td><td><span class="est">T2</span></td><td class="tr tt4">T4 <span class="delta up">▲2</span></td><td class="verd v-no">⛔</td><td class="note">실행 중인 무한 반복 애니메이션 1개 · WebGL 컨텍스트 1개</td></tr>
+<tr><td class="nm">KT&G<span>www.ktng.com/</span></td><td><span class="est">T2</span></td><td class="tr tt4">T4 <span class="delta up">▲2</span></td><td class="verd v-no">⛔</td><td class="note">실행 중인 무한 반복 애니메이션 1개 · 자동재생·루프 비디오 1개 · 핀 고정 섹션 1개 · WebGL 컨텍스트 1개</td></tr>
+<tr><td class="nm">MYZ Studio<span>myz-studio.com/</span></td><td><span class="est">T3</span></td><td class="tr tt4">T4 <span class="delta up">▲1</span></td><td class="verd v-no">⛔</td><td class="note">핀 고정 섹션 2개 · 캔버스에 매 프레임 그리는 중 (rAF 5449회/초, 화면의 100%)</td></tr>
+<tr><td class="nm">One Direction<span>onedirection.co.kr/</span></td><td><span class="est">T2</span></td><td class="tr tt4">T4 <span class="delta up">▲2</span></td><td class="verd v-no">⛔</td><td class="note">실행 중인 무한 반복 애니메이션 1개 · 자동재생·루프 비디오 1개 · WebGL 컨텍스트 2개</td></tr>
+<tr><td class="nm">신도리코<span>www.sindoh.com/</span></td><td><span class="est">T1</span></td><td class="tr tt4">T4 <span class="delta up">▲3</span></td><td class="verd v-no">⛔</td><td class="note">자동재생·루프 비디오 5개 · WebGL 컨텍스트 1개</td></tr>
+<tr><td class="nm">클루닉스<span>www.clunix.com/</span></td><td><span class="est">T0</span></td><td class="tr tt4">T4 <span class="delta up">▲4</span></td><td class="verd v-no">⛔</td><td class="note">실행 중인 무한 반복 애니메이션 6개 · 캔버스에 매 프레임 그리는 중 (rAF 126회/초, 화면의 100%)</td></tr>
+<tr><td class="nm">토스<span>toss.im/</span></td><td><span class="est">T3</span></td><td class="tr tt4">T4 <span class="delta up">▲1</span></td><td class="verd v-no">⛔</td><td class="note">자동재생·루프 비디오 1개 · 핀 고정 섹션 4개 · 캔버스에 매 프레임 그리는 중 (rAF 60회/초, 화면의 100%)</td></tr>
+<tr class="fail"><td class="nm">the-jey (LG Signature)<span>https://the-jey.co.kr/</span></td><td><span class="est">T4</span></td><td colspan="3">측정 실패 — 인증서 도메인 불일치(<code>ERR_CERT_COMMON_NAME_INVALID</code>)</td></tr>
       </tbody>
     </table>
   </div>
 
   <div class="callout">
-    <span class="tag">덤으로 나온 사실</span>
-    <p>GDWEB 스캔에는 <code>toss.im</code>만이 아니라 <code>toss.im/impact</code>도 들어 있었는데, <strong>같은 도메인인데 티어가 다릅니다</strong> &mdash; 메인은 T3, 임팩트 페이지는 T2.</p>
-    <p>티어는 도메인이 아니라 <strong>페이지 단위 속성</strong>이라는 뜻입니다. "이 회사 사이트는 T3"라는 식의 목록은 실무에서 어긋날 수 있고, 캡처 대상 URL마다 판정해야 합니다.</p>
+    <span class="tag">T0가 한 건도 없습니다</span>
+    <p>추정에서 <strong>T0(정적)로 봤던 4건</strong>&mdash;삼천리·동서식품·클루닉스·CarLab&mdash;이 <strong>전부 T2 이상</strong>으로 나왔습니다. 클루닉스는 <strong>T0에서 T4로 네 단계</strong> 올라갔습니다.</p>
+    <p>"기업 사이트니까 정적이겠지"라는 직관이 통하지 않는다는 뜻입니다. 앞선 GDWEB 49건에서도 T0는 단 1건이었습니다. <strong>지금 웹에 정적인 페이지는 사실상 없습니다.</strong></p>
   </div>
 </section>
+
+
 
 <!-- ============================================================ -->
 <section id="dist">
-  <div class="sec-head"><span class="sec-num">05</span><h2>예상 분포 &mdash; 재계산</h2></div>
+  <div class="sec-head"><span class="sec-num">05</span><h2>실측 분포</h2></div>
 
-  <div class="fix">
-    <span class="tag">옮기면서 고친 것</span>
-    <p>원문의 분포 집계가 <strong>합계 32</strong>인데 표의 항목은 <strong>30건</strong>이었습니다. 표를 다시 세어 맞췄습니다.</p>
+  <div class="legend">
+    <span><i class="sw sw1"></i>실측 (29건)</span>
+    <span><i class="sw sw2"></i>추정 (27건)</span>
+  </div>
+  <div class="bars">
+      <div class="brow"><div class="bl tt0">T0 정적</div>
+        <div><div class="btrack"><div class="bfill" style="width:0.6%"></div><span class="bval"><b>0</b>건 · 0%</span></div>
+        <div class="btrack" style="margin-top:2px"><div class="bfill was" style="width:36.4%"></div><span class="bval">4건</span></div></div></div>
+      <div class="brow"><div class="bl tt1">T1 등장형</div>
+        <div><div class="btrack"><div class="bfill" style="width:36.4%"></div><span class="bval"><b>4</b>건 · 14%</span></div>
+        <div class="btrack" style="margin-top:2px"><div class="bfill was" style="width:45.5%"></div><span class="bval">5건</span></div></div></div>
+      <div class="brow"><div class="bl tt2">T2 순환형</div>
+        <div><div class="btrack"><div class="bfill" style="width:100.0%"></div><span class="bval"><b>11</b>건 · 38%</span></div>
+        <div class="btrack" style="margin-top:2px"><div class="bfill was" style="width:90.9%"></div><span class="bval">10건</span></div></div></div>
+      <div class="brow"><div class="bl tt3">T3 스크롤 연동</div>
+        <div><div class="btrack"><div class="bfill" style="width:63.6%"></div><span class="bval"><b>7</b>건 · 24%</span></div>
+        <div class="btrack" style="margin-top:2px"><div class="bfill was" style="width:54.5%"></div><span class="bval">6건</span></div></div></div>
+      <div class="brow"><div class="bl tt4">T4 실시간 렌더</div>
+        <div><div class="btrack"><div class="bfill" style="width:63.6%"></div><span class="bval"><b>7</b>건 · 24%</span></div>
+        <div class="btrack" style="margin-top:2px"><div class="bfill was" style="width:18.2%"></div><span class="bval">2건</span></div></div></div>
   </div>
 
-  <div class="scroller">
+  <div class="scroller" style="margin-top:1.75rem">
     <table>
-      <caption>집계 &mdash; 세 단계</caption>
-      <thead><tr><th>구분</th><th>ⓐ 원문 표기</th><th>ⓑ 표를 다시 센 값</th><th>ⓒ 실측 반영 후</th></tr></thead>
+      <caption>커버율 &mdash; 추정 vs 실측</caption>
+      <thead><tr><th>범위</th><th>추정</th><th>실측</th></tr></thead>
       <tbody>
-        <tr><th scope="row" class="tt0">T0 정적</th><td class="num">4</td><td class="num">4</td><td class="num">4</td></tr>
-        <tr><th scope="row" class="tt1">T1 등장형</th><td class="num"><del>6</del></td><td class="num"><ins>5</ins></td><td class="num">5</td></tr>
-        <tr><th scope="row" class="tt2">T2 순환형</th><td class="num">10</td><td class="num">10</td><td class="num">10</td></tr>
-        <tr><th scope="row" class="tt3">T3 스크롤 연동</th><td class="num"><del>6</del></td><td class="num"><ins>5</ins></td><td class="num"><ins>6</ins></td></tr>
-        <tr><th scope="row" class="tt4">T4 실시간 렌더</th><td class="num">2</td><td class="num">2</td><td class="num">2</td></tr>
-        <tr><th scope="row">확인 필요</th><td class="num">4</td><td class="num">4</td><td class="num"><ins>3</ins></td></tr>
-        <tr><th scope="row"><strong>합계</strong></th><td class="num"><del>32</del></td><td class="num"><ins>30</ins></td><td class="num">30</td></tr>
+        <tr><th scope="row">T0+T1 &mdash; 자동 커버</th><td class="num">9/27 ≈ 33%</td><td class="num"><ins>4/29 ≈ 14%</ins></td></tr>
+        <tr><th scope="row">+T2 &mdash; v1 스코프</th><td class="num">19/27 ≈ 70%</td><td class="num"><ins>15/29 ≈ 52%</ins></td></tr>
+        <tr><th scope="row">+T3 &mdash; 별도 모드 포함</th><td class="num">25/27 ≈ 93%</td><td class="num"><ins>22/29 ≈ 76%</ins></td></tr>
+        <tr><th scope="row">T4 &mdash; 원리적 불가</th><td class="num">2/27 ≈ 7%</td><td class="num"><ins>7/29 ≈ 24%</ins></td></tr>
       </tbody>
     </table>
   </div>
 
-  <p class="col"><strong>ⓑ &rarr; ⓒ</strong>의 변화는 하나뿐입니다 &mdash; 원문이 "확인 필요"로 둔 <strong>Ancors</strong>가 GDWEB 스캔에서 <strong>T3로 실측</strong>됐기에 그 자리로 옮겼습니다. 토스는 원문 추정(T3)과 실측이 일치해 건수 변동이 없습니다.</p>
+  <p class="col"><strong>v1 커버율 52%</strong>입니다. GDWEB 49건 실측의 <strong>51%</strong>와 거의 같습니다 &mdash; 표본이 어워드 수상작에서 에이전시·기업 혼합으로 바뀌었는데도요. <strong>두 표본이 독립적으로 같은 값을 가리킨다면, 이 숫자를 v1 목표로 삼을 근거가 됩니다.</strong></p>
 
+  <h3>태그는 더 극단적입니다</h3>
   <div class="scroller">
     <table>
-      <caption>커버율 &mdash; ⓒ 기준 (확인 필요 3건 제외 &middot; 모수 27)</caption>
-      <thead><tr><th>범위</th><th>원문</th><th>재계산</th></tr></thead>
+      <thead><tr><th>태그</th><th>GDWEB 49건</th><th>이번 29건</th><th>의미</th></tr></thead>
       <tbody>
-        <tr><th scope="row">T0+T1 &mdash; 자동 커버</th><td><del>10/26 ≈ 38%</del></td><td><ins>9/27 ≈ 33%</ins></td></tr>
-        <tr><th scope="row">+T2 &mdash; 조건부 포함</th><td><del>20/26 ≈ 77%</del></td><td><ins>19/27 ≈ 70%</ins></td></tr>
-        <tr><th scope="row">+T3 &mdash; 별도 모드 포함</th><td><del>26/26 = 100%</del></td><td><ins>25/27 ≈ 93%</ins><br><span class="note">T4 2건을 모수에서 빼면 25/25 = 100% &mdash; 원문의 의도는 이쪽으로 보입니다</span></td></tr>
+        <tr><th scope="row"><span class="tg">S</span> 고정 헤더</th><td class="num">98%</td><td class="num"><strong>100%</strong></td><td>29건 전부. 예외가 없습니다</td></tr>
+        <tr><th scope="row"><span class="tg">H</span> 호버 콘텐츠</th><td class="num">59%</td><td class="num">52%</td><td>절반 이상 유지</td></tr>
+        <tr><th scope="row"><span class="tg">L</span> 초장문</th><td class="num">31%</td><td class="num"><strong>48%</strong></td><td>1배율에서도 절반 가까이</td></tr>
+        <tr><th scope="row"><span class="tg">M</span> 스무스 스크롤</th><td class="num">27%</td><td class="num">38%</td><td>Lenis 채택률이 더 높음</td></tr>
+        <tr><th scope="row"><span class="tg">G</span> 봇 차단</th><td class="num">0%</td><td class="num"><strong>0%</strong></td><td>79건 연속 0건</td></tr>
       </tbody>
     </table>
   </div>
 
-  <p class="col">결론 문장의 <em>"30개 중 예상 20개(77%)"</em>는 <strong>19개</strong>가 맞습니다. 30건 전체 기준 19/30 = <strong>63%</strong>, 확인 필요를 뺀 기준 19/27 = <strong>70%</strong>입니다.</p>
+  <p class="col"><strong>G 태그가 두 표본 합계 79건에서 한 건도 나오지 않았습니다.</strong> 국내 기업·에이전시 사이트를 대상으로 하는 한, 봇 차단 대응(레지덴셜 프록시 등)은 v1 예산에서 빼도 된다고 봐도 무방합니다.</p>
 
-  <div class="callout">
-    <span class="tag">숫자가 흔들리는 이유는 따로 있습니다</span>
-    <p>산술을 고쳐도 <strong>이 표는 여전히 추정</strong>입니다. GDWEB 실측에서 분류기가 49건 중 <strong>21건(43%)</strong>을 과대 판정했고, 원인은 <em>라이브러리가 "있다"는 사실을 그 라이브러리가 "무엇을 한다"와 혼동한 것</em>이었습니다.</p>
-    <p>도메인과 업계 지식만으로 매긴 티어는 그보다 더 흔들립니다. <strong>여기 T3 5건·T4 2건 중 상당수가 실측하면 T1·T2로 내려갈 가능성이 높습니다</strong> &mdash; 그렇다면 커버율은 오히려 올라갑니다.</p>
-  </div>
+  <p class="col">반대로 <strong>S가 100%</strong>이고 <strong>L이 48%</strong>입니다. 2배율로 찍으면 기준이 8,192px로 내려가는데, 그 기준으로는 <strong>29건 중 20건(69%)</strong>이 걸립니다. 슬라이스 분할은 예외 처리가 아니라 기본 경로입니다.</p>
 </section>
+
+
 
 <!-- ============================================================ -->
 <section id="todo">
-  <div class="sec-head"><span class="sec-num">06</span><h2>결론 &mdash; 무엇을 해야 하는가</h2></div>
+  <div class="sec-head"><span class="sec-num">06</span><h2>실측이 뒤집은 두 가지</h2></div>
 
+  <h3>하나 &mdash; 추정은 12%만 맞았고, 방향도 반대였습니다</h3>
+
+  <div class="stats">
+    <div class="stat"><p class="k">추정 적중</p><p class="v">12%</p><p class="d">25건 중 3건</p></div>
+    <div class="stat"><p class="k">상향</p><p class="v">17건</p><p class="d">실측이 더 어려움</p></div>
+    <div class="stat"><p class="k">하향</p><p class="v">5건</p><p class="d">실측이 더 쉬움</p></div>
+    <div class="stat"><p class="k">최대 오차</p><p class="v">4단계</p><p class="d">클루닉스 T0 &rarr; T4</p></div>
+  </div>
+
+  <p class="col">저는 <em>"실측하면 T3&middot;T4 상당수가 T1&middot;T2로 내려갈 것"</em>이라고 썼습니다. GDWEB에서 분류기가 21건을 과대 판정했던 경험 때문이었습니다. <strong>정반대였습니다.</strong> 상향이 하향의 세 배가 넘습니다.</p>
+
+  <p class="col">두 오차가 성격이 다르기 때문입니다.</p>
+  <ul class="col">
+    <li><strong>분류기의 과대 판정</strong>은 라이브러리가 <em>있다</em>는 사실을 <em>무엇을 한다</em>와 혼동한 것이었습니다. 신호를 <strong>과하게</strong> 읽은 오류입니다.</li>
+    <li><strong>사람의 추정</strong>은 도메인과 업계 인상으로 매긴 것이라, 페이지 안에서 실제로 돌아가는 것을 <strong>거의 못 봅니다.</strong> 특히 <strong>안 보이는 것을 놓칩니다</strong> &mdash; 전체 화면 캔버스, 핀 고정 섹션, WebGL 배경은 스크린샷만 봐서는 알 수 없습니다.</li>
+  </ul>
+
+  <p class="col">그래서 <strong>"기업 사이트는 정적일 것"이라는 직관이 가장 크게 빗나갔습니다.</strong> 클루닉스는 전체 화면 캔버스를 초당 126회 다시 그리고 있었고, 신도리코는 WebGL을 씁니다. 겉보기 인상과 캡처 난이도는 관계가 없습니다.</p>
+
+  <div class="callout">
+    <span class="tag">이건 기능 2에 대한 증거이기도 합니다</span>
+    <p>사람이 사이트를 보고 매긴 티어가 12%만 맞았다는 건, <strong>이 판정을 사람 손으로 할 수 없다는 뜻</strong>입니다. 30건에 이 정도면 수백 건은 말할 것도 없습니다. 계측이 유일한 방법이고, 그 계측을 자동화하는 것이 기능 2의 본질입니다.</p>
+  </div>
+
+  <h3>둘 &mdash; 제 재판정에도 오류가 있었습니다</h3>
+
+  <p class="col">앞선 「실측 결과」 문서에서 저는 분류기 v2 기준으로 GDWEB 49건을 재판정했습니다. 그런데 그건 <strong>새로 스캔한 게 아니라 기록된 판정 근거 텍스트로 다시 계산한 근사치</strong>였고, 거기서 규칙 하나를 잘못 적용했습니다.</p>
+
+  <div class="scroller">
+    <table>
+      <caption>T4 판정 규칙 &mdash; 제가 적용한 것 vs 실제 v2</caption>
+      <thead><tr><th></th><th>조건</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">제 재판정</th><td>WebGL 컨텍스트가 <strong>있을 때만</strong> T4. rAF 기반 판정은 전부 무효 처리</td></tr>
+        <tr><th scope="row">실제 v2 분류기</th><td>WebGL <strong>또는</strong> (rAF &gt; 45회/초 <strong>그리고</strong> 캔버스가 화면의 25% 초과 <strong>그리고</strong> 2D 드로잉 컨텍스트 존재)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="col">이번 실측이 그 차이를 드러냈습니다. <strong>토스는 WebGL이 없는데도 T4로 나왔습니다</strong> &mdash; 근거는 <em>"캔버스에 매 프레임 그리는 중 (rAF 60회/초, 화면의 100%)"</em>. 전체 화면 캔버스를 2D로 매 프레임 다시 그리고 있고, 이건 <strong>진짜 T4가 맞습니다.</strong> 그런데 제 재판정은 토스를 T3로 내렸습니다.</p>
+
+  <p class="col">같은 이유로 내렸던 GDWEB 사이트가 넷입니다 &mdash; <strong>화천, 토스, 백록담, 삼성서울병원.</strong> 토스는 이번에 T4로 확인됐으니 <strong>최소 1건은 확실히 잘못 내렸고</strong>, 나머지 셋은 알 수 없습니다. v1 스캔 기록에는 2D 컨텍스트 여부가 남아 있지 않아 텍스트로는 판정할 수 없습니다.</p>
+
+  <div class="fix">
+    <span class="tag">따라서 정정</span>
+    <p>「실측 결과」 문서의 <strong>v2 재판정 수치(T4 11건, v1 커버 51%)는 확정값이 아니라 하한선</strong>입니다. T4는 <strong>11~14건</strong> 사이이고, v1 커버율은 그만큼 낮아질 수 있습니다.</p>
+    <p>확정하려면 <strong>GDWEB 50건을 수정된 분류기로 다시 스캔</strong>해야 합니다. 텍스트 재계산으로는 알 수 없습니다 &mdash; 이번 일이 그 한계를 보여줬습니다.</p>
+  </div>
+
+  <h3>그래서 다음은</h3>
   <ol class="concl">
-    <li><span class="n">01 · 스코프</span><strong>v1은 T0·T1·T2로 확정.</strong> 30개 중 예상 19개(확인 필요 제외 시 70%). 태그 <strong>S는 자동 처리, H는 셀렉터 지원</strong>을 우선 구현합니다.</li>
-    <li><span class="n">02 · T3</span><strong>v1에서는 감지 후 알림만.</strong> 무리해서 찍으면 같은 섹션 반복·중간 상태가 나옵니다. 조용히 이상한 결과를 내는 것보다 낫습니다.</li>
-    <li><span class="n">03 · T4</span><strong>스코프 밖으로 명시.</strong> 결정론적 캡처가 원리적으로 불가능하므로 재캡처 로직에 넣지 않습니다.</li>
-    <li><span class="n">04 · 검증</span><strong>추정 티어의 실측이 먼저입니다.</strong> 30개 URL을 <code>urls.txt</code>로 만들어 스캐너에 넣으면 4~5분입니다. 실측이 자체 분류기의 21건 과대 판정을 잡아낸 전례가 있습니다.</li>
-    <li><span class="n">05 · 진짜 승부처</span><strong>기능 2(AI 검수).</strong> 상용 도구도 "찍기"는 되지만 "판단"이 없습니다. 유일하게 비어 있는 자리입니다.</li>
+    <li><span class="n">01 · 재스캔</span><strong>GDWEB 50건을 v2로 다시 돌립니다.</strong> 명령은 동일하고 4~6분입니다. 이것으로 제 재판정 오류가 정리되고, 두 표본이 같은 기준 위에 놓입니다.</li>
+    <li><span class="n">02 · v1 스코프</span><strong>T0~T2 = 52%.</strong> GDWEB 51%와 거의 일치합니다. 서로 다른 두 표본이 같은 값을 가리키므로 <strong>목표 수치로 쓸 만합니다.</strong></li>
+    <li><span class="n">03 · 우선순위</span><strong>S 태그 100%, L 48%.</strong> 고정 헤더 처리와 슬라이스 분할은 기본 경로입니다. 2배율 기준으로는 L이 69%까지 올라갑니다.</li>
+    <li><span class="n">04 · 예산</span><strong>봇 차단 대응은 뺍니다.</strong> 두 표본 79건에서 G 태그 0건입니다.</li>
+    <li><span class="n">05 · T4 24%</span>추정(7%)의 세 배가 넘습니다. <strong>원리적으로 못 찍는 사이트가 넷 중 하나</strong>라는 뜻이라, 감지해서 알리는 UI가 예외 처리가 아니라 정식 기능이어야 합니다.</li>
   </ol>
 
-  <h3>바로 실행할 수 있는 것</h3>
-  <p class="col">이 30개는 <strong>지금 있는 스캐너로 그대로 측정 가능합니다.</strong> URL 목록만 만들면 됩니다.</p>
-  <ul class="col">
-    <li>추정과 실측이 얼마나 어긋나는지 → <strong>추정 방식의 신뢰도 자체</strong>를 알 수 있습니다</li>
-    <li>"확인 필요" 3건이 채워집니다</li>
-    <li>GDWEB 표본(어워드 수상작)과 이 표본(에이전시·기업 혼합)의 분포 차이 → <strong>실무 대상의 실제 난이도</strong>에 더 가까운 값</li>
-  </ul>
+  <h3>남은 한 건</h3>
+  <p class="col"><strong>the-jey (LG Signature)</strong>가 <code>ERR_CERT_COMMON_NAME_INVALID</code>로 실패했습니다. HTTP/1.1 재시도로도 살아나지 않았습니다. <strong>차단이 아니라 서버의 인증서가 그 도메인 이름과 맞지 않는 문제</strong>라 사이트 쪽 설정 이슈입니다. 실제 서비스라면 <strong>"인증서 오류" 상태를 따로 두고 사용자에게 알려야 할 케이스</strong>입니다 &mdash; 재시도해도 소용없고, 무시하고 찍으면 보안 경고 화면을 캡처하게 됩니다.</p>
 </section>
+
+
 
 <footer>웹사이트 스냅샷 자동화 · 티어 통합 판정 30건 · 외부 문서 반영 및 검증 · 2026-08-27</footer>
 

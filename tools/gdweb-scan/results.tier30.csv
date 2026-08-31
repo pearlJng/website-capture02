@@ -1,0 +1,31 @@
+이름,URL,최종 URL,티어,티어명,태그,판정근거,라이브러리,문서높이,고정요소,상태
+토스,https://toss.im/,,T4,실시간 렌더형,S L M,"등장 대기 요소 8개 / IntersectionObserver 12회 생성 / 자동재생·루프 비디오 1개 / 핀 고정 섹션 4개 / 캔버스에 매 프레임 그리는 중 (rAF 60회/초, 화면의 100%)",lenis,50964,7,측정됨
+삼성 디자인,https://design.samsung.com/kr,https://design.samsung.com/kr/main/,T2,순환형,S H,등장 대기 요소 49개 / 실행 중인 무한 반복 애니메이션 2개,swiper,4240,4,측정됨
+the-jey (LG Signature),https://the-jey.co.kr/,,,,,,,,,실패: goto: net::ERR_CERT_COMMON_NAME_INVALID
+모니모,https://monimo.com/,https://www.monimo.com/monimo/homepage/main/,T3,스크롤 연동형,S H,지연 로딩 이미지 6개 / 등장 대기 요소 31개 / IntersectionObserver 15회 생성 / 실행 중인 무한 반복 애니메이션 11개 / 핀 고정 섹션 1개,,9224,4,측정됨
+JDB,https://jdbent.co.kr/,,T4,실시간 렌더형,S M,지연 로딩 이미지 6개 / 등장 대기 요소 22개 / 등장 애니메이션 라이브러리 / 실행 중인 무한 반복 애니메이션 1개 / WebGL 컨텍스트 1개,lenis aos swiper,5364,11,측정됨
+MYZ Studio,https://myz-studio.com/,,T4,실시간 렌더형,S L M,"등장 대기 요소 85개 / IntersectionObserver 52회 생성 / 핀 고정 섹션 2개 / 캔버스에 매 프레임 그리는 중 (rAF 5449회/초, 화면의 100%)",lenis,11746,4,측정됨
+Duko Studio,https://dukostudio.com/,https://dukostudio.com/kor/,T1,등장형,S L,등장 대기 요소 26개 / ScrollTrigger(등장용으로 추정),gsap scrollTrigger swiper,9852,4,측정됨
+Studio505,https://studio505.co.kr/,,T3,스크롤 연동형,S L H M,등장 대기 요소 75개 / 등장 애니메이션 라이브러리 / ScrollTrigger(등장용으로 추정) / 실행 중인 무한 반복 애니메이션 2개 / 자동재생·루프 비디오 2개 / 핀 고정 섹션 2개,gsap scrollTrigger lenis aos swiper scrollReveal,19311,10,측정됨
+Studio264,https://studio264.kr/,,T2,순환형,S L H,지연 로딩 이미지 148개 / 등장 대기 요소 5개 / 실행 중인 무한 반복 애니메이션 1개,gsap,11564,7,측정됨
+Snax,https://snax.team/,,T2,순환형,S H,지연 로딩 이미지 4개 / 등장 대기 요소 39개 / IntersectionObserver 87회 생성 / 실행 중인 무한 반복 애니메이션 1개 / 자동재생·루프 비디오 1개,,8880,3,측정됨
+Higher Stage,https://higherstage.co.kr/,,T1,등장형,S H,지연 로딩 이미지 51개,,6496,11,측정됨
+One Direction,https://onedirection.co.kr/,,T4,실시간 렌더형,S M,등장 대기 요소 25개 / ScrollTrigger(등장용으로 추정) / 실행 중인 무한 반복 애니메이션 1개 / 자동재생·루프 비디오 1개 / WebGL 컨텍스트 2개 / 3D·물리 렌더링 라이브러리,gsap scrollTrigger lenis three,5418,4,측정됨
+CODE-X,https://code-x.kr/,https://www.code-x.kr/,T3,스크롤 연동형,S L H,등장 대기 요소 30개 / IntersectionObserver 5회 생성 / 실행 중인 무한 반복 애니메이션 7개 / 자동재생·루프 비디오 1개 / 핀 고정 섹션 2개,,9995,6,측정됨
+Sorow v6,https://soroweb.co.kr/v6,https://soroweb.co.kr/v6/,T3,스크롤 연동형,S L H M,등장 대기 요소 84개 / IntersectionObserver 2회 생성 / ScrollTrigger(등장용으로 추정) / 실행 중인 무한 반복 애니메이션 124개 / 자동재생·루프 비디오 21개 / 핀 고정 섹션 7개,gsap scrollTrigger lenis,12971,21,측정됨
+PXD,https://pxd.co.kr/,https://pxd.co.kr/ko,T2,순환형,S,지연 로딩 이미지 20개 / 등장 대기 요소 13개 / IntersectionObserver 2회 생성 / 자동재생·루프 비디오 1개,,8181,1,측정됨
+카카오게임즈,https://kakaogamescorp.com/,,T2,순환형,S H,지연 로딩 이미지 25개 / 등장 대기 요소 28개 / 자동재생·루프 비디오 1개,,6520,2,측정됨
+카카오뱅크 채용,https://recruit.kakaobank.com/,,T2,순환형,S,지연 로딩 이미지 19개 / 등장 대기 요소 33개 / IntersectionObserver 6회 생성 / ScrollTrigger(등장용으로 추정) / 자동재생·루프 비디오 1개,gsap scrollTrigger swiper,8660,2,측정됨
+디캠프,https://dcamp.kr/,,T2,순환형,S,지연 로딩 이미지 16개 / 등장 대기 요소 27개 / IntersectionObserver 4회 생성 / 실행 중인 무한 반복 애니메이션 3개 / 자동재생·루프 비디오 1개,swiper,9690,8,측정됨
+KT&G,https://www.ktng.com/,,T4,실시간 렌더형,S L,지연 로딩 이미지 1개 / 등장 대기 요소 28개 / IntersectionObserver 9회 생성 / 실행 중인 무한 반복 애니메이션 1개 / 자동재생·루프 비디오 1개 / 핀 고정 섹션 1개 / WebGL 컨텍스트 1개,,10943,5,측정됨
+잇다,https://itddaa.com/,,T2,순환형,S L,등장 대기 요소 130개 / ScrollTrigger(등장용으로 추정) / 실행 중인 무한 반복 애니메이션 30개 / 자동재생·루프 비디오 1개,gsap scrollTrigger swiper,12056,6,측정됨
+Allink Beauty,https://allinkbeauty.com/,,T1,등장형,S,등장 대기 요소 15개 / ScrollTrigger(등장용으로 추정),gsap scrollTrigger swiper,8669,2,측정됨
+삼천리,https://www.samchully.co.kr/,,T2,순환형,S H M,지연 로딩 이미지 10개 / 등장 대기 요소 94개 / ScrollTrigger(등장용으로 추정) / 실행 중인 무한 반복 애니메이션 2개 / 자동재생·루프 비디오 4개,gsap scrollTrigger lenis swiper,6895,3,측정됨
+동서식품,https://www.dongsuh.co.kr/,https://www.dongsuh.co.kr/main,T2,순환형,S H M,등장 대기 요소 33개 / ScrollTrigger(등장용으로 추정) / 자동재생·루프 비디오 3개,gsap scrollTrigger lenis swiper,6737,5,측정됨
+신도리코,https://www.sindoh.com/,,T4,실시간 렌더형,S L H M,등장 대기 요소 20개 / IntersectionObserver 9회 생성 / ScrollTrigger(등장용으로 추정) / 자동재생·루프 비디오 5개 / WebGL 컨텍스트 1개,gsap scrollTrigger lenis swiper,15439,28,측정됨
+클루닉스,https://www.clunix.com/,,T4,실시간 렌더형,S L,"등장 대기 요소 45개 / ScrollTrigger(등장용으로 추정) / 실행 중인 무한 반복 애니메이션 6개 / 캔버스에 매 프레임 그리는 중 (rAF 126회/초, 화면의 100%)",gsap scrollTrigger swiper,12594,4,측정됨
+CarLab,https://carlab.kr/,https://carlab.kr/index.php,T2,순환형,S L M,등장 대기 요소 69개 / IntersectionObserver 2회 생성 / ScrollTrigger(등장용으로 추정) / 자동재생·루프 비디오 3개,gsap scrollTrigger lenis swiper,11358,3,측정됨
+Ancors (엔코스),https://www.ancors.co.kr/,,T3,스크롤 연동형,S L H,등장 대기 요소 31개 / IntersectionObserver 8회 생성 / ScrollTrigger(등장용으로 추정) / 실행 중인 무한 반복 애니메이션 1개 / 자동재생·루프 비디오 1개 / 핀 고정 섹션 3개,gsap scrollTrigger,10226,11,측정됨
+Project PEF,https://project-pef.com/,,T1,등장형,S H M,등장 대기 요소 23개 / IntersectionObserver 4회 생성 / 등장 애니메이션 라이브러리 / ScrollTrigger(등장용으로 추정),gsap scrollTrigger lenis aos swiper,9019,5,측정됨
+Kelim,https://kelim.net/,https://www.kelim.net/,T3,스크롤 연동형,S H,등장 대기 요소 28개 / ScrollTrigger(등장용으로 추정) / 핀 고정 섹션 1개,gsap scrollTrigger swiper,6184,5,측정됨
+Carbonomy,https://carbonomy.net/,,T3,스크롤 연동형,S L,등장 대기 요소 9개 / 실행 중인 무한 반복 애니메이션 1개 / 자동재생·루프 비디오 9개 / 핀 고정 섹션 6개,,22373,12,측정됨
