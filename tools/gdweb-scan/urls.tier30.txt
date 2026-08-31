@@ -1,0 +1,33 @@
+# 「티어 통합 정리」문서의 30개 사이트 — 추정 티어를 실측으로 검증하기 위한 목록
+# 사용법: npm run scan -- --urls urls.tier30.txt --concurrency 4
+# toss.im 과 ancors.co.kr 은 GDWEB 스캔에서 이미 측정됨(각각 T3). 대조용으로 남겨 둠.
+https://toss.im/	토스
+https://design.samsung.com/kr	삼성 디자인
+https://the-jey.co.kr/	the-jey (LG Signature)
+https://monimo.com/	모니모
+https://jdbent.co.kr/	JDB
+https://myz-studio.com/	MYZ Studio
+https://dukostudio.com/	Duko Studio
+https://studio505.co.kr/	Studio505
+https://studio264.kr/	Studio264
+https://snax.team/	Snax
+https://higherstage.co.kr/	Higher Stage
+https://onedirection.co.kr/	One Direction
+https://code-x.kr/	CODE-X
+https://soroweb.co.kr/v6	Sorow v6
+https://pxd.co.kr/	PXD
+https://kakaogamescorp.com/	카카오게임즈
+https://recruit.kakaobank.com/	카카오뱅크 채용
+https://dcamp.kr/	디캠프
+https://www.ktng.com/	KT&G
+https://itddaa.com/	잇다
+https://allinkbeauty.com/	Allink Beauty
+https://www.samchully.co.kr/	삼천리
+https://www.dongsuh.co.kr/	동서식품
+https://www.sindoh.com/	신도리코
+https://www.clunix.com/	클루닉스
+https://carlab.kr/	CarLab
+https://www.ancors.co.kr/	Ancors (엔코스)
+https://project-pef.com/	Project PEF
+https://kelim.net/	Kelim
+https://carbonomy.net/	Carbonomy
