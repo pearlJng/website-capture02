@@ -342,7 +342,8 @@ export async function probeSite(context, url, { timeout = 45000 } = {}) {
     const gate = detectGate(before, status);
     if (gate) {
       return {
-        url, ok: true, gate, ms: Date.now() - started,
+        url, ok: true, gate, finalUrl: page.url() !== url ? page.url() : undefined,
+        ms: Date.now() - started,
         ...classify(before, null, 0, gate),
         title: before.title,
       };
@@ -376,7 +377,11 @@ export async function probeSite(context, url, { timeout = 45000 } = {}) {
     const after = await page.evaluate(collect, 'after');
     const result = classify(before, after, rafPerSec, null);
 
-    return { url, ok: true, gate: null, title: before.title, ms: Date.now() - started, ...result };
+    return {
+      url, ok: true, gate: null, title: before.title,
+      finalUrl: page.url() !== url ? page.url() : undefined,
+      ms: Date.now() - started, ...result,
+    };
   } catch (e) {
     return { url, ok: false, error: e.message.split('\n')[0], ms: Date.now() - started };
   } finally {

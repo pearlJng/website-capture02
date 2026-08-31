@@ -195,15 +195,20 @@ function renderCsv(rows) {
     const s = String(v ?? '');
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
-  const header = ['이름', 'URL', '티어', '티어명', '태그', '판정근거', '라이브러리', '문서높이', '고정요소', '상태'];
+  const header = ['이름', 'URL', '최종 URL', '티어', '티어명', '태그', '판정근거', '라이브러리', '문서높이', '고정요소', '상태'];
   const lines = [header.join(',')];
   for (const r of rows) {
-    const status = !r.ok ? `실패: ${r.error}` : r.gate ? `차단: ${r.gate}` : '측정됨';
+    const status = !r.ok
+      ? `실패: ${r.error}`
+      : r.gate
+        ? `차단: ${r.gate}`
+        : r.retriedWithHttp1 ? '측정됨 (HTTP/1.1 재시도)' : '측정됨';
     const ev = r.evidence || {};
     lines.push(
       [
         r.name || r.title || '',
         r.url,
+        r.finalUrl || '',
         r.ok && !r.gate ? TIERS[r.tier].key : '',
         r.ok && !r.gate ? TIERS[r.tier].name : '',
         (r.tags || []).join(' '),
@@ -218,22 +223,32 @@ function renderCsv(rows) {
   return '\ufeff' + lines.join('\n') + '\n';
 }
 
-async function main() {
-  const args = parseArgs(process.argv);
-  const browser = await chromium.launch({
-    args: ['--disable-dev-shm-usage'],
+/** 브라우저를 연다. extraArgs 로 HTTP/2 비활성화 같은 재시도용 옵션을 넣는다. */
+function openBrowser(extraArgs = []) {
+  return chromium.launch({
+    args: ['--disable-dev-shm-usage', ...extraArgs],
     // 사내 이미지처럼 브라우저 경로가 다를 때를 위한 탈출구
     ...(process.env.PLAYWRIGHT_CHROMIUM_PATH
       ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH }
       : {}),
   });
-  const context = await browser.newContext({
-    viewport: VIEWPORT,
-    userAgent: UA,
-    locale: 'ko-KR',
-    timezoneId: 'Asia/Seoul',
-    reducedMotion: 'no-preference', // 사이트의 진짜 모습을 봐야 하므로 줄이지 않는다
-  });
+}
+
+const CONTEXT_OPTS = {
+  viewport: VIEWPORT,
+  userAgent: UA,
+  locale: 'ko-KR',
+  timezoneId: 'Asia/Seoul',
+  reducedMotion: 'no-preference', // 사이트의 진짜 모습을 봐야 하므로 줄이지 않는다
+};
+
+/** 한 번 더 시도해 볼 만한 실패인가. 404 같은 확정 실패는 재시도하지 않는다. */
+const RETRYABLE = /ERR_HTTP2_PROTOCOL_ERROR|ERR_CONNECTION_RESET|ERR_CONNECTION_CLOSED|ERR_TIMED_OUT|ERR_NETWORK_CHANGED|ERR_EMPTY_RESPONSE|Timeout .* exceeded/i;
+
+async function main() {
+  const args = parseArgs(process.argv);
+  const browser = await openBrowser();
+  const context = await browser.newContext(CONTEXT_OPTS);
 
   let entries = [];
 
@@ -290,6 +305,28 @@ async function main() {
 
   await context.close();
   await browser.close();
+
+  // ── 재시도 패스 ────────────────────────────────────────────────
+  // 일부 사이트는 헤드리스 크롬의 HTTP/2 협상에서 넘어진다(ERR_HTTP2_PROTOCOL_ERROR).
+  // 차단이 아니라 프로토콜 문제이므로, HTTP/1.1 로 내려 한 번만 다시 시도한다.
+  const retryable = rows
+    .map((r, i) => ({ r, i }))
+    .filter(({ r }) => !r.ok && RETRYABLE.test(r.error || ''));
+
+  if (retryable.length) {
+    process.stderr.write(`\n실패 ${retryable.length}건 재시도 (HTTP/1.1 강제)\n`);
+    const b2 = await openBrowser(['--disable-http2']);
+    const c2 = await b2.newContext(CONTEXT_OPTS);
+    await mapLimit(retryable, Math.min(2, args.concurrency), async ({ r, i }) => {
+      const again = await probeSite(c2, r.url);
+      const label = again.ok ? (again.gate ? `차단(${again.gate})` : TIERS[again.tier].key) : '재실패';
+      process.stderr.write(`  ${label.padEnd(8)} ${r.url}\n`);
+      if (again.ok) rows[i] = { ...rows[i], ...again, retriedWithHttp1: true };
+      else rows[i] = { ...rows[i], error: `${r.error} (HTTP/1.1 재시도도 실패: ${again.error})` };
+    });
+    await c2.close();
+    await b2.close();
+  }
 
   const summary = summarize(rows);
   const meta = { scannedAt: new Date().toISOString(), viewport: VIEWPORT, args };
