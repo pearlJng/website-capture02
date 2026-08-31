@@ -7,11 +7,15 @@
 """
 import re, sys
 
+# 저장소 루트에서 실행한다. 스크래치패드 사본이 아니라 docs/research 의 원본을 읽는다.
+SRC = 'docs/research/'
+OUT = SRC + 'capture-research-tabs.html'
+
 DOCS = [
-    ('p1', 'capture-feasibility.html',   '01', '경쟁 분석',  '시중 도구는 어디까지 왔나'),
-    ('p2', 'capture-tiers.html',         '02', '분류 체계',  '캡처 난이도 T0–T4'),
-    ('p3', 'capture-scan-results.html',  '03', '실측 결과',  'GDWEB 50건 계측'),
-    ('p4', 'capture-integrated.html',    '04', '통합 판정',  '티어 × 30개 사이트'),
+    ('p1', SRC + 'capture-tool-landscape.html',  '01', '경쟁 분석',  '시중 도구는 어디까지 왔나'),
+    ('p2', SRC + 'capture-tier-taxonomy.html',   '02', '분류 체계',  '캡처 난이도 T0–T4'),
+    ('p3', SRC + 'capture-scan-results.html',    '03', '실측 결과',  'GDWEB 50건 계측'),
+    ('p4', SRC + 'capture-tier-integrated.html', '04', '통합 판정',  '티어 × 30개 사이트'),
 ]
 
 # 전역으로 남길 셀렉터 — 스코프하면 오히려 깨진다.
@@ -175,7 +179,7 @@ def main():
         tabs='\n      '.join(tabs),
         panels='\n'.join(panels),
     )
-    open('capture-research-tabs.html', 'w', encoding='utf-8').write(out)
+    open(OUT, 'w', encoding='utf-8').write(out)
     print('written', len(out), 'bytes')
 
 

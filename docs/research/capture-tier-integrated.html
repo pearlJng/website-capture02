@@ -144,8 +144,8 @@ footer{margin-top:4rem;padding-top:1.25rem;border-top:1px solid var(--line-stron
   <p class="col">기술 타당성은 앞선 리서치에서 판정이 끝났습니다. 요약하면 <strong>기능 1·3은 상용 표준이고, 기능 2(AI 검수)가 진짜 승부처.</strong> 현존 도구는 "찍기"는 되지만 "판단"이 없습니다.</p>
 
   <div class="stats">
-    <div class="stat"><p class="k">v1 자동 커버</p><p class="v">51%</p><p class="d">T0&ndash;T2 · GDWEB 49건 실측</p></div>
-    <div class="stat"><p class="k">별도 모드 포함</p><p class="v">78%</p><p class="d">+T3</p></div>
+    <div class="stat"><p class="k">v1 자동 커버</p><p class="v">50%</p><p class="d">T0&ndash;T2 · 두 표본 78건 실측</p></div>
+    <div class="stat"><p class="k">별도 모드 포함</p><p class="v">72%</p><p class="d">+T3</p></div>
     <div class="stat"><p class="k">원리적 불가</p><p class="v">22%</p><p class="d">T4</p></div>
     <div class="stat"><p class="k">고정 헤더 출현율</p><p class="v">98%</p><p class="d">S 태그</p></div>
   </div>
@@ -318,7 +318,7 @@ footer{margin-top:4rem;padding-top:1.25rem;border-top:1px solid var(--line-stron
     </table>
   </div>
 
-  <p class="col"><strong>v1 커버율 52%</strong>입니다. GDWEB 49건 실측의 <strong>51%</strong>와 거의 같습니다 &mdash; 표본이 어워드 수상작에서 에이전시·기업 혼합으로 바뀌었는데도요. <strong>두 표본이 독립적으로 같은 값을 가리킨다면, 이 숫자를 v1 목표로 삼을 근거가 됩니다.</strong></p>
+  <p class="col"><strong>v1 커버율 52%</strong>입니다. GDWEB 49건 재스캔의 <strong>49%</strong>와 거의 같습니다 &mdash; 표본이 어워드 수상작에서 에이전시·기업 혼합으로 바뀌었는데도요. <strong>두 표본이 독립적으로 같은 값을 가리킨다면, 이 숫자를 v1 목표로 삼을 근거가 됩니다.</strong></p>
 
   <h3>태그는 더 극단적입니다</h3>
   <div class="scroller">
@@ -386,21 +386,21 @@ footer{margin-top:4rem;padding-top:1.25rem;border-top:1px solid var(--line-stron
 
   <p class="col">이번 실측이 그 차이를 드러냈습니다. <strong>토스는 WebGL이 없는데도 T4로 나왔습니다</strong> &mdash; 근거는 <em>"캔버스에 매 프레임 그리는 중 (rAF 60회/초, 화면의 100%)"</em>. 전체 화면 캔버스를 2D로 매 프레임 다시 그리고 있고, 이건 <strong>진짜 T4가 맞습니다.</strong> 그런데 제 재판정은 토스를 T3로 내렸습니다.</p>
 
-  <p class="col">같은 이유로 내렸던 GDWEB 사이트가 넷입니다 &mdash; <strong>화천, 토스, 백록담, 삼성서울병원.</strong> 토스는 이번에 T4로 확인됐으니 <strong>최소 1건은 확실히 잘못 내렸고</strong>, 나머지 셋은 알 수 없습니다. v1 스캔 기록에는 2D 컨텍스트 여부가 남아 있지 않아 텍스트로는 판정할 수 없습니다.</p>
+  <p class="col">같은 이유로 내렸던 GDWEB 사이트가 넷입니다 &mdash; <strong>화천, 토스, 백록담, 삼성서울병원.</strong> 그래서 GDWEB 50건을 수정된 분류기로 다시 돌렸습니다.</p>
 
   <div class="fix">
-    <span class="tag">따라서 정정</span>
-    <p>「실측 결과」 문서의 <strong>v2 재판정 수치(T4 11건, v1 커버 51%)는 확정값이 아니라 하한선</strong>입니다. T4는 <strong>11~14건</strong> 사이이고, v1 커버율은 그만큼 낮아질 수 있습니다.</p>
-    <p>확정하려면 <strong>GDWEB 50건을 수정된 분류기로 다시 스캔</strong>해야 합니다. 텍스트 재계산으로는 알 수 없습니다 &mdash; 이번 일이 그 한계를 보여줬습니다.</p>
+    <span class="tag">재스캔으로 확정</span>
+    <p><strong>넷 다 T4가 맞았습니다.</strong> 화천 rAF 124회/초, 토스 60회/초, 백록담 61회/초, 삼성서울병원 184회/초 &mdash; 모두 화면의 90&ndash;100%를 덮는 캔버스에 매 프레임 그리고 있었습니다. 하나도 예외가 없었습니다.</p>
+    <p>따라서 GDWEB의 <strong>T4는 11건이 아니라 15건</strong>, <strong>v1 커버율은 51%가 아니라 49%</strong>입니다. 제가 제시했던 범위 <strong>11&ndash;14건조차 위쪽이 모자랐습니다</strong> &mdash; 넷 다 틀렸을 가능성을 산술에서 빠뜨렸습니다. 커버율 쪽은 51%&rarr;49%로 결론이 바뀌지 않았습니다.</p>
   </div>
 
   <h3>그래서 다음은</h3>
   <ol class="concl">
-    <li><span class="n">01 · 재스캔</span><strong>GDWEB 50건을 v2로 다시 돌립니다.</strong> 명령은 동일하고 4~6분입니다. 이것으로 제 재판정 오류가 정리되고, 두 표본이 같은 기준 위에 놓입니다.</li>
-    <li><span class="n">02 · v1 스코프</span><strong>T0~T2 = 52%.</strong> GDWEB 51%와 거의 일치합니다. 서로 다른 두 표본이 같은 값을 가리키므로 <strong>목표 수치로 쓸 만합니다.</strong></li>
+    <li><span class="n">01 · 재스캔 완료</span><strong>GDWEB 50건을 v2로 다시 돌렸습니다.</strong> 두 표본이 같은 기준 위에 놓였습니다 &mdash; 합계 78건 실측, T0~T2 <strong>39건(50%)</strong>, T3 17건(22%), T4 22건(28%).</li>
+    <li><span class="n">02 · v1 스코프</span><strong>T0~T2 = 50%.</strong> 후속 30건 52%, GDWEB 49%. 서로 다른 두 표본이 같은 값을 가리키므로 <strong>목표 수치로 쓸 만합니다.</strong></li>
     <li><span class="n">03 · 우선순위</span><strong>S 태그 100%, L 48%.</strong> 고정 헤더 처리와 슬라이스 분할은 기본 경로입니다. 2배율 기준으로는 L이 69%까지 올라갑니다.</li>
     <li><span class="n">04 · 예산</span><strong>봇 차단 대응은 뺍니다.</strong> 두 표본 79건에서 G 태그 0건입니다.</li>
-    <li><span class="n">05 · T4 24%</span>추정(7%)의 세 배가 넘습니다. <strong>원리적으로 못 찍는 사이트가 넷 중 하나</strong>라는 뜻이라, 감지해서 알리는 UI가 예외 처리가 아니라 정식 기능이어야 합니다.</li>
+    <li><span class="n">05 · T4 28%</span>추정(7%)의 네 배입니다. 후속 30건 24%, GDWEB 31% &mdash; <strong>원리적으로 못 찍는 사이트가 넷 중 하나 이상</strong>이라는 뜻이라, 감지해서 알리는 UI가 예외 처리가 아니라 정식 기능이어야 합니다.</li>
   </ol>
 
   <h3>남은 한 건</h3>
@@ -409,6 +409,6 @@ footer{margin-top:4rem;padding-top:1.25rem;border-top:1px solid var(--line-stron
 
 
 
-<footer>웹사이트 스냅샷 자동화 · 티어 통합 판정 30건 · 외부 문서 반영 및 검증 · 2026-08-27</footer>
+<footer>웹사이트 스냅샷 자동화 · 티어 통합 판정 30건 · 외부 문서 반영 및 검증 · GDWEB 재스캔 반영 2026-08-31</footer>
 
 </div>
