@@ -125,13 +125,16 @@ function summarize(rows) {
   };
   for (const r of rows) {
     const t = r.tier || '(미분류)';
-    const b = (s.byTier[t] ||= { total: 0, same: 0, diff: 0, error: 0, incomplete: 0 });
+    const b = (s.byTier[t] ||= { total: 0, same: 0, diff: 0, error: 0, incomplete: 0, pass: 0 });
     b.total++;
     if (r.error) { b.error++; continue; }
     const same = r.verdict === VERDICT.SAME || r.verdict === VERDICT.SAME_PIXELS;
     const done = r.complete === '정상';
     if (same) b.same++; else b.diff++;
     if (!done) b.incomplete++;
+    // 통과는 따로 센다. '다름'이면서 '미완주'인 사이트가 있어서
+    // (같음 - 미완주) 로 빼면 같은 사이트를 두 번 깎는다.
+    if (same && done) b.pass++;
     if (['T0', 'T1', 'T2'].includes(t)) {
       s.v1Total++;
       if (same) s.v1Same++;
@@ -171,7 +174,7 @@ function renderReport(rows, s, meta) {
   for (const t of ['T0', 'T1', 'T2', 'T3', 'T4', '(미분류)']) {
     const b = s.byTier[t];
     if (!b) continue;
-    const rate = ['T0', 'T1', 'T2'].includes(t) ? `${pct(b.same - b.incomplete > 0 ? b.same - b.incomplete : 0, b.total - b.error)}%` : '—';
+    const rate = ['T0', 'T1', 'T2'].includes(t) ? `${pct(b.pass, b.total - b.error)}%` : '—';
     L.push(`  ${t.padEnd(6)}${String(b.total).padStart(4)}${String(b.same).padStart(7)}${String(b.diff).padStart(7)}${String(b.incomplete).padStart(9)}${String(b.error).padStart(7)}${rate.padStart(9)}`);
   }
   L.push('');
