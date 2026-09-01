@@ -258,6 +258,13 @@ async function main() {
   if (shotDir) mkdirSync(shotDir, { recursive: true });
 
   const host = createBrowserHost();
+
+  // 예외가 나도 브라우저는 반드시 닫는다. 안 닫으면 이벤트 루프가 살아 있어
+  // 프로세스가 끝나지 않고, 터미널이 멈춘 것처럼 보인다.
+  let closed = false;
+  const shutdown = async () => { if (!closed) { closed = true; await host.close().catch(() => {}); } };
+  process.on('SIGINT', () => { shutdown().finally(() => process.exit(130)); });
+
   const ctxOpts = { viewport: VIEWPORT, deviceScaleFactor: scale, userAgent: UA, locale: 'ko-KR', timezoneId: 'Asia/Seoul' };
 
   // 브라우저가 죽으면 이 페이지도 같이 죽는다. 필요할 때마다 살아 있는지 보고 다시 만든다.
@@ -289,7 +296,9 @@ async function main() {
     return { shots, cmp };
   }
 
-  const rows = await mapLimit(targets, args.concurrency || 2, async (t) => {
+  let rows;
+  try {
+  rows = await mapLimit(targets, args.concurrency || 2, async (t) => {
     const base = { name: t.name, url: t.url, tier: t.tier, ratio: 0 };
 
     let out;
@@ -331,7 +340,9 @@ async function main() {
     };
   });
 
-  await host.close();
+  } finally {
+    await shutdown();
+  }
   if (host.restarts) console.error(`\n브라우저가 ${host.restarts}번 죽어서 다시 띄웠습니다.`);
 
   const s = summarize(rows);

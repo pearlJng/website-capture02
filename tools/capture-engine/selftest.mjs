@@ -103,12 +103,25 @@ function serveFixtures() {
       res.writeHead(404).end('not found');
     }
   });
+  server.unref();  // 혹시 close 를 놓쳐도 이 서버 때문에 프로세스가 안 끝나는 일은 없게
   return new Promise((r) => server.listen(PORT, '127.0.0.1', () => r(server)));
 }
 
 async function main() {
   const server = await serveFixtures();
   const host = createBrowserHost();
+
+  // 서버와 브라우저는 무슨 일이 있어도 정리한다.
+  // 안 그러면 예외가 났을 때 이벤트 루프가 계속 살아 있어 프로세스가 안 끝나고,
+  // 터미널이 멈춘 것처럼 보인다. 실제로 그렇게 한 번 물렸다.
+  let cleaned = false;
+  const cleanup = async () => {
+    if (cleaned) return;
+    cleaned = true;
+    await host.close().catch(() => {});
+    await new Promise((r) => server.close(r));
+  };
+  process.on('SIGINT', () => { cleanup().finally(() => process.exit(130)); });
 
   let diffPage = null;
   async function getDiffPage() {
@@ -134,6 +147,7 @@ async function main() {
   }
 
   let failed = 0;
+  try {
   for (const c of CASES) {
     let out;
     for (let i = 0; i < 2; i++) {
@@ -156,8 +170,9 @@ async function main() {
     else console.log(`  ✓ ${c.name}`);
   }
 
-  await host.close();
-  server.close();
+  } finally {
+    await cleanup();
+  }
   if (host.restarts) console.log(`\n브라우저가 ${host.restarts}번 죽어서 다시 띄웠습니다. 환경 문제일 수 있습니다.`);
   console.log(`\n${CASES.length - failed}/${CASES.length} 통과`);
   process.exitCode = failed ? 1 : 0;
