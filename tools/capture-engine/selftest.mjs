@@ -12,9 +12,9 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { join, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright';
 import { captureSite, VIEWPORT, SAFE_PIXELS } from './capture.mjs';
 import { compareCaptures, VERDICT } from './diff.mjs';
+import { createBrowserHost, isBrowserDeath } from './browser.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PORT = 8825;
@@ -108,34 +108,57 @@ function serveFixtures() {
 
 async function main() {
   const server = await serveFixtures();
-  const browser = await chromium.launch({ args: ['--disable-dev-shm-usage'] });
-  const diffCtx = await browser.newContext({ viewport: { width: 200, height: 200 } });
-  const diffPage = await diffCtx.newPage();
+  const host = createBrowserHost();
 
-  let failed = 0;
-  for (const c of CASES) {
+  let diffPage = null;
+  async function getDiffPage() {
+    if (diffPage && !diffPage.isClosed()) return diffPage;
+    const b = await host.get();
+    diffPage = await (await b.newContext({ viewport: { width: 200, height: 200 } })).newPage();
+    return diffPage;
+  }
+
+  /** 한 항목을 한 번 돌린다. 브라우저가 죽었으면 그 사실을 알려준다. */
+  async function attempt(c) {
     const shots = [];
-    let err = null;
     for (let i = 0; i < (c.twice ? 2 : 1); i++) {
+      const browser = await host.get();
       const ctx = await browser.newContext({ viewport: VIEWPORT, locale: 'ko-KR' });
       const r = await captureSite(ctx, BASE + c.file, { steps: c.steps });
       await ctx.close().catch(() => {});
-      if (!r.ok) { err = r.error; break; }
+      if (!r.ok) return { err: r.error, died: isBrowserDeath(r.error) };
       shots.push(r);
     }
-    if (err) {
-      console.log(`  ✗ ${c.name}\n      캡처 실패: ${err}`);
+    const cmp = c.twice ? await compareCaptures(await getDiffPage(), shots[0].slices, shots[1].slices) : null;
+    return { shots, cmp };
+  }
+
+  let failed = 0;
+  for (const c of CASES) {
+    let out;
+    for (let i = 0; i < 2; i++) {
+      try {
+        out = await attempt(c);
+      } catch (e) {
+        const msg = e.message.split('\n')[0];
+        out = { err: msg, died: isBrowserDeath(msg) };
+      }
+      if (!out.died) break;
+      if (i === 0) console.log(`  … 브라우저가 죽어 다시 띄웁니다 (${c.file})`);
+    }
+    if (out.err) {
+      console.log(`  ✗ ${c.name}\n      캡처 실패: ${out.err}`);
       failed++;
       continue;
     }
-    const cmp = c.twice ? await compareCaptures(diffPage, shots[0].slices, shots[1].slices) : null;
-    const problem = c.check(shots[0], cmp);
+    const problem = c.check(out.shots[0], out.cmp);
     if (problem) { console.log(`  ✗ ${c.name}\n      ${problem}`); failed++; }
     else console.log(`  ✓ ${c.name}`);
   }
 
-  await browser.close();
+  await host.close();
   server.close();
+  if (host.restarts) console.log(`\n브라우저가 ${host.restarts}번 죽어서 다시 띄웠습니다. 환경 문제일 수 있습니다.`);
   console.log(`\n${CASES.length - failed}/${CASES.length} 통과`);
   process.exitCode = failed ? 1 : 0;
 }

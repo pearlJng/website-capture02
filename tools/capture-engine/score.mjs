@@ -13,13 +13,13 @@
  *   node score.mjs --from ../gdweb-scan/results.tier30.csv --steps all --scale 2
  *   node score.mjs --urls https://example.com --steps sticky,motion --keep-shots ./shots
  */
-import { chromium } from 'playwright';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { captureSite, STEPS, VIEWPORT } from './capture.mjs';
 import { compareCaptures, VERDICT } from './diff.mjs';
 import { readTable, writeTable } from './csv.mjs';
+import { createBrowserHost, isBrowserDeath } from './browser.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36';
@@ -257,29 +257,59 @@ async function main() {
   const shotDir = args['keep-shots'] ? resolve(HERE, args['keep-shots']) : null;
   if (shotDir) mkdirSync(shotDir, { recursive: true });
 
-  const browser = await chromium.launch();
+  const host = createBrowserHost();
   const ctxOpts = { viewport: VIEWPORT, deviceScaleFactor: scale, userAgent: UA, locale: 'ko-KR', timezoneId: 'Asia/Seoul' };
-  const diffCtx = await browser.newContext({ viewport: { width: 200, height: 200 } });
-  const diffPage = await diffCtx.newPage();
+
+  // 브라우저가 죽으면 이 페이지도 같이 죽는다. 필요할 때마다 살아 있는지 보고 다시 만든다.
+  let diffPage = null;
+  async function getDiffPage() {
+    if (diffPage && !diffPage.isClosed()) return diffPage;
+    const b = await host.get();
+    const ctx = await b.newContext({ viewport: { width: 200, height: 200 } });
+    diffPage = await ctx.newPage();
+    return diffPage;
+  }
 
   console.error(`캡처 시작 — ${targets.length}건 × 2회, 단계 [${steps.join(', ') || 'none'}], ${scale}배`);
   let done = 0;
 
-  const rows = await mapLimit(targets, args.concurrency || 2, async (t) => {
-    const base = { name: t.name, url: t.url, tier: t.tier, ratio: 0 };
+  /** 한 사이트를 두 번 찍고 채점한다. 브라우저가 죽었으면 그 사실을 알려준다. */
+  async function runOnce(t, base) {
     const shots = [];
     for (let pass = 0; pass < 2; pass++) {
       // 매번 새 컨텍스트 — 캐시가 데워진 상태로 두 번째를 찍으면 시험이 헐거워진다.
+      const browser = await host.get();
       const ctx = await browser.newContext(ctxOpts);
       const r = await captureSite(ctx, t.url, { steps, scale });
       await ctx.close().catch(() => {});
-      if (!r.ok) {
-        console.error(`  [${++done}/${targets.length}] ✗ ${t.name} — ${r.error}`);
-        return { ...base, error: r.error };
-      }
+      if (!r.ok) return { ...base, error: r.error, died: isBrowserDeath(r.error) };
       shots.push(r);
     }
-    const cmp = await compareCaptures(diffPage, shots[0].slices, shots[1].slices);
+    const cmp = await compareCaptures(await getDiffPage(), shots[0].slices, shots[1].slices);
+    return { shots, cmp };
+  }
+
+  const rows = await mapLimit(targets, args.concurrency || 2, async (t) => {
+    const base = { name: t.name, url: t.url, tier: t.tier, ratio: 0 };
+
+    let out;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        out = await runOnce(t, base);
+      } catch (e) {
+        const msg = e.message.split('\n')[0];
+        out = { ...base, error: msg, died: isBrowserDeath(msg) };
+      }
+      if (!out.died) break;
+      // 브라우저가 죽었다. 다음 host.get() 이 새로 띄운다. 한 번만 다시 해 본다.
+      if (attempt === 0) console.error(`     브라우저가 죽었습니다 — 다시 띄우고 재시도: ${t.name}`);
+    }
+
+    if (out.error) {
+      console.error(`  [${++done}/${targets.length}] ✗ ${t.name} — ${out.error}`);
+      return { ...base, error: out.error };
+    }
+    const { shots, cmp } = out;
     const complete = completeness(shots[0], t.scanHeight);
 
     if (shotDir) {
@@ -301,7 +331,8 @@ async function main() {
     };
   });
 
-  await browser.close();
+  await host.close();
+  if (host.restarts) console.error(`\n브라우저가 ${host.restarts}번 죽어서 다시 띄웠습니다.`);
 
   const s = summarize(rows);
   const meta = { steps, scale };

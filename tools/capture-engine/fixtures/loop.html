@@ -3,7 +3,8 @@
 body{margin:0;font:16px/1.6 system-ui}
 .blink{height:600px;animation:blink 300ms steps(2,jump-none) infinite}
 @keyframes blink{0%{background:#000}100%{background:#fff}}
-.spin{width:200px;height:200px;margin:40px;background:conic-gradient(#f00,#00f,#f00);
+.spin{width:200px;height:200px;margin:40px;
+      background:linear-gradient(90deg,#f00 0 50%,#00f 50% 100%);
       animation:spin 1.1s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
