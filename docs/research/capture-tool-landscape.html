@@ -706,10 +706,10 @@ footer{
         <line class="d-seam" x1="440" y1="166" x2="560" y2="166"/>
         <text class="d-acc" x="568" y="100">이음새</text>
         <text class="d-acc" x="568" y="170">이음새</text>
-        <text class="d-lbl d-note" x="440" y="256">최대 16,384px에서 잘림</text>
+        <text class="d-lbl d-note" x="440" y="256">길수록 느려짐 — 10만px에 30초</text>
       </svg>
     </div>
-    <figcaption>지금 깨지는 네 지점 &mdash; 아직 안 그려진 이미지, 움직이는 중인 애니메이션, 조각마다 따라오는 sticky 메뉴바, 그리고 크롬이 한 장에 담을 수 있는 세로 길이 한계.</figcaption>
+    <figcaption>지금 깨지는 네 지점 &mdash; 아직 안 그려진 이미지, 움직이는 중인 애니메이션, 조각마다 따라오는 sticky 메뉴바, 그리고 페이지가 길수록 급격히 늘어나는 캡처 시간. <strong>네 번째는 원래 "16,384px에서 잘림"이라고 적었는데, 실측으로 정정했습니다</strong> &mdash; 잘리지 않습니다(R2 참고).</figcaption>
   </figure>
 
   <h3>초등학생에게 설명한다면</h3>
@@ -719,7 +719,7 @@ footer{
     <li><span class="n">3</span><span><b>문제 하나 &mdash; 어떤 그림은 창문이 와야 그때부터 그려지기 시작해요.</b> 안 기다리고 찍으면 회색 네모만 나와요.</span></li>
     <li><span class="n">4</span><span><b>문제 둘 &mdash; 어떤 그림은 움직여요.</b> 움직이는 중에 찍으면 반쯤 나온 모습으로 찍혀요.</span></li>
     <li><span class="n">5</span><span><b>문제 셋 &mdash; 맨 위 메뉴바는 창문에 딱 붙어서 따라와요.</b> 그래서 이어 붙이면 메뉴바가 세 번, 네 번 나와요.</span></li>
-    <li><span class="n">6</span><span><b>문제 넷 &mdash; 사진기가 한 장에 담을 수 있는 길이가 정해져 있어요.</b> 노트북 화면 스무 개쯤 되는 길이(16,384픽셀)를 넘으면 그냥 잘려요.</span></li>
+    <li><span class="n">6</span><span><b>문제 넷 &mdash; 두루마리가 너무 길면 사진 찍는 데 아주 오래 걸려요.</b> 노트북 화면 백 개쯤 되는 길이면 30초씩 걸리고, 더 길면 사진기가 포기해 버려요. 그래서 <b>몇 조각으로 나눠서</b> 찍어요.</span></li>
   </ol>
 
   <p class="col">그래서 해결책도 아주 단순합니다. <strong>천천히 스크롤을 내려서 그림이 다 그려지게 만들고 → 움직이는 그림은 "다 끝난 모습"으로 점프시키고 → 따라오는 메뉴바는 잠깐 숨기고 → 조각으로 나눠서 찍는다.</strong> 이 네 가지는 브라우저를 대신 조종해 주는 프로그램(Playwright)에 <em>이미 스위치로 들어 있습니다.</em> 특히 "움직이는 그림 점프" 스위치는 켜는 게 <strong>기본값</strong>입니다.</p>
@@ -761,7 +761,7 @@ footer{
         <tr>
           <th scope="row">기능 3 &mdash; 정렬 &amp; IMG/PDF 출력</th>
           <td><span class="pill ok">확실히 가능</span></td>
-          <td>가장 쉬운 부분. 단 <strong>16,384px 상한 때문에 긴 페이지는 반드시 슬라이스 방식</strong>(4,000px 단위 권장)으로 처리해야 함</td>
+          <td>가장 쉬운 부분. 단 <strong>긴 페이지는 캡처 시간 때문에 슬라이스 방식</strong>이 필요함 (잘림 때문이 아님 &mdash; R2 실측 정정 참고)</td>
           <td class="mono">★☆☆☆☆</td>
         </tr>
         <tr>
@@ -792,7 +792,7 @@ footer{
       <thead><tr><th>#</th><th>리스크</th><th>발생 가능성</th><th>영향</th><th>대응 성격</th></tr></thead>
       <tbody>
         <tr><th scope="row">R1</th><td>봇 차단</td><td><span class="pill warn">사이트에 따라 높음</span></td><td>캡처 자체가 불가</td><td>스코프 한정 + 상태 분리</td></tr>
-        <tr><th scope="row">R2</th><td>렌더링·높이 한계</td><td><span class="pill warn">실측으로 하향 조정</span></td><td>결과물 잘림</td><td>설계 전제 (슬라이스)</td></tr>
+        <tr><th scope="row">R2</th><td>렌더링·높이 한계</td><td><span class="pill warn">실측으로 하향 조정</span></td><td>잘림이 아니라 캡처 시간</td><td>설계 전제 (슬라이스)</td></tr>
         <tr><th scope="row">R3</th><td>AI 오탐·비용</td><td><span class="pill warn">중간</span></td><td>무한 루프 / 원가 초과</td><td>구조 설계 (DOM 신호 + 2단계)</td></tr>
         <tr><th scope="row">R4</th><td>권리·약관</td><td><span class="pill ok">사내 한정 시 낮음</span></td><td>법적 분쟁</td><td>스코프 명문화</td></tr>
       </tbody>
