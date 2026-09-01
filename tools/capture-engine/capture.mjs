@@ -45,17 +45,24 @@ function inPageHandleMotion(destroyThem) {
   const notes = [];
   const seen = new Set();
   for (const key of Object.getOwnPropertyNames(window)) {
-    let v;
-    try { v = window[key]; } catch { continue; }
-    if (!v || typeof v !== 'object' || seen.has(v)) continue;
-    seen.add(v);
-    const isScroller = typeof v.destroy === 'function' &&
-      typeof v.scrollTo === 'function' &&
-      (typeof v.raf === 'function' || typeof v.update === 'function');
-    if (!isScroller) continue;
-    found.push(key);
-    if (!destroyThem) continue;
-    try { v.destroy(); notes.push(key + '.destroy()'); } catch { /* 이미 죽었으면 그만 */ }
+    // 숫자 키는 iframe 이다(window[0], window[1]...). 광고·유튜브·지도가 여기 들어온다.
+    // 크로스 오리진이면 속성을 읽는 것만으로 SecurityError 가 나므로 아예 건드리지 않는다.
+    if (/^\d+$/.test(key)) continue;
+    try {
+      const v = window[key];
+      if (!v || typeof v !== 'object' || seen.has(v)) continue;
+      seen.add(v);
+      // 아래 typeof 검사도 던질 수 있다. 크로스 오리진 Window 프록시는
+      // 이름 있는 속성을 읽는 순간 막힌다. 그래서 통째로 try 안에 둔다.
+      const isScroller = typeof v.destroy === 'function' &&
+        typeof v.scrollTo === 'function' &&
+        (typeof v.raf === 'function' || typeof v.update === 'function');
+      if (!isScroller) continue;
+      found.push(key);
+      if (!destroyThem) continue;
+      v.destroy();
+      notes.push(key + '.destroy()');
+    } catch { /* 못 읽는 객체거나 이미 죽은 인스턴스. 둘 다 넘어간다 */ }
   }
   if (document.querySelector('[data-scroll-container]')) found.push('data-scroll-container');
   if (document.documentElement.classList.contains('lenis') ||
@@ -161,6 +168,8 @@ function inPageRestoreFixed() {
 /** 끝까지 훑어 지연 로딩과 스크롤 트리거를 전부 발동시킨 뒤 맨 위로 돌아온다. */
 async function inPageScrollThrough(cfg) {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const docH = () => Math.max(document.documentElement.scrollHeight,
+    document.body ? document.body.scrollHeight : 0);
   let last = -1;
   for (let i = 0; i < cfg.maxSteps; i++) {
     window.scrollBy(0, window.innerHeight * cfg.ratio);
@@ -169,9 +178,15 @@ async function inPageScrollThrough(cfg) {
     if (y === last) break;
     last = y;
   }
+  // 정말 바닥까지 갔나. 문서가 화면보다 긴데 바닥에 못 닿았으면 뭔가가 스크롤을
+  // 가로챈 것이다 — 라이브러리 이름을 맞히는 것보다 이 사실이 확실하다.
+  const height = docH();
+  const scrollable = height > window.innerHeight + 4;
+  const reachedBottom = !scrollable ||
+    window.scrollY + window.innerHeight >= height - 8;
   window.scrollTo(0, 0);
   await sleep(600);
-  return { deepest: last };
+  return { deepest: last, scrollable, reachedBottom };
 }
 
 function inPageMeasure() {
@@ -210,7 +225,8 @@ export async function captureSite(context, url, opts = {}) {
     if (motion.notes.length) notes.push('모션 해제: ' + motion.notes.join(', '));
     else if (motion.found.length) notes.push('스무스 스크롤 감지(미처리): ' + motion.found.join(', '));
 
-    await page.evaluate(inPageScrollThrough, { ratio: SCROLL_STEP_RATIO, maxSteps: MAX_SCROLL_STEPS });
+    const scrolled = await page.evaluate(inPageScrollThrough, { ratio: SCROLL_STEP_RATIO, maxSteps: MAX_SCROLL_STEPS });
+    if (!scrolled.reachedBottom) notes.push('끝까지 스크롤하지 못했습니다 — 무언가가 스크롤을 가로챕니다');
     await page.waitForTimeout(1200);
 
     if (steps.has('anim')) {
@@ -260,7 +276,7 @@ export async function captureSite(context, url, opts = {}) {
     return {
       ok: true, url, title: m.title, docHeight, scale, slices,
       sliceCount: slices.length, notes, motionLibs: motion.found,
-      motionHandled: steps.has('motion'),
+      motionHandled: steps.has('motion'), reachedBottom: scrolled.reachedBottom,
       finalUrl: page.url() !== url ? page.url() : undefined,
       ms: Date.now() - started,
     };

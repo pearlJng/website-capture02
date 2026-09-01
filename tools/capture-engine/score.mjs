@@ -94,10 +94,12 @@ async function mapLimit(items, limit, fn) {
  * 그래서 높이를 따로 확인한다.
  */
 function completeness(shot, scanHeight) {
+  // 바닥에 못 닿았다. 가장 확실한 신호 — 무언가가 스크롤을 가로챘다.
+  if (shot.reachedBottom === false) return '미완주';
   // 스캐너가 잰 것보다 뚜렷하게 짧으면 뭔가를 놓친 것이다.
   if (scanHeight && shot.docHeight < scanHeight * 0.9) return '짧음';
   // 스크롤을 가로채는 라이브러리를 발견했는데 걷어내지 않고 찍었다면,
-  // 끝까지 갔다고 주장할 수 없다. 높이로는 절대 드러나지 않는 실패다.
+  // 끝까지 갔다고 주장할 수 없다.
   if (shot.motionLibs && shot.motionLibs.length && !shot.motionHandled) return '미확인';
   return '정상';
 }
@@ -181,6 +183,7 @@ function renderReport(rows, s, meta) {
     L.push('  ' + '─'.repeat(74));
     for (const r of bad.sort((a, b) => b.ratio - a.ratio).slice(0, 25)) {
       const why = r.complete === '짧음' ? `짧음 ${r.docHeight}/${r.scanHeight}px`
+        : r.complete === '미완주' ? '바닥 못 닿음'
         : r.complete === '미확인' ? '스크롤 미확인'
         : (r.verdict === VERDICT.SHAPE ? '구조' : (r.ratio * 100).toFixed(2) + '%');
       L.push(`  ${r.tier}  ${why.padStart(16)}  ${r.name.slice(0, 24).padEnd(26)}${(r.note || '').slice(0, 30)}`);

@@ -1,0 +1,8 @@
+<!doctype html><meta charset=utf-8><title>크로스 오리진 iframe</title>
+<style>body{margin:0;font:16px/1.6 system-ui}iframe{border:1px solid #ccc;width:600px;height:300px}</style>
+<h1 style="padding:24px">광고·유튜브·지도가 붙은 페이지</h1>
+<p style="padding:0 24px">아래 iframe 은 다른 포트에서 옵니다 = 다른 오리진.
+window[0] 으로 접근되지만 속성을 읽으면 SecurityError 가 납니다.</p>
+<iframe src="__CROSS_ORIGIN__/inner.html"></iframe>
+<iframe src="__CROSS_ORIGIN__/inner.html"></iframe>
+<div style="height:1500px;background:linear-gradient(#fff,#dde)"></div>

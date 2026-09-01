@@ -18,7 +18,10 @@ import { createBrowserHost, isBrowserDeath } from './browser.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PORT = 8825;
+// 두 번째 포트는 "다른 오리진" 을 만들기 위한 것이다. 포트가 다르면 오리진이 다르다.
+const CROSS_PORT = 8826;
 const BASE = `http://127.0.0.1:${PORT}/`;
+const CROSS = `http://localhost:${CROSS_PORT}`;
 
 const same = (v) => v === VERDICT.SAME || v === VERDICT.SAME_PIXELS;
 
@@ -84,6 +87,13 @@ const CASES = [
     check: (r) => (r.sliceCount === 1 ? null : `${r.sliceCount}장으로 나눴다`),
   },
   {
+    // 실전에서 49건 중 14건을 무너뜨린 버그. window[0] 은 iframe 이고,
+    // 크로스 오리진이면 속성을 읽는 것만으로 SecurityError 가 난다.
+    name: '크로스 오리진 iframe 이 있어도 캡처가 죽지 않는다',
+    file: 'crossorigin.html', steps: ['motion', 'sticky', 'anim'],
+    check: (r) => (r.docHeight > 1000 ? null : `문서가 ${r.docHeight}px — 캡처가 제대로 안 됐다`),
+  },
+  {
     name: '매번 다르게 그리는 페이지는 모든 단계를 켜도 다르다 (T4 대조군)',
     file: 'random.html', steps: ['sticky', 'motion', 'anim', 'slice'], twice: true,
     check: (r, cmp) => (same(cmp.verdict) ? '같게 나왔다 — 채점기가 T4 를 통과시키고 있다' : null),
@@ -92,19 +102,29 @@ const CASES = [
 
 const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript' };
 
-function serveFixtures() {
-  const server = createServer(async (req, res) => {
+function makeServer() {
+  return createServer(async (req, res) => {
     const name = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '') || 'index.html';
     if (name.includes('..')) { res.writeHead(400).end(); return; }
     try {
-      const body = await readFile(join(HERE, 'fixtures', name));
+      let body = await readFile(join(HERE, 'fixtures', name));
+      if (extname(name) === '.html') body = body.toString('utf8').replaceAll('__CROSS_ORIGIN__', CROSS);
       res.writeHead(200, { 'content-type': MIME[extname(name)] || 'application/octet-stream' }).end(body);
     } catch {
       res.writeHead(404).end('not found');
     }
   });
-  server.unref();  // 혹시 close 를 놓쳐도 이 서버 때문에 프로세스가 안 끝나는 일은 없게
-  return new Promise((r) => server.listen(PORT, '127.0.0.1', () => r(server)));
+}
+
+/** 같은 픽스처를 두 포트에 띄운다. 포트가 다르면 오리진이 달라진다. */
+async function serveFixtures() {
+  const listen = (port, host) => new Promise((r) => {
+    const s = makeServer();
+    s.unref();  // close 를 놓쳐도 이 서버 때문에 프로세스가 안 끝나는 일은 없게
+    s.listen(port, host, () => r(s));
+  });
+  const [main, cross] = await Promise.all([listen(PORT, '127.0.0.1'), listen(CROSS_PORT, 'localhost')]);
+  return { close: (cb) => { cross.close(); main.close(cb); } };
 }
 
 async function main() {
