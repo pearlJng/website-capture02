@@ -364,14 +364,26 @@ footer{margin-top:4rem;padding-top:1.25rem;border-top:1px solid var(--line-stron
   <p class="col">이게 왜 좋은 소식이냐면 &mdash; <strong>범용 해법을 만들 필요가 없다는 뜻</strong>이기 때문입니다. GSAP&middot;ScrollTrigger&middot;Swiper&middot;Lenis 네 개에 대한 전용 처리(애니메이션 강제 완료, 슬라이더 정지, 스크롤 제어 해제)만 제대로 만들면 국내 사이트 절반이 해결됩니다. 임의의 사이트를 상대하는 것보다 훨씬 좁은 문제입니다.</p>
 
   <h3>문서 높이</h3>
+
+  <div class="callout">
+    <span class="tag">2026-09-01 실측 정정</span>
+    <p>이 표의 이전 판은 <strong>"16,384px 을 넘으면 잘린다"</strong>고 적었습니다. 캡처 엔진을 만들며 직접 재보니
+    <strong>사실이 아니었습니다.</strong> Playwright 1.56.1 의 <code>fullPage</code> 캡처는 그 한계를 내부에서
+    이어붙여 우회합니다 &mdash; 2배율 실픽셀 <strong>102,578px 성공(32초)</strong>, 1배율 <strong>136,744px 성공</strong>.
+    실패는 훨씬 위(2배율 실픽셀 205,124px)에서, 잘림이 아니라 <code>Unable to capture screenshot</code> 로 납니다.</p>
+    <p><strong>슬라이스 분할은 여전히 필요하지만 이유가 다릅니다</strong> &mdash; 잘림을 막으려는 게 아니라
+    <strong>캡처 시간을 예측 가능하게 묶기</strong> 위해서입니다. 따라서 <strong>L 태그는 "잘림 위험"이 아니라
+    "느려짐 위험"</strong>으로 읽어야 합니다. 측정 환경은 리눅스 컨테이너와 가벼운 합성 페이지이므로,
+    사진이 많은 실제 페이지는 한계선이 더 낮을 수 있습니다.</p>
+  </div>
   <div class="scroller">
     <table>
       <thead><tr><th>지표</th><th>값</th><th>의미</th></tr></thead>
       <tbody>
         <tr><th scope="row">중앙값</th><td class="num">8,599px</td><td>1배율에서는 여유. 2배율이면 17,198px로 <strong>한계 초과</strong></td></tr>
-        <tr><th scope="row">최대</th><td class="num">50,964px</td><td>토스. 크롬 한계의 <strong>3.1배</strong> &mdash; 반드시 4장 이상으로 나눠야 함</td></tr>
-        <tr><th scope="row">16,384px 초과</th><td class="num">6건 (12%)</td><td>1배율에서도 이미 잘림</td></tr>
-        <tr><th scope="row">8,192px 초과</th><td class="num">25건 (51%)</td><td><strong>2배율로 찍으면 절반 이상이 잘립니다</strong></td></tr>
+        <tr><th scope="row">최대</th><td class="num">50,964px</td><td>토스. 2배율이면 실픽셀 101,928px &mdash; 한 장으로도 되지만 <strong>32초쯤 걸립니다</strong></td></tr>
+        <tr><th scope="row">16,384px 초과</th><td class="num">6건 (12%)</td><td><strong>잘리지 않습니다</strong> &mdash; 실측으로 확인. 아래 정정을 보세요</td></tr>
+        <tr><th scope="row">8,192px 초과</th><td class="num">25건 (51%)</td><td>2배율이면 실픽셀 16,384px 초과. 잘리진 않지만 <strong>느려집니다</strong></td></tr>
       </tbody>
     </table>
   </div>
@@ -399,7 +411,7 @@ footer{margin-top:4rem;padding-top:1.25rem;border-top:1px solid var(--line-stron
         <tr>
           <th scope="row">슬라이스 분할</th>
           <td>긴 페이지 예외 처리</td>
-          <td><strong>기본 구조.</strong> 2배율 기준 51%가 대상</td>
+          <td><strong>기본 구조.</strong> 다만 이유는 잘림이 아니라 <strong>캡처 시간</strong>입니다 (실측 정정)</td>
         </tr>
         <tr>
           <th scope="row">봇 차단 대응</th>

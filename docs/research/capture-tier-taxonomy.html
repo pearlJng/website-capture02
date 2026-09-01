@@ -247,7 +247,7 @@ footer{margin-top:4rem; padding-top:1.25rem; border-top:1px solid var(--line-str
         <dt>정의</dt><dd>스크롤만 끝까지 내리면 모든 콘텐츠가 보입니다. 움직이는 것이 없거나, 있어도 장식 수준입니다.</dd>
         <dt>대표</dt><dd class="ex">기업 소개, 공공기관, 병원·학교, 관리자 화면, 문서형 페이지</dd>
         <dt>대응</dt><dd>추가 처리 없이 풀페이지 캡처. 고정 헤더만 숨기면 끝입니다.</dd>
-        <dt>주의</dt><dd>여기서도 <strong>페이지가 길면 잘립니다.</strong> 티어와 무관하게 붙는 <code>L</code> 태그를 보세요.</dd>
+        <dt>주의</dt><dd>여기서도 <strong>페이지가 길면 캡처가 느려집니다</strong>(잘리지는 않습니다 &mdash; 2026-09-01 실측 정정). 티어와 무관하게 붙는 <code>L</code> 태그를 보세요.</dd>
       </dl>
     </article>
 
@@ -337,7 +337,7 @@ footer{margin-top:4rem; padding-top:1.25rem; border-top:1px solid var(--line-str
         <tr>
           <th scope="row"><span class="pill mid">L</span> Long</th>
           <td>문서 높이가 브라우저 한계에 근접</td>
-          <td>16,384px를 넘으면 잘립니다. <strong>2배율로 찍으면 절반 길이에서 잘립니다</strong></td>
+          <td>잘리지는 않습니다 &mdash; 크롬 텍스처 한계를 Playwright 가 이어붙여 우회합니다. 대신 <strong>길수록 캡처가 느려지고, 실픽셀 20만px 근처에서 실패</strong>합니다 (2026-09-01 실측)</td>
           <td>슬라이스 분할 + 배율 자동 강등</td>
         </tr>
         <tr>

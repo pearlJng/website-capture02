@@ -1,0 +1,35 @@
+<!doctype html><meta charset=utf-8><title>스무스 스크롤</title>
+<style>
+body{margin:0;height:100vh;overflow:hidden;font:16px/1.6 system-ui}
+/* Locomotive·Lenis 류의 transform 방식: 문서 자체는 스크롤되지 않는다.
+   window.scrollBy 를 아무리 불러도 화면이 움직이지 않고, 아무 오류도 안 난다. */
+#c{position:fixed;top:0;left:0;width:100%;will-change:transform}
+</style>
+<div id="c" data-scroll-container>
+  <h1 style="padding:24px">스크롤을 가로채는 페이지</h1>
+  <div style="height:1500px;background:linear-gradient(#fff,#cde)"></div>
+  <div id="sentinel">여기까지 오면 콘텐츠가 더 붙는다</div>
+</div>
+<script>
+window.locoScroll = {
+  scrollTo() {},
+  update() {},
+  destroy() {
+    // 진짜 라이브러리의 destroy 가 하는 일: 네이티브 스크롤을 돌려준다.
+    const c = document.getElementById('c');
+    c.style.position = 'static';
+    c.style.transform = '';
+    document.body.style.height = '';
+    document.body.style.overflow = '';
+  },
+};
+new IntersectionObserver((es) => {
+  for (const e of es) {
+    if (!e.isIntersecting || document.getElementById('deep')) continue;
+    const d = document.createElement('div');
+    d.id = 'deep';
+    d.style.cssText = 'height:3000px;background:linear-gradient(#fcc,#cfc)';
+    document.getElementById('c').appendChild(d);
+  }
+}).observe(document.getElementById('sentinel'));
+</script>

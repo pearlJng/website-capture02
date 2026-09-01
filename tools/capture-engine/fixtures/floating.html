@@ -1,0 +1,17 @@
+<!doctype html><meta charset=utf-8><title>고정 요소</title>
+<style>
+body{margin:0;font:16px/1.6 system-ui}
+header{position:fixed;top:0;left:0;right:0;height:64px;background:#123;color:#fff;
+       display:flex;align-items:center;padding:0 24px;z-index:10}
+.chat{position:fixed;right:24px;bottom:24px;width:64px;height:64px;border-radius:50%;
+      background:#f60;z-index:20}
+.top{position:fixed;right:24px;bottom:104px;width:48px;height:48px;background:#333;z-index:20}
+.cookie{position:fixed;left:0;right:0;bottom:0;height:88px;background:#eee;
+        border-top:1px solid #bbb;z-index:15}
+main{padding:96px 24px 24px}
+</style>
+<header>고정 헤더 — 스냅샷에 남아야 한다</header>
+<button class="chat"></button>
+<button class="top"></button>
+<div class="cookie">쿠키 배너</div>
+<main><h1>본문</h1><div style="height:2000px;background:linear-gradient(#fff,#ddd)"></div></main>

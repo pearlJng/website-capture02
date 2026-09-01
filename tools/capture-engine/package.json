@@ -1,0 +1,14 @@
+{
+  "name": "capture-engine",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "웹사이트 풀페이지 캡처 파이프라인과 결정성 채점기",
+  "scripts": {
+    "score": "node score.mjs",
+    "test": "node selftest.mjs"
+  },
+  "dependencies": {
+    "playwright": "1.56.1"
+  }
+}

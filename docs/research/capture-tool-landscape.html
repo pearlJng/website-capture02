@@ -792,7 +792,7 @@ footer{
       <thead><tr><th>#</th><th>리스크</th><th>발생 가능성</th><th>영향</th><th>대응 성격</th></tr></thead>
       <tbody>
         <tr><th scope="row">R1</th><td>봇 차단</td><td><span class="pill warn">사이트에 따라 높음</span></td><td>캡처 자체가 불가</td><td>스코프 한정 + 상태 분리</td></tr>
-        <tr><th scope="row">R2</th><td>렌더링·높이 한계</td><td><span class="pill risk">긴 페이지에서 확정적</span></td><td>결과물 잘림</td><td>설계 전제 (슬라이스)</td></tr>
+        <tr><th scope="row">R2</th><td>렌더링·높이 한계</td><td><span class="pill warn">실측으로 하향 조정</span></td><td>결과물 잘림</td><td>설계 전제 (슬라이스)</td></tr>
         <tr><th scope="row">R3</th><td>AI 오탐·비용</td><td><span class="pill warn">중간</span></td><td>무한 루프 / 원가 초과</td><td>구조 설계 (DOM 신호 + 2단계)</td></tr>
         <tr><th scope="row">R4</th><td>권리·약관</td><td><span class="pill ok">사내 한정 시 낮음</span></td><td>법적 분쟁</td><td>스코프 명문화</td></tr>
       </tbody>
@@ -836,10 +836,25 @@ footer{
     <article class="riskcard">
       <header>
         <span class="rid">R2</span>
-        <h3>렌더링·높이 한계 &mdash; 길면 잘리고, 선명하게 찍으면 더 짧은 데서 잘린다</h3>
+        <h3>렌더링·높이 한계 &mdash; 잘리진 않지만, 길수록 느려지고 결국 실패한다</h3>
         <span class="pill risk">긴 페이지에서 확정적</span>
       </header>
       <dl>
+
+        <dt>실측 정정 (2026-09-01)</dt>
+        <dd class="reflect"><strong>직접 재보니 잘리지 않았습니다.</strong> Playwright 1.56.1 의
+        <code>screenshot({fullPage:true})</code> 는 16,384px 을 훨씬 넘겨서도 온전한 이미지를 냅니다 &mdash;
+        2배율 실픽셀 <strong>102,578px 성공(32초)</strong>, 1배율 <strong>136,744px 성공</strong>.
+        컴포지터 텍스처 한계는 여전히 존재하지만 <strong>Playwright 가 내부에서 이어붙여 우회</strong>합니다.
+        실패는 훨씬 위에서, 잘림이 아니라 <code>Unable to capture screenshot</code> 로 납니다
+        (2배율 실픽셀 205,124px). <strong>결론(슬라이스를 기본 구조로)은 그대로지만 이유가 바뀝니다</strong> &mdash;
+        잘림을 막으려는 게 아니라 <strong>캡처 시간을 예측 가능하게 묶기</strong> 위해서입니다.
+        아래 "원인"의 8,192px 반토막 설명과 "해상도 배율 &times; 페이지 길이 = 잘림" 공식은
+        <strong>이 실측으로 무효</strong>입니다. 다만 배율을 올리면 시간이 급격히 늘어나므로
+        <strong>길면 1배율로 자동 강등</strong>하라는 대응은 유효합니다.
+        측정 환경은 리눅스 컨테이너 · Playwright 1.56.1 · 가벼운 합성 페이지이며,
+        사진이 많은 실제 페이지는 한계선이 더 낮을 수 있습니다.</dd>
+
         <dt>증상</dt>
         <dd>이미지가 특정 높이에서 뚝 잘립니다. 또는 이어 붙인 이미지가 지정한 최대 높이를 넘어 나옵니다. 고해상도(2배율)로 찍으면 <strong>더 짧은 페이지에서도</strong> 잘립니다.</dd>
 

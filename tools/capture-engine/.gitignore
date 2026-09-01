@@ -1,0 +1,4 @@
+node_modules/
+shots/
+score-*.txt
+score-*.csv

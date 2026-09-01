@@ -1,0 +1,12 @@
+<!doctype html><meta charset=utf-8><title>실시간 렌더</title>
+<style>body{margin:0;font:16px/1.6 system-ui}canvas{display:block}</style>
+<h1 style="padding:24px">매번 다르게 그려지는 페이지</h1>
+<canvas id="c" width="1440" height="600"></canvas>
+<script>
+// T4 대조군: 어떤 정지 처리로도 두 번이 같아질 수 없다. 채점기가 이걸 놓치면 안 된다.
+const cx = document.getElementById('c').getContext('2d');
+for (let i = 0; i < 400; i++) {
+  cx.fillStyle = 'hsl(' + Math.random() * 360 + ',80%,50%)';
+  cx.fillRect(Math.random() * 1440, Math.random() * 600, 40, 40);
+}
+</script>

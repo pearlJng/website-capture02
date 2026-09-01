@@ -168,7 +168,7 @@ footer{margin-top:4rem;padding-top:1.25rem;border-top:1px solid var(--line-stron
           <th scope="row" class="tt0">T0 정적</th>
           <td>기본 fullPage 캡처 + 고정 헤더 <code>position:static</code></td>
           <td class="verd v-ok">✅ 완전 가능</td>
-          <td>Playwright <code>fullPage:true</code> 한 방으로 끝. 크롬 세로 상한 16,384px만 주의</td>
+          <td>Playwright <code>fullPage:true</code> 한 방으로 끝. 아주 길면 <strong>잘리진 않아도 오래 걸립니다</strong></td>
         </tr>
         <tr>
           <th scope="row" class="tt1">T1 등장형</th>
@@ -213,7 +213,7 @@ footer{margin-top:4rem;padding-top:1.25rem;border-top:1px solid var(--line-stron
         <tr><th scope="row"><span class="tg">G</span> Gated</th><td>봇 차단·로그인 벽. 페이지 자체를 못 봄. 검수가 "로딩 실패"로 오인해 재캡처를 반복하면 차단이 강화됨</td><td><strong>재캡처 금지 상태로 분리</strong></td></tr>
         <tr><th scope="row"><span class="tg">S</span> Sticky</th><td>고정 헤더·플로팅 버튼</td><td>캡처 직전 <code>position:static</code> 강제</td></tr>
         <tr><th scope="row"><span class="tg">H</span> Hover</th><td>호버·클릭해야 보이는 콘텐츠. 마우스 없이 찍으면 안 나온 상태만 나옴</td><td>셀렉터 지정 후 <code>:hover</code> 강제 또는 Playwright <code>hover()</code></td></tr>
-        <tr><th scope="row"><span class="tg">L</span> Length</th><td>크롬 세로 16,384px 상한. 요즘 랜딩은 그냥 넘어감</td><td>세로 분할 후 재조합 (Sharp 등)</td></tr>
+        <tr><th scope="row"><span class="tg">L</span> Length</th><td>잘림이 아니라 <strong>시간</strong> 문제 (2026-09-01 실측 정정). 실픽셀 10만px = 32초</td><td>세로 분할 &mdash; 캡처 시간을 묶기 위해</td></tr>
       </tbody>
     </table>
   </div>
