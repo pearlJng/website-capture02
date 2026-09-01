@@ -26,18 +26,32 @@ export const VERDICT = {
 /** 픽셀 비교에 쓸 최대 넓이. 넘으면 축소해서 비교한다(메모리 상한). */
 const MAX_COMPARE_PIXELS = 4_000_000;
 
+/**
+ * 세로 높이가 이 정도까지 다른 건 "구조가 달라졌다"고 보지 않는다.
+ *
+ * 실측에서 코오롱몰이 15,519px 대 15,515px — 4픽셀 차이로 100% 실패 처리됐다.
+ * 폰트가 한 글자 다르게 줄바꿈되거나 지연 이미지 하나가 1px 다르게 잡히면
+ * 문서 높이가 그만큼 흔들린다. 그걸 페이지가 통째로 달라진 것과 같은 칸에
+ * 넣으면 안 된다. 겹치는 영역을 실제로 비교하고, 높이 차이는 따로 적는다.
+ */
+const heightTolerance = (h) => Math.min(Math.round(h * 0.01), 300);
+
 /** 브라우저 안에서 두 PNG 를 펼쳐 다른 픽셀 비율을 센다. */
 async function inPageDiff(job) {
-  const load = async (b64, rw, rh) => {
+  const load = async (b64) => {
     const res = await fetch('data:image/png;base64,' + b64);
     const blob = await res.blob();
-    return rw ? createImageBitmap(blob, { resizeWidth: rw, resizeHeight: rh, resizeQuality: 'pixelated' })
-              : createImageBitmap(blob);
+    const opts = job.rw
+      ? { resizeWidth: job.rw, resizeHeight: job.rh, resizeQuality: 'pixelated' }
+      : null;
+    // 높이가 다르면 겹치는 위쪽만 잘라서 비교한다.
+    if (job.cropH) {
+      return opts ? createImageBitmap(blob, 0, 0, job.cropW, job.cropH, opts)
+                  : createImageBitmap(blob, 0, 0, job.cropW, job.cropH);
+    }
+    return opts ? createImageBitmap(blob, opts) : createImageBitmap(blob);
   };
-  const [ia, ib] = await Promise.all([
-    load(job.a, job.rw, job.rh),
-    load(job.b, job.rw, job.rh),
-  ]);
+  const [ia, ib] = await Promise.all([load(job.a), load(job.b)]);
   if (ia.width !== ib.width || ia.height !== ib.height) {
     return { shape: true, aw: ia.width, ah: ia.height, bw: ib.width, bh: ib.height };
   }
@@ -71,40 +85,51 @@ export async function comparePngs(page, a, b) {
   }
   const sa = pngSize(a), sb = pngSize(b);
   if (!sa || !sb) return { verdict: VERDICT.SHAPE, ratio: 1, note: 'PNG 헤더를 읽을 수 없음' };
-  if (sa.width !== sb.width || sa.height !== sb.height) {
+  if (sa.width !== sb.width) {
+    return { verdict: VERDICT.SHAPE, ratio: 1, note: `가로 폭이 다름 ${sa.width} vs ${sb.width}` };
+  }
+
+  const dh = Math.abs(sa.height - sb.height);
+  const maxH = Math.max(sa.height, sb.height);
+  if (dh > heightTolerance(maxH)) {
     return {
       verdict: VERDICT.SHAPE, ratio: 1,
-      note: `크기가 다름 ${sa.width}x${sa.height} vs ${sb.width}x${sb.height}`,
+      note: `세로 높이가 ${dh.toLocaleString('en-US')}px 다름 (${sa.height} vs ${sb.height})`,
     };
   }
+
+  // 높이가 조금 다르면 겹치는 위쪽만 비교한다.
+  const cropH = dh ? Math.min(sa.height, sb.height) : 0;
+  const cmpH = cropH || sa.height;
 
   // 너무 크면 축소해서 비교한다. 비율은 근사가 되지만 "다르다"는 사실은 남는다.
   let rw = 0, rh = 0;
-  const px = sa.width * sa.height;
+  const px = sa.width * cmpH;
   if (px > MAX_COMPARE_PIXELS) {
     const k = Math.sqrt(MAX_COMPARE_PIXELS / px);
     rw = Math.max(1, Math.round(sa.width * k));
-    rh = Math.max(1, Math.round(sa.height * k));
+    rh = Math.max(1, Math.round(cmpH * k));
   }
 
   const r = await page.evaluate(inPageDiff, {
-    a: a.toString('base64'), b: b.toString('base64'), rw, rh,
+    a: a.toString('base64'), b: b.toString('base64'),
+    rw, rh, cropW: sa.width, cropH,
   });
+  const heightNote = dh ? `높이 ${dh}px 차이(겹치는 부분만 비교)` : '';
   if (r.shape) {
     return { verdict: VERDICT.SHAPE, ratio: 1, note: `디코딩 크기가 다름 ${r.aw}x${r.ah} vs ${r.bw}x${r.bh}` };
   }
+  const parts = [];
+  if (heightNote) parts.push(heightNote);
   if (r.differing === 0) {
-    return {
-      verdict: VERDICT.SAME_PIXELS, ratio: 0,
-      note: rw ? '축소 비교라 미세한 차이는 놓칠 수 있음' : 'PNG 인코딩만 다름',
-    };
+    parts.push(rw ? '축소 비교라 미세한 차이는 놓칠 수 있음' : (dh ? '겹치는 부분은 완전히 같음' : 'PNG 인코딩만 다름'));
+    return { verdict: VERDICT.SAME_PIXELS, ratio: 0, note: parts.join(' · ') };
   }
   const ratio = r.differing / r.total;
-  const atY = rh ? Math.round((r.firstY / rh) * sa.height) : r.firstY;
-  return {
-    verdict: VERDICT.DIFF, ratio,
-    note: `첫 차이 y≈${atY.toLocaleString('en-US')}px` + (rw ? ' · 축소 비교' : ''),
-  };
+  const atY = rh ? Math.round((r.firstY / rh) * cmpH) : r.firstY;
+  parts.unshift(`첫 차이 y≈${atY.toLocaleString('en-US')}px`);
+  if (rw) parts.push('축소 비교');
+  return { verdict: VERDICT.DIFF, ratio, note: parts.join(' · ') };
 }
 
 /** 캡처 결과(슬라이스 배열) 두 벌을 통째로 비교한다. 가장 나쁜 판정을 대표로 삼는다. */

@@ -168,25 +168,37 @@ function inPageRestoreFixed() {
 /** 끝까지 훑어 지연 로딩과 스크롤 트리거를 전부 발동시킨 뒤 맨 위로 돌아온다. */
 async function inPageScrollThrough(cfg) {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const se = () => document.scrollingElement || document.documentElement;
   const docH = () => Math.max(document.documentElement.scrollHeight,
     document.body ? document.body.scrollHeight : 0);
+
   let last = -1;
   for (let i = 0; i < cfg.maxSteps; i++) {
-    window.scrollBy(0, window.innerHeight * cfg.ratio);
+    const step = window.innerHeight * cfg.ratio;
+    // scrollTop 에 직접 넣는다. scrollBy 는 스무스 스크롤 라이브러리가 가로채는
+    // 경우가 있는데, 이 대입은 대개 그대로 먹는다.
+    const el = se();
+    const before = el.scrollTop;
+    el.scrollTop = before + step;
+    if (el.scrollTop === before) window.scrollBy(0, step);  // 그래도 안 움직이면 원래 방법으로
     await sleep(420);
-    const y = window.scrollY;
+    const y = window.scrollY || se().scrollTop;
     if (y === last) break;
     last = y;
   }
-  // 정말 바닥까지 갔나. 문서가 화면보다 긴데 바닥에 못 닿았으면 뭔가가 스크롤을
-  // 가로챈 것이다 — 라이브러리 이름을 맞히는 것보다 이 사실이 확실하다.
+
+  // 스무스 스크롤은 감속 중이라 위치가 늦게 도착한다. 정착을 기다린 뒤에 잰다.
+  // 이걸 안 기다려서 멀쩡히 끝까지 간 사이트를 '미완주'로 잘못 찍은 적이 있다.
+  await sleep(900);
   const height = docH();
+  const y = Math.max(window.scrollY, se().scrollTop);
   const scrollable = height > window.innerHeight + 4;
-  const reachedBottom = !scrollable ||
-    window.scrollY + window.innerHeight >= height - 8;
+  const reachedBottom = !scrollable || y + window.innerHeight >= height - 8;
+
   window.scrollTo(0, 0);
+  se().scrollTop = 0;
   await sleep(600);
-  return { deepest: last, scrollable, reachedBottom };
+  return { deepest: last, scrollable, reachedBottom, height, bottomY: Math.round(y) };
 }
 
 function inPageMeasure() {
@@ -223,7 +235,12 @@ export async function captureSite(context, url, opts = {}) {
     // 찾기는 항상, 걷어내기는 단계를 켰을 때만.
     const motion = await page.evaluate(inPageHandleMotion, steps.has('motion'));
     if (motion.notes.length) notes.push('모션 해제: ' + motion.notes.join(', '));
-    else if (motion.found.length) notes.push('스무스 스크롤 감지(미처리): ' + motion.found.join(', '));
+    else if (motion.found.length) {
+      notes.push(steps.has('motion')
+        // 흔적은 있는데 걷어낼 인스턴스가 window 에 없다. Lenis 를 모듈 안에 감춰 둔 경우다.
+        ? '스무스 스크롤 흔적만 발견(인스턴스 없음): ' + motion.found.join(', ')
+        : '스무스 스크롤 감지(미처리): ' + motion.found.join(', '));
+    }
 
     const scrolled = await page.evaluate(inPageScrollThrough, { ratio: SCROLL_STEP_RATIO, maxSteps: MAX_SCROLL_STEPS });
     if (!scrolled.reachedBottom) notes.push('끝까지 스크롤하지 못했습니다 — 무언가가 스크롤을 가로챕니다');

@@ -87,6 +87,17 @@ const CASES = [
     check: (r) => (r.sliceCount === 1 ? null : `${r.sliceCount}장으로 나눴다`),
   },
   {
+    // 실전에서 코오롱몰이 4픽셀 차이로 100% 실패 처리됐다.
+    // 겹치는 영역이 같으면 통과여야 하고, 높이 차이는 따로 적혀야 한다.
+    name: '문서 높이가 몇 px 흔들려도 겹치는 부분이 같으면 통과한다',
+    file: 'heightjitter.html', steps: [], twice: true,
+    check: (r, cmp) => {
+      if (!same(cmp.verdict)) return `실패로 나왔다 (${cmp.verdict} ${(cmp.ratio * 100).toFixed(2)}% — ${cmp.note || ''})`;
+      if (!/높이 \d+px 차이/.test(cmp.note || '')) return `높이 차이를 기록하지 않았다 — ${cmp.note || '(메모 없음)'}`;
+      return null;
+    },
+  },
+  {
     // 실전에서 49건 중 14건을 무너뜨린 버그. window[0] 은 iframe 이고,
     // 크로스 오리진이면 속성을 읽는 것만으로 SecurityError 가 난다.
     name: '크로스 오리진 iframe 이 있어도 캡처가 죽지 않는다',

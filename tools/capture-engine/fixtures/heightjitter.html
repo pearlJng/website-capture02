@@ -1,0 +1,14 @@
+<!doctype html><meta charset=utf-8><title>높이가 몇 픽셀 흔들리는 페이지</title>
+<style>body{margin:0;font:16px/1.6 system-ui}</style>
+<h1 style="padding:24px">위쪽은 항상 같고, 맨 아래만 몇 픽셀 흔들립니다</h1>
+<div style="height:2000px;background:linear-gradient(#fff,#ccd)"></div>
+<div id="tail"></div>
+<script>
+/*
+ * 실측에서 코오롱몰이 15,519px 대 15,515px — 4픽셀 차이로 100% 실패 처리됐다.
+ * 폰트 줄바꿈이나 지연 이미지 하나 때문에 문서 높이는 실행마다 조금씩 흔들린다.
+ * 그걸 "페이지가 통째로 달라졌다"와 같은 칸에 넣으면 안 된다.
+ * 아래쪽에만 흔들림을 두어 위쪽 겹치는 영역은 완전히 같게 만든다.
+ */
+document.getElementById('tail').style.height = (10 + Math.floor(Math.random() * 12)) + 'px';
+</script>
