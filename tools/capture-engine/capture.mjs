@@ -75,7 +75,28 @@ function inPageHandleMotion(destroyThem) {
   for (const el of [html, document.body]) {
     if (el && getComputedStyle(el).scrollBehavior === 'smooth') el.style.scrollBehavior = 'auto';
   }
-  if (getComputedStyle(html).overflow === 'hidden') { html.style.overflow = 'visible'; notes.push('html overflow 해제'); }
+
+  // 스크롤 잠금을 푼다.
+  //
+  // 모달·팝업이 열려 있으면 사이트가 body 스크롤을 잠근다. 그 상태로 찍으면
+  // 첫 화면만 나온다. 삼성생명이 그랬다 — div.modal.dim 이 떠 있어서 문서가
+  // 3,404px 인데 한 칸도 못 내려갔다. 고정 요소를 숨기는 건 찍기 직전이라
+  // 이미 늦다. 스크롤하기 전에 여기서 풀어야 한다.
+  const body = document.body;
+  if (getComputedStyle(html).overflow === 'hidden') { html.style.overflow = 'visible'; notes.push('html 스크롤 잠금 해제'); }
+  if (body) {
+    const bs = getComputedStyle(body);
+    if (bs.overflow === 'hidden' || bs.overflowY === 'hidden') {
+      body.style.setProperty('overflow', 'visible', 'important');
+      notes.push('body 스크롤 잠금 해제');
+    }
+    // position:fixed + top:-Npx 로 잠그는 방식도 흔하다. 원래 위치로 되돌린다.
+    if (bs.position === 'fixed') {
+      body.style.setProperty('position', 'static', 'important');
+      body.style.removeProperty('top');
+      notes.push('body 고정 해제');
+    }
+  }
   return { found, notes };
 }
 

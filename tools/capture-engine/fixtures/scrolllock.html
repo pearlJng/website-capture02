@@ -1,0 +1,30 @@
+<!doctype html><meta charset=utf-8><title>모달이 스크롤을 잠근 페이지</title>
+<style>
+/* 모달을 띄울 때 흔히 쓰는 잠금 방식. body 를 흐름에서 빼버리므로
+   문서가 화면 높이로 줄어들고, scrollTop 을 넣어도 갈 곳이 없다. */
+body{margin:0;position:fixed;top:0;left:0;width:100%;overflow:hidden;font:16px/1.6 system-ui}
+.dim{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:99}
+.modal{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);
+       background:#fff;padding:32px;border-radius:8px;z-index:100}
+</style>
+<h1 style="padding:24px">모달이 떠 있어 본문이 잠겼습니다</h1>
+<div style="height:2500px;background:linear-gradient(#fff,#dfd)"></div>
+<div id="deep">여기까지 오면 콘텐츠가 더 붙습니다</div>
+<div class="dim"></div>
+<div class="modal">쿠폰 안내 팝업</div>
+<script>
+/*
+ * 삼성생명이 이랬다. div.modal.dim 이 떠 있어 스크롤이 잠겨 있었고,
+ * 문서가 3,404px 인데 한 칸도 못 내려갔다. 고정 요소를 숨기는 건 찍기
+ * 직전이라 이미 늦다 — 스크롤하기 전에 잠금을 풀어야 한다.
+ */
+new IntersectionObserver((es) => {
+  for (const e of es) {
+    if (!e.isIntersecting || document.getElementById('more')) continue;
+    const d = document.createElement('div');
+    d.id = 'more';
+    d.style.cssText = 'height:2000px;background:linear-gradient(#fdd,#ddf)';
+    document.body.appendChild(d);
+  }
+}).observe(document.getElementById('deep'));
+</script>

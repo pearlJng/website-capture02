@@ -87,13 +87,25 @@ const CASES = [
     check: (r) => (r.sliceCount === 1 ? null : `${r.sliceCount}장으로 나눴다`),
   },
   {
+    name: '모달이 스크롤을 잠갔어도 motion 단계가 풀고 끝까지 간다',
+    file: 'scrolllock.html', steps: ['motion'],
+    check: (r) => (r.docHeight > 4000 ? null : `문서가 ${r.docHeight}px — 잠금을 못 풀었다`),
+  },
+  {
+    name: 'motion 을 안 켜면 잠긴 채로 남는다',
+    file: 'scrolllock.html', steps: [],
+    check: (r) => (r.docHeight > 4000 ? `문서가 ${r.docHeight}px — 잠금이 안 걸렸다. 픽스처가 무력하다` : null),
+  },
+  {
     // 실전에서 코오롱몰이 4픽셀 차이로 100% 실패 처리됐다.
     // 겹치는 영역이 같으면 통과여야 하고, 높이 차이는 따로 적혀야 한다.
     name: '문서 높이가 몇 px 흔들려도 겹치는 부분이 같으면 통과한다',
     file: 'heightjitter.html', steps: [], twice: true,
-    check: (r, cmp) => {
+    check: (r, cmp, shots) => {
+      const [a, b] = shots.map((x) => x.docHeight);
+      if (a === b) return `두 번의 높이가 같아 시험이 안 됐다 (${a}px) — 픽스처를 고쳐야 한다`;
       if (!same(cmp.verdict)) return `실패로 나왔다 (${cmp.verdict} ${(cmp.ratio * 100).toFixed(2)}% — ${cmp.note || ''})`;
-      if (!/높이 \d+px 차이/.test(cmp.note || '')) return `높이 차이를 기록하지 않았다 — ${cmp.note || '(메모 없음)'}`;
+      if (!/높이 \d+px 차이/.test(cmp.note || '')) return `높이 차이(${Math.abs(a - b)}px)를 기록하지 않았다 — ${cmp.note || '(메모 없음)'}`;
       return null;
     },
   },
@@ -113,13 +125,20 @@ const CASES = [
 
 const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript' };
 
+// 요청할 때마다 다른 높이를 넣어 준다. 난수는 두 번이 같게 나올 수 있어 못 쓴다.
+let jitter = 0;
+
 function makeServer() {
   return createServer(async (req, res) => {
     const name = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '') || 'index.html';
     if (name.includes('..')) { res.writeHead(400).end(); return; }
     try {
       let body = await readFile(join(HERE, 'fixtures', name));
-      if (extname(name) === '.html') body = body.toString('utf8').replaceAll('__CROSS_ORIGIN__', CROSS);
+      if (extname(name) === '.html') {
+        body = body.toString('utf8')
+          .replaceAll('__CROSS_ORIGIN__', CROSS)
+          .replaceAll('__JITTER__', String(10 + (jitter++ % 40) * 2));
+      }
       res.writeHead(200, { 'content-type': MIME[extname(name)] || 'application/octet-stream' }).end(body);
     } catch {
       res.writeHead(404).end('not found');
@@ -196,7 +215,7 @@ async function main() {
       failed++;
       continue;
     }
-    const problem = c.check(out.shots[0], out.cmp);
+    const problem = c.check(out.shots[0], out.cmp, out.shots);
     if (problem) { console.log(`  ✗ ${c.name}\n      ${problem}`); failed++; }
     else console.log(`  ✓ ${c.name}`);
   }
