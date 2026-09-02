@@ -13,7 +13,7 @@ import { readFile } from 'node:fs/promises';
 import { join, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { captureSite, VIEWPORT, SAFE_PIXELS } from './capture.mjs';
-import { compareCaptures, VERDICT } from './diff.mjs';
+import { compareCaptures, renderDiffStrip, VERDICT } from './diff.mjs';
 import { createBrowserHost, isBrowserDeath } from './browser.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -106,6 +106,22 @@ const CASES = [
       if (a === b) return `두 번의 높이가 같아 시험이 안 됐다 (${a}px) — 픽스처를 고쳐야 한다`;
       if (!same(cmp.verdict)) return `실패로 나왔다 (${cmp.verdict} ${(cmp.ratio * 100).toFixed(2)}% — ${cmp.note || ''})`;
       if (!/높이 \d+px 차이/.test(cmp.note || '')) return `높이 차이(${Math.abs(a - b)}px)를 기록하지 않았다 — ${cmp.note || '(메모 없음)'}`;
+      return null;
+    },
+  },
+  {
+    // 차이가 어디에 있는지 엔진이 짚어야 한다. 안 그러면 0.01% 짜리 차이를
+    // 9,000px 그림 두 장을 눈으로 훑어 찾아야 한다.
+    name: '차이 구간의 좌표를 짚고, 잘라낸 그림을 만든다',
+    file: 'spot.html', steps: [], twice: true, strip: true,
+    check: (r, cmp) => {
+      if (!cmp.region) return `구간을 못 잡았다 (${cmp.verdict} — ${cmp.note || ''})`;
+      const { x, y, w, h, bands } = cmp.region;
+      if (bands !== 1) return `${bands}덩어리로 셌다 — 한 덩어리여야 한다`;
+      if (x < 180 || x > 220) return `가로 시작이 ${x}px (기대 200 근처)`;
+      if (w < 100 || w > 145) return `가로 폭이 ${w}px (기대 120 근처)`;
+      if (h < 28 || h > 55) return `세로 높이가 ${h}px (기대 40 근처)`;
+      if (y < 1200 || y > 1500) return `세로 시작이 ${y}px (기대 1,290 근처)`;
       return null;
     },
   },
@@ -214,6 +230,20 @@ async function main() {
       console.log(`  ✗ ${c.name}\n      캡처 실패: ${out.err}`);
       failed++;
       continue;
+    }
+    if (c.strip && out.cmp && out.cmp.region) {
+      const strip = await renderDiffStrip(await getDiffPage(),
+        out.shots[0].slices[0], out.shots[1].slices[0], out.cmp.region).catch((e) => e);
+      if (!strip || strip instanceof Error) {
+        console.log(`  ✗ ${c.name}\n      잘라낸 그림을 못 만들었다: ${strip && strip.message}`);
+        failed++;
+        continue;
+      }
+      if (strip.length < 500) {
+        console.log(`  ✗ ${c.name}\n      그림이 너무 작다 (${strip.length}바이트)`);
+        failed++;
+        continue;
+      }
     }
     const problem = c.check(out.shots[0], out.cmp, out.shots);
     if (problem) { console.log(`  ✗ ${c.name}\n      ${problem}`); failed++; }

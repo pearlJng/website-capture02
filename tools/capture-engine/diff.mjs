@@ -65,14 +65,111 @@ async function inPageDiff(job) {
   const db = cx.getImageData(0, 0, w, h).data;
   ia.close(); ib.close();
 
+  // 몇 개가 다른지만 세지 말고 어디가 다른지도 잡는다. 0.01% 짜리 차이는
+  // 좌표를 모르면 9,000px 짜리 그림 두 장을 눈으로 훑어야 한다.
   let differing = 0, firstY = -1;
-  for (let i = 0; i < da.length; i += 4) {
-    if (da[i] !== db[i] || da[i + 1] !== db[i + 1] || da[i + 2] !== db[i + 2] || da[i + 3] !== db[i + 3]) {
+  let minX = w, minY = h, maxX = -1, maxY = -1;
+  let bands = 0, prevRow = -2;
+  for (let y = 0; y < h; y++) {
+    let rowHit = false;
+    for (let x = 0; x < w; x++) {
+      const i = (y * w + x) * 4;
+      if (da[i] === db[i] && da[i + 1] === db[i + 1] && da[i + 2] === db[i + 2] && da[i + 3] === db[i + 3]) continue;
       differing++;
-      if (firstY < 0) firstY = Math.floor(i / 4 / w);
+      rowHit = true;
+      if (firstY < 0) firstY = y;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
+    if (rowHit) {
+      if (y !== prevRow + 1) bands++;   // 떨어져 있는 덩어리 수 — 한 덩어리면 원인도 하나다
+      prevRow = y;
     }
   }
-  return { shape: false, total: w * h, differing, firstY, w, h };
+  return { shape: false, total: w * h, differing, firstY, w, h, minX, minY, maxX, maxY, bands };
+}
+
+/**
+ * 다른 부분만 잘라 위아래로 붙인 그림을 만든다.
+ * 1차 / 2차 / 차이 마스크 세 줄. 이거 한 장만 열면 무엇이 달라졌는지 보인다.
+ */
+async function inPageStrip(job) {
+  const load = (b64) => fetch('data:image/png;base64,' + b64)
+    .then((r) => r.blob())
+    .then((bl) => createImageBitmap(bl, job.x, job.y, job.w, job.h));
+  const [ia, ib] = await Promise.all([load(job.a), load(job.b)]);
+
+  const LABEL = 20, GAP = 6;
+  const cv = new OffscreenCanvas(job.w, LABEL + (job.h + LABEL + GAP) * 2 + job.h);
+  const cx = cv.getContext('2d', { willReadFrequently: true });
+  cx.fillStyle = job.bg;
+  cx.fillRect(0, 0, cv.width, cv.height);
+
+  const band = (img, label, top) => {
+    cx.fillStyle = job.fg;
+    cx.font = '600 13px ui-monospace, Menlo, monospace';
+    cx.fillText(label, 6, top + 14);
+    if (img) cx.drawImage(img, 0, top + LABEL);
+    return top + LABEL + job.h + GAP;
+  };
+
+  let top = band(ia, '1차', 0);
+  top = band(ib, '2차', top);
+
+  // 차이 마스크 — 다른 픽셀만 강조색으로 찍는다
+  const tmp = new OffscreenCanvas(job.w, job.h);
+  const tx = tmp.getContext('2d', { willReadFrequently: true });
+  tx.drawImage(ia, 0, 0);
+  const A = tx.getImageData(0, 0, job.w, job.h).data;
+  tx.clearRect(0, 0, job.w, job.h);
+  tx.drawImage(ib, 0, 0);
+  const B = tx.getImageData(0, 0, job.w, job.h).data;
+  const out = tx.createImageData(job.w, job.h);
+  const O = out.data;
+  for (let i = 0; i < A.length; i += 4) {
+    const same = A[i] === B[i] && A[i + 1] === B[i + 1] && A[i + 2] === B[i + 2] && A[i + 3] === B[i + 3];
+    O[i] = same ? 236 : 196;
+    O[i + 1] = same ? 233 : 30;
+    O[i + 2] = same ? 240 : 130;
+    O[i + 3] = 255;
+  }
+  tx.putImageData(out, 0, 0);
+  cx.fillStyle = job.fg;
+  cx.font = '600 13px ui-monospace, Menlo, monospace';
+  cx.fillText('차이', 6, top + 14);
+  cx.drawImage(tmp, 0, top + LABEL);
+
+  ia.close(); ib.close();
+  const blob = await cv.convertToBlob({ type: 'image/png' });
+  const bytes = new Uint8Array(await blob.arrayBuffer());
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+
+/** 잘라낼 세로 높이의 상한. 이보다 넓게 퍼져 있으면 어차피 눈으로 봐야 한다. */
+const STRIP_MAX_H = 360;
+
+/**
+ * 차이 구간을 잘라 붙인 PNG 를 만든다. 구간 정보가 없으면 null.
+ * @returns {Promise<Buffer|null>}
+ */
+export async function renderDiffStrip(page, a, b, region) {
+  if (!region || !region.h) return null;
+  const size = pngSize(a);
+  if (!size) return null;
+  const margin = 24;
+  const y = Math.max(0, region.y - margin);
+  const h = Math.min(STRIP_MAX_H, size.height - y, region.h + margin * 2);
+  if (h <= 0) return null;
+  const b64 = await page.evaluate(inPageStrip, {
+    a: a.toString('base64'), b: b.toString('base64'),
+    x: 0, y, w: size.width, h,
+    bg: '#141219', fg: '#EEEBF3',
+  });
+  return Buffer.from(b64, 'base64');
 }
 
 /**
@@ -126,10 +223,23 @@ export async function comparePngs(page, a, b) {
     return { verdict: VERDICT.SAME_PIXELS, ratio: 0, note: parts.join(' · ') };
   }
   const ratio = r.differing / r.total;
-  const atY = rh ? Math.round((r.firstY / rh) * cmpH) : r.firstY;
-  parts.unshift(`첫 차이 y≈${atY.toLocaleString('en-US')}px`);
+
+  // 축소해서 비교했으면 좌표를 원래 크기로 되돌린다.
+  const ky = rh ? cmpH / rh : 1;
+  const kx = rw ? sa.width / rw : 1;
+  const region = {
+    x: Math.floor(r.minX * kx),
+    y: Math.floor(r.minY * ky),
+    w: Math.ceil((r.maxX - r.minX + 1) * kx),
+    h: Math.ceil((r.maxY - r.minY + 1) * ky),
+    bands: r.bands,
+  };
+
+  parts.unshift(`차이 y ${region.y.toLocaleString('en-US')}~${(region.y + region.h).toLocaleString('en-US')}px` +
+    ` · 가로 ${region.x}~${region.x + region.w}px` +
+    ` · ${region.bands === 1 ? '한 덩어리' : region.bands + '덩어리'}`);
   if (rw) parts.push('축소 비교');
-  return { verdict: VERDICT.DIFF, ratio, note: parts.join(' · ') };
+  return { verdict: VERDICT.DIFF, ratio, note: parts.join(' · '), region };
 }
 
 /** 캡처 결과(슬라이스 배열) 두 벌을 통째로 비교한다. 가장 나쁜 판정을 대표로 삼는다. */
@@ -147,7 +257,7 @@ export async function compareCaptures(page, sa, sb) {
     const r = await comparePngs(page, sa[i], sb[i]);
     totalDiff += r.ratio;
     if (rank[r.verdict] > rank[worst.verdict] || (r.verdict === worst.verdict && r.ratio > worst.ratio)) {
-      worst = { ...r, slice: sa.length > 1 ? i + 1 : undefined };
+      worst = { ...r, slice: sa.length > 1 ? i + 1 : undefined, sliceIndex: i };
     }
   }
   return { ...worst, ratio: worst.verdict === VERDICT.SHAPE ? 1 : totalDiff / sa.length };

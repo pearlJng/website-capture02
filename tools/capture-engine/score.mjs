@@ -17,7 +17,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { captureSite, STEPS, VIEWPORT } from './capture.mjs';
-import { compareCaptures, VERDICT } from './diff.mjs';
+import { compareCaptures, renderDiffStrip, VERDICT } from './diff.mjs';
 import { readTable, writeTable } from './csv.mjs';
 import { createBrowserHost, isBrowserDeath } from './browser.mjs';
 
@@ -189,7 +189,10 @@ function renderReport(rows, s, meta) {
         : r.complete === '미완주' ? '바닥 못 닿음'
         : r.complete === '미확인' ? '스크롤 미확인'
         : (r.verdict === VERDICT.SHAPE ? '구조' : (r.ratio * 100).toFixed(2) + '%');
-      L.push(`  ${r.tier}  ${why.padStart(16)}  ${r.name.slice(0, 24).padEnd(26)}${(r.note || '').slice(0, 30)}`);
+      const where = r.region
+        ? `y ${r.region.y.toLocaleString('en-US')}~${(r.region.y + r.region.h).toLocaleString('en-US')} · ${r.region.bands === 1 ? '한 덩어리' : r.region.bands + '덩어리'}`
+        : (r.note || '').slice(0, 34);
+      L.push(`  ${r.tier}  ${why.padStart(16)}  ${r.name.slice(0, 22).padEnd(24)}${where}`);
     }
     if (bad.length > 25) L.push(`  … 그 외 ${bad.length - 25}건`);
     L.push('');
@@ -213,13 +216,15 @@ function renderReport(rows, s, meta) {
   return L.join('\n');
 }
 
-const CSV_COLS = ['이름', 'URL', '티어', '판정', '결정성', '차이비율', '완주', '문서높이', '스캔높이', '분할수', '비고', '캡처메모', '오류'];
+const CSV_COLS = ['이름', 'URL', '티어', '판정', '결정성', '차이비율', '차이구간', '덩어리', '완주', '문서높이', '스캔높이', '분할수', '비고', '캡처메모', '오류'];
 
 function toCsvRows(rows) {
   return rows.map((r) => ({
     '이름': r.name, 'URL': r.url, '티어': r.tier,
     '판정': r.error ? '캡처실패' : judge(r.tier, r.verdict, r.complete),
     '결정성': r.verdict || '', '차이비율': r.error ? '' : (r.ratio * 100).toFixed(4) + '%',
+    '차이구간': r.region ? `y ${r.region.y}~${r.region.y + r.region.h} · x ${r.region.x}~${r.region.x + r.region.w}` : '',
+    '덩어리': r.region ? r.region.bands : '',
     '완주': r.complete || '', '문서높이': r.docHeight ?? '', '스캔높이': r.scanHeight || '',
     '분할수': r.sliceCount ?? '',
     '비고': r.note || '', '캡처메모': (r.notes || []).join(' / '), '오류': r.error || '',
@@ -240,7 +245,8 @@ async function main() {
   --scale <n>         배율 (기본 1)
   --limit <n>         앞에서 n건만
   --concurrency <n>   동시 실행 (기본 2 — 한 건당 두 번 찍으므로 무겁습니다)
-  --keep-shots <dir>  PNG 를 남겨 눈으로 확인
+  --keep-shots <dir>  PNG 를 남깁니다. 실패한 건은 다른 구간만 잘라
+                      1차·2차·차이마스크 세 줄로 붙인 <이름>__차이.png 도 함께
   --out <prefix>      보고서·CSV 저장 경로 앞부분
   --dry-run           대상만 확인하고 끝
 `);
@@ -327,8 +333,17 @@ async function main() {
     const { shots, cmp } = out;
     const complete = completeness(shots[0], t.scanHeight);
 
+    const safe = t.name.replace(/[^\w가-힣.-]+/g, '_').slice(0, 40);
+
+    // 다른 구간만 잘라 1차·2차·차이마스크 세 줄로 붙인 그림.
+    // 9,000px 짜리 두 장을 눈으로 훑는 대신 이거 한 장만 열면 된다.
+    if (shotDir && cmp.verdict === VERDICT.DIFF && cmp.region) {
+      const i = cmp.sliceIndex || 0;
+      const strip = await renderDiffStrip(await getDiffPage(), shots[0].slices[i], shots[1].slices[i], cmp.region)
+        .catch(() => null);
+      if (strip) writeFileSync(join(shotDir, `${safe}__차이.png`), strip);
+    }
     if (shotDir) {
-      const safe = t.name.replace(/[^\w가-힣.-]+/g, '_').slice(0, 40);
       shots[0].slices.forEach((buf, i) => writeFileSync(join(shotDir, `${safe}_${i + 1}.png`), buf));
       if (cmp.verdict === VERDICT.DIFF || cmp.verdict === VERDICT.SHAPE) {
         shots[1].slices.forEach((buf, i) => writeFileSync(join(shotDir, `${safe}_${i + 1}_b.png`), buf));
@@ -340,7 +355,7 @@ async function main() {
     console.error(`  [${++done}/${targets.length}] ${mark} ${t.tier || '  '} ${t.name} — ${cmp.verdict}${cmp.ratio ? ' ' + (cmp.ratio * 100).toFixed(2) + '%' : ''}${extra}`);
 
     return {
-      ...base, verdict: cmp.verdict, ratio: cmp.ratio, note: cmp.note, complete,
+      ...base, verdict: cmp.verdict, ratio: cmp.ratio, note: cmp.note, region: cmp.region, complete,
       sliceCount: shots[0].sliceCount, docHeight: shots[0].docHeight,
       scanHeight: t.scanHeight, notes: shots[0].notes,
     };

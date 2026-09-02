@@ -1,0 +1,14 @@
+<!doctype html><meta charset=utf-8><title>한 곳만 달라지는 페이지</title>
+<style>body{margin:0;font:16px/1.6 system-ui}</style>
+<h1 style="padding:24px">위아래는 항상 같고, 딱 한 군데만 달라집니다</h1>
+<div style="height:1200px;background:linear-gradient(#fff,#eef)"></div>
+<!--
+  0.01% 짜리 차이를 좌표 없이 찾으려면 9,000px 짜리 그림 두 장을 눈으로
+  훑어야 한다. 리포터가 "y 1400 근처, 한 덩어리"라고 짚어 주는지 확인한다.
+  달라지는 지점을 정확히 아는 상태로 시험하려고 위치를 고정했다.
+-->
+<div id="spot" style="height:40px;width:120px;margin-left:200px"></div>
+<div style="height:1200px;background:linear-gradient(#eef,#fff)"></div>
+<script>
+document.getElementById('spot').style.background = (__JITTER__ / 2) % 2 ? '#c00' : '#0c0';
+</script>
