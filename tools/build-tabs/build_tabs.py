@@ -16,6 +16,7 @@ DOCS = [
     ('p2', SRC + 'capture-tier-taxonomy.html',   '02', '분류 체계',  '캡처 난이도 T0–T4'),
     ('p3', SRC + 'capture-scan-results.html',    '03', '실측 결과',  'GDWEB 50건 계측'),
     ('p4', SRC + 'capture-tier-integrated.html', '04', '통합 판정',  '티어 × 30개 사이트'),
+    ('p5', SRC + 'capture-engine-score.html',     '05', '엔진 성적',  '8% → 67% 실측'),
 ]
 
 # 전역으로 남길 셀렉터 — 스코프하면 오히려 깨진다.

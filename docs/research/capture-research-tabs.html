@@ -109,6 +109,7 @@
 #p2{--measure:41rem;--wide:64rem;}
 #p3{--measure:41rem;--wide:66rem;}
 #p4{--measure:41rem;--wide:66rem;}
+#p5{--measure:41rem;--wide:66rem;}
 
 *{box-sizing:border-box;}
 body{
@@ -855,6 +856,103 @@ figure{margin:2rem 0; max-width:var(--wide);}
 #p4 .concl li{margin:0;padding:1rem 1.25rem;background:var(--surface);border:1px solid var(--line);border-radius:3px;font-size:.95rem;line-height:1.7;}
 #p4 .concl .n{font-family:var(--mono);font-size:.66rem;font-weight:600;color:var(--accent);letter-spacing:.06em;display:block;margin-bottom:.25rem;}
 #p4 footer{margin-top:4rem;padding-top:1.25rem;border-top:1px solid var(--line-strong);font-family:var(--mono);font-size:.7rem;letter-spacing:.05em;color:var(--muted);}
+/* ===== 엔진 성적 ===== */
+#p5 :root[data-theme="dark"]{
+  --ground:#141219; --surface:#1D1A23; --surface-2:#25212D;
+  --ink:#EEEBF3; --ink-2:#C8C1D4; --muted:#A099AE;
+  --line:#2F2A38; --line-strong:#453E52;
+  --accent:#FF74C6; --accent-ink:#FF9BD5; --accent-soft:#32152A;
+  --s1:#DB4C9E; --s2:#BC8420;
+  --t0:#5BC79C; --t1:#79C489; --t2:#E2A947; --t3:#EE9560; --t4:#F0827A;
+  --ok:#5BC79C; --ok-soft:#14291F; --warn:#E2A947; --warn-soft:#2C2314; --risk:#F0827A; --risk-soft:#2E1917;
+}
+#p5{box-sizing:border-box;}
+#p5{margin:0;background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.75;letter-spacing:-0.003em;-webkit-font-smoothing:antialiased;word-break:keep-all;}
+#p5 .page{max-width:var(--wide);margin:0 auto;padding:0 1.5rem 6rem;}
+#p5 .col{max-width:var(--measure);}
+#p5 a{color:var(--accent-ink);text-underline-offset:2px;}
+#p5 a:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:2px;}
+#p5 .masthead{padding:4.5rem 0 2.5rem;border-bottom:1px solid var(--line-strong);display:flex;flex-direction:column;gap:1.4rem;}
+#p5 .eyebrow{font-family:var(--mono);font-size:.7rem;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin:0;}
+#p5 h1{margin:0;font-size:clamp(2.1rem,5.5vw,3.1rem);line-height:1.14;font-weight:700;letter-spacing:-0.035em;text-wrap:balance;max-width:16ch;}
+#p5 .standfirst{margin:0;max-width:var(--measure);font-size:1.06rem;color:var(--ink-2);}
+#p5 .meta{display:flex;flex-wrap:wrap;gap:.4rem 1.5rem;font-family:var(--mono);font-size:.72rem;letter-spacing:.04em;color:var(--muted);margin:0;padding:0;list-style:none;}
+#p5 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(11rem,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:3px;margin:2.5rem 0 0;overflow:hidden;}
+#p5 .stat{background:var(--surface);padding:1.3rem 1.3rem 1.4rem;display:flex;flex-direction:column;gap:.2rem;}
+#p5 .stat .k{font-family:var(--mono);font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0;}
+#p5 .stat .v{margin:0;font-size:2rem;font-weight:600;letter-spacing:-0.04em;line-height:1.15;font-variant-numeric:tabular-nums;}
+#p5 .stat .d{margin:0;font-size:.85rem;color:var(--ink-2);line-height:1.55;}
+#p5 .stat.hi .v{color:var(--accent);}
+#p5 section{padding-top:4rem;}
+#p5 .sec-head{display:flex;align-items:baseline;gap:1rem;border-bottom:1px solid var(--line-strong);padding-bottom:.75rem;margin-bottom:1.9rem;}
+#p5 .sec-num{font-family:var(--mono);font-size:.8rem;font-weight:600;color:var(--accent);letter-spacing:.05em;flex:none;}
+#p5 h2{margin:0;font-size:clamp(1.45rem,3.2vw,1.8rem);font-weight:600;letter-spacing:-0.03em;line-height:1.3;}
+#p5 h3{margin:2.5rem 0 .8rem;font-size:1.08rem;font-weight:600;letter-spacing:-0.02em;}
+#p5 p{margin:0 0 1.05rem;max-width:var(--measure);}
+#p5 strong{font-weight:600;color:var(--ink);}
+#p5 em{font-style:normal;background:var(--accent-soft);color:var(--accent-ink);padding:.05em .3em;border-radius:2px;font-weight:500;}
+#p5 ul, #p5 ol{max-width:var(--measure);margin:0 0 1.05rem;padding-left:1.15rem;}
+#p5 li{margin-bottom:.5rem;}
+#p5 li::marker{color:var(--muted);}
+#p5 code{font-family:var(--mono);font-size:.86em;background:var(--surface-2);border:1px solid var(--line);border-radius:3px;padding:.08em .35em;color:var(--ink-2);white-space:nowrap;}
+#p5 figure{margin:1.75rem 0;max-width:var(--wide);}
+#p5 .chart{background:var(--surface);border:1px solid var(--line);border-radius:3px;padding:1.5rem 1.5rem 1.25rem;}
+#p5 .chart-title{font-size:.95rem;font-weight:600;margin:0 0 .2rem;}
+#p5 .chart-sub{font-family:var(--mono);font-size:.68rem;letter-spacing:.06em;color:var(--muted);margin:0 0 1.2rem;}
+#p5 .legend{display:flex;gap:1.2rem;flex-wrap:wrap;margin:0 0 1.1rem;font-size:.8rem;color:var(--ink-2);}
+#p5 .legend span{display:inline-flex;align-items:center;gap:.4rem;}
+#p5 .swatch{width:11px;height:11px;border-radius:2px;flex:none;}
+#p5 .sw1{background:var(--s1);}
+#p5 .sw2{background:var(--s2);}
+#p5 .grp{display:grid;grid-template-columns:7.5rem 1fr;gap:.35rem 1rem;align-items:center;margin-bottom:1rem;}
+#p5 .grp:last-child{margin-bottom:0;}
+#p5 .grp .lab{font-size:.85rem;line-height:1.35;grid-row:span 2;}
+#p5 .grp .lab b{display:block;font-family:var(--mono);font-size:.75rem;font-weight:600;}
+#p5 .grp .lab i{font-style:normal;color:var(--muted);font-size:.78rem;}
+#p5 .track{display:flex;align-items:center;gap:.5rem;min-width:0;}
+#p5 .bar{height:15px;border-radius:0 4px 4px 0;flex:none;min-width:2px;}
+#p5 .b1{background:var(--s1);}
+#p5 .b2{background:var(--s2);}
+#p5 .val{font-family:var(--mono);font-size:.75rem;font-variant-numeric:tabular-nums;color:var(--ink-2);white-space:nowrap;}
+#p5 .val b{color:var(--ink);font-weight:600;}
+#p5 .single .grp{grid-template-columns:9.5rem 1fr;}
+#p5 .single .lab{grid-row:span 1;}
+#p5 .scroller{overflow-x:auto;margin:0 0 1.5rem;border:1px solid var(--line);border-radius:3px;background:var(--surface);}
+#p5 table{border-collapse:collapse;width:100%;min-width:40rem;font-size:.88rem;}
+#p5 caption{caption-side:top;text-align:left;padding:1rem 1.1rem .35rem;font-family:var(--mono);font-size:.68rem;letter-spacing:.11em;text-transform:uppercase;color:var(--muted);}
+#p5 th, #p5 td{text-align:left;padding:.62rem 1.1rem;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.55;}
+#p5 thead th{font-family:var(--mono);font-size:.66rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line-strong);white-space:nowrap;position:sticky;top:0;background:var(--surface);}
+#p5 tbody tr:last-child td{border-bottom:none;}
+#p5 th[scope="row"]{font-weight:600;white-space:nowrap;}
+#p5 td.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:.8rem;white-space:nowrap;}
+#p5 td.nm{font-weight:500;}
+#p5 td.ti{white-space:nowrap;font-size:.83rem;}
+#p5 td.ti b{font-family:var(--mono);}
+#p5 td.t0 b{color:var(--t0);}
+#p5 td.t1 b{color:var(--t1);}
+#p5 td.t2 b{color:var(--t2);}
+#p5 td.t3 b{color:var(--t3);}
+#p5 td.t4 b{color:var(--t4);}
+#p5 td.lib{font-family:var(--mono);font-size:.72rem;color:var(--muted);}
+#p5 .moved{display:block;font-family:var(--mono);font-size:.66rem;color:var(--accent);letter-spacing:.03em;}
+#p5 .tg{display:inline-block;font-family:var(--mono);font-size:.66rem;font-weight:600;background:var(--surface-2);border:1px solid var(--line);color:var(--ink-2);padding:.05rem .32rem;border-radius:2px;margin-right:.15rem;}
+#p5 tr.fail td{color:var(--risk);}
+#p5 .pill{display:inline-block;font-family:var(--mono);font-size:.66rem;font-weight:600;padding:.16rem .5rem .2rem;border-radius:2px;white-space:nowrap;}
+#p5 .pill.ok{background:var(--ok-soft);color:var(--ok);}
+#p5 .pill.warn{background:var(--warn-soft);color:var(--warn);}
+#p5 .pill.risk{background:var(--risk-soft);color:var(--risk);}
+#p5 .callout{border-left:2px solid var(--accent);background:var(--surface);padding:1.25rem 1.4rem;margin:2rem 0;max-width:var(--measure);border-radius:0 3px 3px 0;}
+#p5 .callout>*:first-child{margin-top:0;}
+#p5 .callout>*:last-child{margin-bottom:0;}
+#p5 .callout .tag{font-family:var(--mono);font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);display:block;margin-bottom:.45rem;}
+#p5 .term{background:var(--surface-2);border:1px solid var(--line);border-radius:3px;padding:1rem 1.2rem;overflow-x:auto;font-family:var(--mono);font-size:.78rem;line-height:1.85;color:var(--ink-2);margin:0 0 1.5rem;max-width:var(--wide);}
+#p5 .term b{color:var(--ok);font-weight:600;}
+#p5 footer{margin-top:4rem;padding-top:1.25rem;border-top:1px solid var(--line-strong);font-family:var(--mono);font-size:.7rem;letter-spacing:.05em;color:var(--muted);}
+@media (max-width:38rem){
+#p5 .grp{grid-template-columns:1fr;}
+#p5 .grp .lab{grid-row:auto;}
+#p5 .single .grp{grid-template-columns:1fr;}
+}
 </style>
 
 <div class="shell">
@@ -871,6 +969,7 @@ figure{margin:2rem 0; max-width:var(--wide);}
       <button class="tab" id="tab-p2" role="tab" aria-controls="p2" aria-selected="false" tabindex="-1" data-panel="p2" data-hash="02"><span class="tnum">02</span><span class="tname">분류 체계</span><span class="tsub">캡처 난이도 T0–T4</span></button>
       <button class="tab" id="tab-p3" role="tab" aria-controls="p3" aria-selected="false" tabindex="-1" data-panel="p3" data-hash="03"><span class="tnum">03</span><span class="tname">실측 결과</span><span class="tsub">GDWEB 50건 계측</span></button>
       <button class="tab" id="tab-p4" role="tab" aria-controls="p4" aria-selected="false" tabindex="-1" data-panel="p4" data-hash="04"><span class="tnum">04</span><span class="tname">통합 판정</span><span class="tsub">티어 × 30개 사이트</span></button>
+      <button class="tab" id="tab-p5" role="tab" aria-controls="p5" aria-selected="false" tabindex="-1" data-panel="p5" data-hash="05"><span class="tnum">05</span><span class="tname">엔진 성적</span><span class="tsub">8% → 67% 실측</span></button>
   </div>
 </nav>
 
@@ -2445,6 +2544,318 @@ $ npm run scan -- --list "&lt;GDWEB 목록 URL&gt;" --pages 1-3 --limit 60 --con
 
 
 <footer>웹사이트 스냅샷 자동화 · 티어 통합 판정 30건 · 외부 문서 반영 및 검증 · GDWEB 재스캔 반영 2026-08-31</footer>
+
+</div>
+</div>
+<div class="panel" id="p5" role="tabpanel" aria-labelledby="tab-p5" tabindex="0" hidden>
+<div class="page">
+
+<header class="masthead">
+  <p class="eyebrow">엔진 성적</p>
+  <h1>캡처 엔진 1차 성적</h1>
+  <p class="standfirst">분류 체계와 실측이 "무엇이 어려운가"를 말해줬다면, 이번엔 <strong>"우리가 실제로 몇 %를 제대로 찍는가"</strong>를 쟀습니다. 지금 설계로는 <strong>8%</strong>였고, 실측이 지목한 네 가지를 처리하니 <strong>67%</strong>가 됐습니다. 그리고 이 채점 과정이 <strong>엔진 코드의 결함 여덟 개를 찾아냈습니다.</strong></p>
+  <ul class="meta">
+    <li>2026-09-01 실행</li>
+    <li>GDWEB 49건 &times; 2회 캡처</li>
+    <li>뷰포트 1440&times;900 · 1배율</li>
+    <li>회귀 테스트 14/14</li>
+  </ul>
+</header>
+
+<div class="stats">
+  <div class="stat hi"><p class="k">v1 구간 통과</p><p class="v">8% → 67%</p><p class="d">T0&ndash;T2 24건 중 2건 → 16건</p></div>
+  <div class="stat"><p class="k">전체 결정론적</p><p class="v">55%</p><p class="d">티어 무관 49건 중 27건</p></div>
+  <div class="stat"><p class="k">채점이 찾아낸 결함</p><p class="v">8개</p><p class="d">전부 실행하기 전엔 몰랐던 것</p></div>
+  <div class="stat"><p class="k">사람 검수</p><p class="v">0건</p><p class="d">채점이 자동입니다</p></div>
+</div>
+
+<!-- ============================================================ -->
+<section id="method">
+  <div class="sec-head"><span class="sec-num">01</span><h2>검수를 사람이 하지 않습니다</h2></div>
+
+  <p class="col">캡처 품질을 눈으로 검수하면 규모가 안 나옵니다. 다행히 안 해도 됩니다 &mdash; <strong>T0&ndash;T4 티어 정의가 그대로 채점 기준</strong>이기 때문입니다.</p>
+
+  <div class="callout">
+    <span class="tag">채점 규칙</span>
+    <p><strong>같은 사이트를 두 번 찍어서 픽셀이 같으면 성공, 다르면 실패.</strong></p>
+    <p>T0&ndash;T2는 두 번 찍어 같아야 정상이고, T4는 원리적으로 같을 수 없습니다. 스캔 결과 CSV가 정답지 역할을 하므로, 엔진을 고칠 때마다 성적이 바로 나옵니다.</p>
+  </div>
+
+  <h3>결정성만으로는 부족했습니다</h3>
+
+  <p class="col">첫 실행에서 스무스 스크롤 사이트가 통과해버렸습니다. <strong>두 번 다 똑같이 실패하면 픽셀은 같기 때문</strong>입니다 &mdash; 절반을 놓친 캡처인데 만점이었습니다. 그래서 <strong>완주</strong> 검사를 따로 뒀습니다.</p>
+
+  <div class="scroller">
+    <table>
+      <caption>완주 판정 &mdash; 결정성이 못 잡는 실패</caption>
+      <thead><tr><th>판정</th><th>무엇을 보나</th><th>실제로 잡은 것</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">미완주</th><td>문서가 화면보다 긴데 스크롤이 바닥에 못 닿음</td><td>가장 확실한 신호. 무엇이 가로챘든 걸립니다</td></tr>
+        <tr><th scope="row">짧음</th><td>스캐너가 잰 문서 높이의 90%에 못 미침</td><td>지연 로딩이 덜 발동한 경우</td></tr>
+        <tr><th scope="row">미확인</th><td>스크롤 가로채는 라이브러리를 발견했는데 안 걷어냄</td><td>끝까지 갔다고 주장할 수 없는 상태</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="col"><strong>둘 다 통과해야 통과입니다.</strong> 아래 모든 수치는 이 기준입니다.</p>
+</section>
+
+<!-- ============================================================ -->
+<section id="score">
+  <div class="sec-head"><span class="sec-num">02</span><h2>8%에서 67%로</h2></div>
+
+  <p class="col">파이프라인의 네 단계는 껐다 켤 수 있게 만들었습니다. 무엇을 켰을 때 성적이 얼마나 오르는지 재기 위해서입니다. <strong>아무것도 안 켠 상태가 지금 설계</strong>입니다.</p>
+
+  <figure>
+    <div class="chart">
+      <p class="chart-title">티어별 &mdash; 두 번 찍어 같았던 건수</p>
+      <p class="chart-sub">GDWEB 49건 · 막대 길이는 건수 (가장 큰 티어 T2의 19건이 기준)</p>
+      <div class="legend">
+        <span><i class="swatch sw1"></i>네 단계 전부 켬</span>
+        <span><i class="swatch sw2"></i>지금 설계 (baseline)</span>
+      </div>
+      <div class="grp">
+        <div class="lab"><b>T0</b><i>정적</i></div>
+        <div class="track"><div class="bar b1" style="width:5.3%"></div><span class="val"><b>1</b> / 1</span></div>
+        <div class="track"><div class="bar b2" style="width:5.3%"></div><span class="val">1</span></div>
+      </div>
+      <div class="grp">
+        <div class="lab"><b>T1</b><i>등장형</i></div>
+        <div class="track"><div class="bar b1" style="width:10.5%"></div><span class="val"><b>2</b> / 4</span></div>
+        <div class="track"><div class="bar b2" style="width:0.5%"></div><span class="val">0</span></div>
+      </div>
+      <div class="grp">
+        <div class="lab"><b>T2</b><i>순환형</i></div>
+        <div class="track"><div class="bar b1" style="width:68.4%"></div><span class="val"><b>13</b> / 19</span></div>
+        <div class="track"><div class="bar b2" style="width:15.8%"></div><span class="val">3</span></div>
+      </div>
+      <div class="grp">
+        <div class="lab"><b>T3</b><i>스크롤 연동형</i></div>
+        <div class="track"><div class="bar b1" style="width:31.6%"></div><span class="val"><b>6</b> / 10</span></div>
+        <div class="track"><div class="bar b2" style="width:5.3%"></div><span class="val">1</span></div>
+      </div>
+      <div class="grp">
+        <div class="lab"><b>T4</b><i>실시간 렌더형</i></div>
+        <div class="track"><div class="bar b1" style="width:26.3%"></div><span class="val"><b>5</b> / 15</span></div>
+        <div class="track"><div class="bar b2" style="width:10.5%"></div><span class="val">2</span></div>
+      </div>
+    </div>
+    <figcaption class="chart-sub" style="margin-top:.7rem">합계 7건 → 27건. 티어와 무관하게 <strong>49건 중 27건(55%)</strong>이 두 번 찍어 같아졌습니다.</figcaption>
+  </figure>
+
+  <div class="scroller">
+    <table>
+      <caption>세 번의 실행 · 모두 같은 49건</caption>
+      <thead><tr><th>실행</th><th>결정성</th><th>완주</th><th>둘 다 통과</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">지금 설계 (단계 없음)</th><td class="num">4 / 24 · 17%</td><td class="num">18 / 24 · 75%</td><td class="num"><strong>2 / 24 · 8%</strong></td></tr>
+        <tr><th scope="row">네 단계 전부</th><td class="num">11 / 24 · 46%</td><td class="num">23 / 24 · 96%</td><td class="num"><strong>11 / 24 · 46%</strong></td></tr>
+        <tr><th scope="row">네 단계 + 채점기 수정</th><td class="num">16 / 24 · 67%</td><td class="num">23 / 24 · 96%</td><td class="num"><strong>16 / 24 · 67%</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="col">가운데 줄과 마지막 줄의 차이가 중요합니다. <strong>엔진은 그대로인데 성적이 46%에서 67%로 올랐습니다</strong> &mdash; 채점기가 너무 가혹해서 멀쩡한 캡처를 실패로 세고 있었기 때문입니다. 자세한 건 다음 절에 있습니다.</p>
+
+  <div class="callout">
+    <span class="tag">이 숫자를 읽는 법</span>
+    <p><strong>67%는 "v1이 다루기로 한 범위(T0&ndash;T2) 안에서의 성공률"</strong>입니다. 전체 49건으로 환산하면 16건, 33%입니다. 다만 범위 밖인 T3에서 6건, T4에서 5건이 덤으로 결정론적으로 찍혔으므로 <strong>실제로 쓸 수 있는 결과물은 27건(55%)</strong>입니다.</p>
+    <p>표본은 디자인 어워드 수상작입니다. <strong>여기서 나온 성적은 하한선으로 읽어야 합니다</strong> &mdash; 팀이 실제로 캡처하는 고객사 사이트는 이보다 쉬울 가능성이 높습니다.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="gains">
+  <div class="sec-head"><span class="sec-num">03</span><h2>한 줄이 다섯 건을 살렸습니다</h2></div>
+
+  <p class="col">스크롤을 <code>window.scrollBy</code> 대신 <code>scrollingElement.scrollTop</code>에 직접 대입하도록 바꿨습니다. 스무스 스크롤 라이브러리는 <code>scrollBy</code>를 가로채지만, 이 대입은 대개 그대로 먹습니다.</p>
+
+  <div class="scroller">
+    <table>
+      <caption>수정 한 번으로 통과로 넘어온 사이트</caption>
+      <thead><tr><th>사이트</th><th>수정 전</th><th>수정 후</th></tr></thead>
+      <tbody>
+        <tr><th scope="row">더샵천안라크원</th><td class="num">13.96% 차이</td><td><span class="pill ok">통과</span></td></tr>
+        <tr><th scope="row">사담재</th><td class="num">9.53% 차이</td><td><span class="pill ok">통과</span></td></tr>
+        <tr><th scope="row">one grove</th><td class="num">8.31% 차이</td><td><span class="pill ok">통과</span></td></tr>
+        <tr><th scope="row">포스코플로우</th><td class="num">1.99% 차이</td><td><span class="pill ok">통과</span></td></tr>
+        <tr><th scope="row">써밋 클라비온</th><td class="num">0.03% 차이</td><td><span class="pill ok">통과</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="col">이게 <strong>실측이 설계를 이긴 지점</strong>입니다. 처음에는 "라이브러리 인스턴스를 찾아 <code>destroy()</code>를 부른다"고 설계했는데, 실제로는 <strong>Lenis를 <code>window</code>에 노출하지 않고 모듈 안에 감춰 두는 사이트가 6곳</strong>(화천&middot;토스&middot;뷰전&middot;언플러&middot;이스트소프트&middot;모두의매트)이었습니다. 부를 대상이 없었습니다. <strong>인스턴스를 찾는 대신 가로채기를 우회하는 쪽이 옳았습니다.</strong></p>
+</section>
+
+<!-- ============================================================ -->
+<section id="defects">
+  <div class="sec-head"><span class="sec-num">04</span><h2>채점이 찾아낸 결함 여덟 개</h2></div>
+
+  <p class="col">번호는 발견 순서입니다. 앞의 것을 고쳐야 뒤의 것이 드러났습니다 &mdash; <strong>실행하지 않았으면 하나도 몰랐을 것들</strong>입니다.</p>
+
+  <ol class="ledger">
+    <li>
+      <span class="n">01</span>
+      <span class="what">크로스 오리진 iframe이 캡처를 죽였다</span>
+      <span class="hit">49건 중 14건 실패</span>
+      <p class="why">스무스 스크롤 라이브러리를 찾느라 <code>window</code>의 모든 속성을 훑었는데, <code>window[0]</code>·<code>window[1]</code>은 iframe입니다 &mdash; 광고·유튜브·지도가 여기 들어옵니다. 크로스 오리진이면 속성을 읽는 것만으로 <code>SecurityError</code>가 납니다. 숫자 키를 건너뛰고 검사 전체를 <code>try</code> 안에 넣었습니다.</p>
+    </li>
+    <li>
+      <span class="n">02</span>
+      <span class="what">예외가 나면 프로세스가 끝나지 않았다</span>
+      <span class="hit">터미널이 멈춘 것처럼 보임</span>
+      <p class="why">테스트용 서버를 예외 경로에서 닫지 않아 이벤트 루프가 계속 살아 있었습니다. 셸이 프롬프트를 안 돌려주니 그 뒤 입력한 명령이 전부 버퍼에 쌓였습니다. 49건 실행 중에 났다면 결과 파일도 못 쓰고 25분이 날아갔을 자리입니다.</p>
+    </li>
+    <li>
+      <span class="n">03</span>
+      <span class="what">브라우저가 죽으면 남은 전부가 실패로 기록됐다</span>
+      <span class="hit">한 번의 크래시 = 전체 손실</span>
+      <p class="why">브라우저 하나를 실행 내내 붙잡고 있었습니다. 크로미움이 통째로 죽으면 그 브라우저로 만든 컨텍스트가 모두 무효가 됩니다. 이제 죽으면 알아서 다시 띄우고 한 번 재시도합니다.</p>
+    </li>
+    <li>
+      <span class="n">04</span>
+      <span class="what">4픽셀 차이를 "페이지가 통째로 달라졌다"로 처리했다</span>
+      <span class="hit">3건이 100% 실패</span>
+      <p class="why">코오롱몰이 15,519px 대 15,515px로 실패했습니다. 정원e샵 21px, 모두의매트 58px도 같은 이유였습니다. 폰트가 한 글자 다르게 줄바꿈되면 문서 높이는 그만큼 흔들립니다. 이제 높이의 1%(최대 300px)까지는 겹치는 영역을 실제로 비교하고, 높이 차이는 따로 적습니다.</p>
+    </li>
+    <li>
+      <span class="n">05</span>
+      <span class="what">끝까지 갔는데 '미완주'로 찍었다</span>
+      <span class="hit">3건 오탐</span>
+      <p class="why">스크롤 루프가 끝나자마자 위치를 쟀습니다. 스무스 스크롤은 감속 중이라 아직 도착 전입니다. 삼성생명은 스캐너가 잰 것보다 <em>큰데도</em> 미완주로 찍혔습니다. 900ms 정착 후에 잽니다.</p>
+    </li>
+    <li>
+      <span class="n">06</span>
+      <span class="what">티어별 통과율이 같은 사이트를 두 번 깎았다</span>
+      <span class="hit">T1이 0%로 표시 (실제 25%)</span>
+      <p class="why">통과율을 <code>같음 − 미완주</code>로 계산했는데, 한 사이트가 <em>다름이면서 미완주</em>일 수 있습니다. 그러면 통과한 적 없는 사이트가 같음 쪽에서 또 빠집니다. 보고서에 잘못된 숫자가 찍혔습니다.</p>
+    </li>
+    <li>
+      <span class="n">07</span>
+      <span class="what">스무스 스크롤 인스턴스가 없으면 손을 못 댔다</span>
+      <span class="hit">6곳 · 수정 후 5건 회복</span>
+      <p class="why">Lenis를 <code>window</code>에 두지 않는 사이트에서는 <code>destroy()</code>를 부를 대상이 없었습니다. <code>scrollBy</code> 대신 <code>scrollTop</code> 직접 대입으로 바꿔 가로채기 자체를 우회했습니다.</p>
+    </li>
+    <li>
+      <span class="n">08</span>
+      <span class="what">모달이 떠 있으면 첫 화면만 찍혔다</span>
+      <span class="hit">삼성생명</span>
+      <p class="why"><code>div.modal.dim</code> &mdash; 쿠폰 팝업이 스크롤을 잠그고 있었습니다. 문서가 3,404px인데 한 칸도 못 내려갔습니다. 고정 요소를 숨기는 건 <em>찍기 직전</em>이라 이미 늦습니다. 스크롤하기 전에 풀어야 합니다 (html overflow · body overflow · body position:fixed 세 방식 전부).</p>
+    </li>
+  </ol>
+
+  <div class="callout">
+    <span class="tag">이 절이 말하는 것</span>
+    <p>여덟 개 중 <strong>어느 것도 코드를 읽어서는 찾을 수 없었습니다.</strong> 전부 실제 사이트 49곳에 부딪혀서 드러났습니다. 회귀 테스트도 그때마다 하나씩 늘어 <strong>14개</strong>가 됐고, 각각은 <em>고치기 전 코드로 되돌리면 실패하는 것</em>을 확인한 것들입니다.</p>
+    <p>기획안에 주는 함의는 분명합니다 &mdash; <strong>이 서비스의 개발 일정은 "기능을 만드는 시간"이 아니라 "실제 사이트에 부딪혀 보는 시간"으로 잡아야 합니다.</strong></p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="remaining">
+  <div class="sec-head"><span class="sec-num">05</span><h2>남은 8건</h2></div>
+
+  <p class="col">차이의 크기가 성격을 가릅니다. <strong>0.01%면 1440&times;5000 화면에서 700픽셀 남짓</strong> &mdash; 스피너 하나, 커서 하나, 폰트 한 글자 수준입니다.</p>
+
+  <div class="scroller">
+    <table>
+      <caption>통과하지 못한 T0&ndash;T2 8건</caption>
+      <thead><tr><th>사이트</th><th>티어</th><th>차이</th><th>첫 차이 위치</th><th>추정</th></tr></thead>
+      <tbody>
+        <tr><td class="nm">코오롱몰</td><td class="ti t1"><b>T1</b></td><td class="num">21.68%</td><td class="num">y≈26px · 높이도 18px</td><td>배너가 도는 것으로 보입니다</td></tr>
+        <tr><td class="nm">센트레빌 아스테이룸 거제</td><td class="ti t2"><b>T2</b></td><td class="num">0.80%</td><td class="num">y≈411px</td><td>무한 애니메이션 88개 &mdash; 하나가 안 멈춘 듯</td></tr>
+        <tr><td class="nm">삼성생명 다이렉트</td><td class="ti t1"><b>T1</b></td><td class="num">바닥 못 닿음</td><td class="num">y≈178px</td><td>모달 잠금 &mdash; <strong>결함 08로 고쳐졌을 것</strong></td></tr>
+        <tr><td class="nm">케이웨딩</td><td class="ti t2"><b>T2</b></td><td class="num">0.12%</td><td class="num">y≈778px</td><td rowspan="5">픽셀 몇 개. 눈으로 봐야 합니다</td></tr>
+        <tr><td class="nm">뷰전</td><td class="ti t2"><b>T2</b></td><td class="num">0.08%</td><td class="num">y≈3,019px</td></tr>
+        <tr><td class="nm">제니하우스</td><td class="ti t2"><b>T2</b></td><td class="num">0.05%</td><td class="num">y≈858px</td></tr>
+        <tr><td class="nm">크림</td><td class="ti t2"><b>T2</b></td><td class="num">0.01%</td><td class="num">y≈4,931px</td></tr>
+        <tr><td class="nm">토스임팩트</td><td class="ti t2"><b>T2</b></td><td class="num">0.01%</td><td class="num">y≈785px</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="col">삼성생명이 결함 08 수정으로 살아나면 <strong>17 / 24 (71%)</strong>입니다. 나머지 미세 차이 5건이 같은 원인이라면 &mdash; 그럴 가능성이 높습니다 &mdash; <strong>22 / 24 (92%)</strong>까지 갑니다. 다만 <strong>원인을 아직 모르므로 이건 추정입니다.</strong></p>
+</section>
+
+<!-- ============================================================ -->
+<section id="t4">
+  <div class="sec-head"><span class="sec-num">06</span><h2>T4를 다시 정의해야 합니다</h2></div>
+
+  <p class="col">T4는 "매 프레임 다시 그린다 &mdash; 결정론적 캡처 불가"로 정의했습니다. 그런데 <strong>15건 중 5건이 두 번 다 완전히 같았습니다.</strong></p>
+
+  <div class="scroller">
+    <table>
+      <caption>T4인데 결정론적으로 찍힌 사이트</caption>
+      <thead><tr><th>사이트</th><th>차이</th><th>왜 같은가</th></tr></thead>
+      <tbody>
+        <tr><td class="nm">화천</td><td class="num">0.00%</td><td rowspan="5">매 프레임 다시 그리지만 <strong>매번 같은 것</strong>을 그립니다. 스크롤 위치 0에서 항상 같은 화면이면 결과는 결정론적입니다</td></tr>
+        <tr><td class="nm">토스플레이스</td><td class="num">0.00%</td></tr>
+        <tr><td class="nm">교보 라이프플래닛생명</td><td class="num">0.00%</td></tr>
+        <tr><td class="nm">밀크T초등 바로체험</td><td class="num">0.00%</td></tr>
+        <tr><td class="nm">윌비랩</td><td class="num">0.00%</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout">
+    <span class="tag">분류 체계 수정 제안</span>
+    <p><strong>T4는 "캡처 불가"가 아니라 "비결정 위험"입니다.</strong> 실측에서 3분의 1이 멀쩡히 찍혔습니다. 티어는 <em>어려움의 예보</em>이지 <em>판결</em>이 아닙니다.</p>
+    <p>제품 관점에서 이게 더 낫습니다 &mdash; <strong>"이 사이트는 못 찍습니다"라고 미리 거절하는 대신, 찍어 보고 두 번이 같은지로 판정</strong>하면 됩니다. 채점 규칙이 그대로 런타임 품질 검사가 됩니다. 기능 2(AI 누락 판정)의 <strong>1차 필터를 비전 모델 없이 만들 수 있다</strong>는 뜻이기도 합니다.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="implications">
+  <div class="sec-head"><span class="sec-num">07</span><h2>기획안에 반영할 것</h2></div>
+
+  <div class="scroller">
+    <table>
+      <caption>엔진 실측이 바꾸는 결정</caption>
+      <thead><tr><th>항목</th><th>기획안 현재</th><th>실측 후</th></tr></thead>
+      <tbody>
+        <tr>
+          <th scope="row">v1 커버 목표</th>
+          <td>T0&ndash;T2 = 49% (범위)</td>
+          <td><strong>그 범위의 67%를 실제로 찍습니다.</strong> 전체 기준 결정론적 결과물은 55%</td>
+        </tr>
+        <tr>
+          <th scope="row">품질 검수</th>
+          <td>기능 2 &mdash; 비전 모델이 누락 판정</td>
+          <td><strong>1차는 모델 없이 됩니다.</strong> 두 번 찍어 비교 &mdash; 원가 0, 오탐 0</td>
+        </tr>
+        <tr>
+          <th scope="row">T4 처리</th>
+          <td>"원리적 불가" &mdash; 사전 거절</td>
+          <td><strong>거절하지 말고 찍어 보세요.</strong> 3분의 1은 멀쩡히 나옵니다</td>
+        </tr>
+        <tr>
+          <th scope="row">스크롤 처리</th>
+          <td>라이브러리 감지 후 무력화</td>
+          <td><strong>감지하지 말고 우회하세요.</strong> 인스턴스를 숨기는 사이트가 6곳이었습니다</td>
+        </tr>
+        <tr>
+          <th scope="row">모달·팝업</th>
+          <td>기획안에 없음</td>
+          <td><strong>추가 필요.</strong> 스크롤을 잠그므로 찍기 전이 아니라 <strong>스크롤 전</strong>에 풀어야 합니다</td>
+        </tr>
+        <tr>
+          <th scope="row">개발 일정</th>
+          <td>기능 단위로 산정</td>
+          <td><strong>"실제 사이트에 부딪히는 시간"으로 잡으세요.</strong> 결함 8개 전부 코드로는 못 찾았습니다</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>다음에 할 것</h3>
+  <ol class="col">
+    <li><strong>남은 미세 차이 5건의 원인 확인</strong> &mdash; 실패한 캡처의 PNG 두 장을 나란히 놓고 보면 됩니다. 하나가 풀리면 나머지도 같은 원인일 가능성이 큽니다</li>
+    <li><strong>2배율 실측</strong> &mdash; 지금 67%는 전부 1배율입니다. 실제 서비스가 2배율로 찍는다면 그 숫자를 모르는 채 목표를 적는 셈입니다</li>
+    <li><strong>후속 30건 교차 확인</strong> &mdash; 다른 표본에서도 67%가 나오면 기획안에 목표치로 적을 근거가 단단해집니다</li>
+  </ol>
+</section>
+
+<footer>웹사이트 스냅샷 자동화 · 캡처 엔진 1차 성적 · GDWEB 49건 × 2회 실측 · 2026-09-01</footer>
 
 </div>
 </div>
