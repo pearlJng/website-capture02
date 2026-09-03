@@ -262,11 +262,27 @@ async function main() {
 }
 
 /** 고른 화면 크기로 전부 찍고 결과 파일을 쓴다. */
+/** 보고서·목록·CSV 를 쓴다. 보고서 본문을 돌려준다. 앱이 다시 찍은 뒤 전체 목록을 다시 쓸 때도 쓴다. */
+export function writeOutputs(rows, meta, outDir) {
+  const report = renderReport(rows, meta);
+  writeFileSync(join(outDir, '보고서.txt'), report + '\n');
+  writeFileSync(join(outDir, '목록.html'), renderIndex(rows, meta));
+  writeFileSync(join(outDir, '목록.csv'), writeTable(CSV_COLS, rows.map((r) => ({
+    '이름': r.name, 'URL': r.url, '상태': r.status, '덜뜬것': (r.gaps || []).join(' · '),
+    '파일': (r.files || []).join(' / '),
+    '문서높이': r.docHeight ?? '', '분할수': r.sliceCount ?? '',
+    '차이비율': r.ratio ? (r.ratio * 100).toFixed(4) + '%' : '',
+    '차이구간': r.where || '', '시도횟수': r.tries ?? '',
+    '메모': (r.notes || []).join(' / '), '오류': r.error || '',
+  }))));
+  return report;
+}
+
 /**
  * 고른 화면 크기로 전부 찍고 결과 파일을 쓴다. CLI 와 앱(app.mjs)이 같이 쓴다.
  * log 는 진행 문구를, onRow 는 한 곳이 끝날 때마다 그 결과를 받는다.
  */
-export async function shootAll({ args = {}, urls, host, pick, device, scale, outDir, check, retry, log = console.error, onRow = () => {} }) {
+export async function shootAll({ args = {}, urls, host, pick, device, scale, outDir, check, retry, log = console.error, onRow = () => {}, onProgress = null, tweaks = null, fixedName = null, writeIndex = true }) {
   const ctxOpts = contextOptionsFor(device, scale);
   let diffPage = null;
   async function getDiffPage() {
@@ -300,7 +316,11 @@ export async function shootAll({ args = {}, urls, host, pick, device, scale, out
       const work = captureSite(ctx, url, {
         steps: [...STEPS], scale, mode: args.mode || 'stitch',
         stitchPage,
-        onProgress: verbose ? (m) => log(`      ${label} · ${m}`) : undefined,
+        tweaks: tweaks || undefined,
+        onProgress: (m) => {
+          if (verbose) log(`      ${label} · ${m}`);
+          if (onProgress) onProgress(url, label, m);
+        },
       }).then((r) => {
         if (verbose && r.ok && r.timing) {
           const parts = Object.entries(r.timing).map(([k, v]) => `${k} ${(v / 1000).toFixed(1)}`).join(' · ');
@@ -363,7 +383,7 @@ export async function shootAll({ args = {}, urls, host, pick, device, scale, out
       }
     }
 
-    const name = fileNameFor(url, last && last.title, used);
+    const name = fixedName || fileNameFor(url, last && last.title, used);
     if (err || !last) {
       log(`  [${++done}/${urls.length}] ✗ ${name} — ${err}`);
       return { name, url, status: '실패', error: err || '알 수 없는 오류', files: [], tries };
@@ -416,7 +436,15 @@ export async function shootAll({ args = {}, urls, host, pick, device, scale, out
     };
   };
   const rows = await mapLimit(urls, args.concurrency || 2, async (url) => {
-    const row = await shootOne(url);
+    let row;
+    try {
+      row = await shootOne(url);
+    } catch (e) {
+      // 한 곳에서 예상 밖의 예외가 나도 나머지는 계속 간다. 그 곳은 실패로 적는다.
+      const msg = e.message.split('\n')[0];
+      row = { name: fileNameFor(url, null, used), url, status: '실패', error: '예상 밖 오류: ' + msg, files: [], tries: 0 };
+      log(`  ✗ ${row.name} — ${row.error}`);
+    }
     onRow(row);
     return row;
   });
@@ -426,19 +454,7 @@ export async function shootAll({ args = {}, urls, host, pick, device, scale, out
     browser: pick.name, codecs: pick.codecs,
     device: device.label, width: device.width,
   };
-  const report = renderReport(rows, meta);
-  log(report);
-
-  writeFileSync(join(outDir, '보고서.txt'), report + '\n');
-  writeFileSync(join(outDir, '목록.html'), renderIndex(rows, meta));
-  writeFileSync(join(outDir, '목록.csv'), writeTable(CSV_COLS, rows.map((r) => ({
-    '이름': r.name, 'URL': r.url, '상태': r.status, '덜뜬것': (r.gaps || []).join(' · '),
-    '파일': (r.files || []).join(' / '),
-    '문서높이': r.docHeight ?? '', '분할수': r.sliceCount ?? '',
-    '차이비율': r.ratio ? (r.ratio * 100).toFixed(4) + '%' : '',
-    '차이구간': r.where || '', '시도횟수': r.tries ?? '',
-    '메모': (r.notes || []).join(' / '), '오류': r.error || '',
-  }))));
+  if (writeIndex) log(writeOutputs(rows, meta, outDir));
 
   log(`\n저장: ${outDir}`);
   log(`목록을 한눈에 보시려면 → open "${join(outDir, '목록.html')}"`);

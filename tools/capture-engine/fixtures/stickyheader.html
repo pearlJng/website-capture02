@@ -1,0 +1,17 @@
+<!doctype html><meta charset=utf-8><title>스크롤하면 고정되는 헤더</title>
+<style>
+body{margin:0;font:16px/1.6 system-ui}
+/* 흐름 안에 있는 헤더를 JS 가 스크롤 위치만큼 내려 붙인다 — position 은 끝까지
+   absolute 라서 "fixed 인 것만 숨기는" 방식으로는 절대 안 잡힌다.
+   순수한 자홍색 — 캡처 결과에서 이 색이 어디 있는지 세어 검사한다. */
+body{position:relative}
+header{position:absolute;top:0;left:0;height:80px;background:#ff00aa;color:#fff;display:flex;align-items:center;padding:0 24px;font-weight:700;width:100%;z-index:9}
+main{padding-top:80px}
+section{height:900px}
+section:nth-child(odd){background:#eef}section:nth-child(even){background:#efe}
+</style>
+<header>GNB · About · Product · Contact</header>
+<main><section>1</section><section>2</section><section>3</section><section>4</section></main>
+<script>
+addEventListener('scroll', () => { document.querySelector('header').style.top = scrollY + 'px'; });
+</script>

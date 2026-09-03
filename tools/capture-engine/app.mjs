@@ -20,7 +20,75 @@ import { spawn } from 'node:child_process';
 import { DEVICES, contextOptionsFor } from './capture.mjs';
 import { createBrowserHost, pickBrowser } from './browser.mjs';
 import { extractSitemap, renderTree } from './sitemap.mjs';
-import { shootAll } from './shoot.mjs';
+import { shootAll, writeOutputs } from './shoot.mjs';
+import { writeFileSync } from 'node:fs';
+
+/* ───────────── 수정 요청 → 캡처 옵션 ─────────────
+ * 사람 말을 정해진 조정으로 옮긴다. AI 가 아니라 낱말 맞추기다 — 알아들은
+ * 것과 못 알아들은 것을 그대로 돌려준다. */
+const RULES = [
+  { re: /(gnb|헤더|header|상단\s*메뉴|내비|메뉴\s*바).*(빼|없|지우|숨|제거|삭제)|(빼|없|지우|숨|제거|삭제).*(gnb|헤더|header)/i, key: 'hideHeader', text: '첫 화면에서도 헤더(GNB)를 숨김' },
+  { re: /팝업|모달|modal|popup|레이어|딤|dim|배너\s*닫|쿠키/i, key: 'closePopups', text: '팝업·모달·딤을 지움' },
+  { re: /천천|느리게|느긋|더\s*기다|오래\s*기다|로딩.*(기다|안\s*뜨|덜)|이미지.*(안\s*뜨|덜|깨)|늦게/i, key: 'slow', text: '기다리는 시간을 2배로' },
+  { re: /선명|고해상|2배|두\s*배|확대|크게|레티나|retina/i, key: 'scale2', text: '2배율로 선명하게' },
+  { re: /한\s*방|한번에|fullpage|풀페이지\s*모드|이어\s*붙이지/i, key: 'fullpage', text: '한 방에 찍는 방식으로' },
+  { re: /검사\s*(없|빼|끄)|한\s*번만|빨리/i, key: 'noCheck', text: '검사 없이 한 번만' },
+  { re: /모바일|375|폰|아이폰/i, key: 'w375', text: '모바일 375 로' },
+  { re: /1440/i, key: 'w1440', text: '데스크탑 1440 으로' },
+  { re: /1920|큰\s*화면|와이드/i, key: 'w1920', text: '데스크탑 1920 으로' },
+];
+function parseRequest(text) {
+  const tweaks = {}; const applied = []; const ignored = [];
+  // 문장 단위로 본다 — "GNB 빼줘. 로고 색도 바꿔줘" 에서 뒤 문장은 못 알아들은 것으로 남겨야 한다
+  const parts = String(text || '').split(/[.\n,]|그리고|그리구|또/).map((x) => x.trim()).filter(Boolean);
+  for (const part of parts) {
+    let hit = false;
+    for (const r of RULES) if (r.re.test(part)) { hit = true; if (!tweaks[r.key]) { tweaks[r.key] = true; applied.push(r.text); } }
+    if (!hit) ignored.push(part);
+  }
+  return { tweaks, applied, ignored: ignored.join(' / ') };
+}
+
+/** 한 페이지를 다시 찍는다. 이전 그림은 남기고 새 그림을 "(다시 N)" 으로 옆에 둔다. */
+function retake(job, row, { tweaks, applied, ignored, request }) {
+  const width = tweaks.w375 ? 375 : tweaks.w1440 ? 1440 : tweaks.w1920 ? 1920 : job.width;
+  const device = DEVICES[width];
+  const scale = tweaks.scale2 ? 2 : device.scale;
+  row.retakes = (row.retakes || 0) + 1;
+  const n = row.retakes;
+  const base = (row.name || 'page').replace(/ \(다시 \d+\)$/, '');
+  const fixedName = `${base} (다시 ${n})`;
+  row.status = '다시 찍는 중';
+  row.request = request; row.applied = applied; row.ignored = ignored;
+  job.status = '진행 중';
+  job.log.push(`  ↻ ${row.path || row.name} 다시 찍기${applied.length ? ' — ' + applied.join(', ') : ''}${ignored ? ` (못 알아들음: "${ignored}")` : ''}`);
+  writeFileSync(join(job.outDir, `${fixedName} 수정요청.txt`),
+    `요청: ${request}\n적용: ${applied.join(', ') || '(없음)'}\n못 알아들음: ${ignored || '(없음)'}\n`);
+  serial(async () => {
+    await ensureBrowser();
+    try {
+      await shootAll({
+        args: { concurrency: 1, mode: tweaks.fullpage ? 'fullpage' : 'stitch' },
+        urls: [row.url], host, pick, device, scale, outDir: job.outDir,
+        check: job.check && !tweaks.noCheck, retry: 2, fixedName, writeIndex: false,
+        tweaks: { hideHeader: !!tweaks.hideHeader, closePopups: !!tweaks.closePopups, slow: !!tweaks.slow },
+        log: (m) => { if (m && !/^\s*$/.test(m)) job.log.push(String(m).trimEnd()); if (job.log.length > 400) job.log.shift(); },
+        onProgress: (url, label, m) => { job.activity[normUrl(url)] = `${label} · ${m}`; },
+        onRow: (fresh) => {
+          const prev = { files: row.files, status: row.status };
+          Object.assign(row, fresh, { path: row.path, retakes: n, request, applied, ignored, previous: [...(row.previous || []), ...(prev.files || [])] });
+          delete job.activity[normUrl(row.url)];
+        },
+      });
+    } catch (e) {
+      row.status = '실패'; row.error = e.message.split('\n')[0];
+    }
+    // 목록·보고서는 전체 결과로 다시 쓴다 — 한 장만 다시 찍었다고 목록이 한 장이 되면 안 된다
+    try { writeOutputs(job.rows, { ...job.meta, when: new Date().toLocaleString('ko-KR') }, job.outDir); } catch { /* 무시 */ }
+    job.status = '완료';
+    job.finishedAt = Date.now();
+  });
+}
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const args = parseArgs(process.argv.slice(2));
@@ -52,6 +120,9 @@ const serial = (fn) => {
   chain = p.catch(() => {});
   return p;
 };
+
+let activity = { text: '', at: 0 };
+const say = (text) => { activity = { text, at: Date.now() }; };
 
 async function ensureBrowser() {
   if (!host) { pick = await pickBrowser(); host = createBrowserHost(); }
@@ -98,21 +169,33 @@ function startJob({ pages, width, check }) {
   const outDir = join(OUT_ROOT, `${stamp} ${hostName} ${device.width}`);
   mkdirSync(outDir, { recursive: true });
 
-  const job = { id, status: '대기', device: device.label, width: device.width, outDir, total: pages.length, rows: [], log: [], startedAt: Date.now() };
+  const job = { id, status: '대기', device: device.label, width: device.width, check, outDir, total: pages.length,
+    requested: pages.map((p) => ({ url: p.url, path: p.path.join(' > ') })),
+    rows: [], log: [], activity: {}, startedAt: Date.now() };
+  writeFileSync(join(outDir, '요청목록.txt'), pages.map((p) => `${p.path.join(' > ')}\t${p.url}`).join('\n') + '\n');
   jobs.set(id, job);
   const labelOf = new Map(pages.map((p) => [normUrl(p.url), p.path.join(' > ')]));
 
   serial(async () => {
     job.status = '진행 중';
     await ensureBrowser();
+    job.meta = { scale: device.scale, out: outDir, browser: pick.name, codecs: pick.codecs, device: device.label, width: device.width };
     try {
       await shootAll({
         args: { concurrency: 2 },
         urls: pages.map((p) => p.url), host, pick, device, scale: device.scale,
         outDir, check, retry: 2,
         log: (m) => { if (m && !/^\s*$/.test(m)) job.log.push(String(m).trimEnd()); if (job.log.length > 400) job.log.shift(); },
-        onRow: (row) => { job.rows.push({ ...row, path: labelOf.get(normUrl(row.url)) || row.name }); },
+        onRow: (row) => { job.rows.push({ ...row, path: labelOf.get(normUrl(row.url)) || row.name }); delete job.activity[normUrl(row.url)]; },
+        onProgress: (url, label, m) => { job.activity[normUrl(url)] = `${label} · ${m}`; },
       });
+      // 요청했는데 결과가 안 온 페이지는 조용히 넘기지 않는다
+      for (const p of pages) {
+        if (!job.rows.some((r) => normUrl(r.url) === normUrl(p.url))) {
+          job.rows.push({ name: p.path.join(' > '), path: p.path.join(' > '), url: p.url, status: '실패', error: '결과가 돌아오지 않았습니다 (보고서.txt 를 보내 주세요)', files: [] });
+          job.log.push(`  ✗ ${p.path.join(' > ')} — 결과 없음`);
+        }
+      }
       job.status = '완료';
     } catch (e) {
       job.status = '실패';
@@ -147,8 +230,9 @@ const server = createServer(async (req, res) => {
         await ensureBrowser();
         const browser = await host.get();
         const ctx = await browser.newContext(contextOptionsFor(DEVICES[1440], 1));
-        try { return await extractSitemap(ctx, url, { depth: 0 }); }
-        finally { await ctx.close().catch(() => {}); }
+        say('브라우저를 띄우는 중');
+        try { return await extractSitemap(ctx, url, { depth: 0, onProgress: say }); }
+        finally { say(''); await ctx.close().catch(() => {}); }
       });
       if (!r.ok) return json(res, 200, r);
       const { headerHtml, ...rest } = r;
@@ -160,6 +244,17 @@ const server = createServer(async (req, res) => {
       if (!DEVICES[width]) return json(res, 400, { ok: false, error: `화면 크기 ${width} 는 없습니다` });
       const job = startJob({ pages, width, check: check !== false });
       return json(res, 200, { ok: true, id: job.id, outDir: job.outDir });
+    }
+    if (req.method === 'GET' && u.pathname === '/api/status') return json(res, 200, { ok: true, ...activity });
+    if (req.method === 'POST' && u.pathname === '/api/retake') {
+      const { id, url, request } = await readBody(req);
+      const job = jobs.get(id);
+      if (!job) return json(res, 404, { ok: false, error: '없는 작업' });
+      const row = job.rows.find((r) => normUrl(r.url) === normUrl(url || ''));
+      if (!row) return json(res, 404, { ok: false, error: '그 페이지의 결과가 없습니다' });
+      const { tweaks, applied, ignored } = parseRequest(request || '');
+      retake(job, row, { tweaks, applied, ignored, request: request || '' });
+      return json(res, 200, { ok: true, applied, ignored });
     }
     if (req.method === 'GET' && u.pathname === '/api/job') {
       const job = jobs.get(u.searchParams.get('id'));

@@ -45,6 +45,19 @@
   .err { color: var(--bad); }
   .done-links { margin-top: 12px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
   code { background: #eee; padding: 1px 6px; border-radius: 4px; font-size: 13px; }
+  .busy { display: flex; align-items: center; gap: 10px; margin-top: 8px; color: var(--mute); font-size: 13px; }
+  .busy .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); animation: pulse 1s infinite ease-in-out; }
+  @keyframes pulse { 0%, 100% { transform: scale(.6); opacity: .4 } 50% { transform: scale(1); opacity: 1 } }
+  .busy .txt { min-width: 0; }
+  .busy .t { color: #999; }
+  .card .act { font-size: 12px; color: var(--accent); margin-top: 4px; min-height: 16px; }
+  .card .retake { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 8px; }
+  .card .retake textarea { width: 100%; font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; resize: vertical; min-height: 52px; }
+  .card .retake .r { display: flex; gap: 6px; margin-top: 6px; align-items: center; }
+  .card .retake button { padding: 6px 10px; font-size: 13px; }
+  .card .applied { font-size: 12px; color: var(--ok); }
+  .card .ignored { font-size: 12px; color: var(--warn); }
+  .card .prev { font-size: 12px; color: var(--mute); }
 </style>
 <main>
   <h1>웹사이트 캡처</h1>
@@ -55,6 +68,7 @@
       <input type="url" id="url" placeholder="https://example.com/" required autofocus>
       <button class="primary" id="b1" type="submit">정보구조 분석</button>
     </form>
+    <div class="busy" id="busy1"></div>
     <p class="mute" id="m1"></p>
   </section>
 
@@ -102,22 +116,48 @@
     return r.json();
   }
 
+  /* ── 기다리는 동안: 서버가 지금 무엇을 하는지 + 그 사이를 채우는 문구 ── */
+  const FILLERS = [
+    '페이지를 여는 중', '등장 애니메이션이 끝나기를 기다리는 중', '맨 위 한 줄에 나란히 선 메뉴를 찾는 중',
+    '메뉴에 마우스를 올려 보는 중', '드롭다운이 열리는지 보는 중', '마우스를 치우면 사라지는지 확인하는 중',
+    '언어 선택은 따로 빼는 중', '위에서 아래로 훑으며 구간을 나누는 중', '구간마다 무엇으로 짜였는지 보는 중',
+    '히어로·카드·갤러리·폼을 가르는 중', '헤더 링크와 푸터 링크를 정리하는 중', '거의 다 됐습니다',
+  ];
+  let busyTimer = null;
+  function startBusy(el, statusUrl) {
+    const t0 = Date.now(); let i = 0; let last = '';
+    el.innerHTML = `<span class="dot"></span><span class="txt"></span><span class="t"></span>`;
+    const txt = el.querySelector('.txt'), tt = el.querySelector('.t');
+    const tick = async () => {
+      let live = '';
+      if (statusUrl) { try { const s = await api(statusUrl); live = s.text || ''; } catch { /* 무시 */ } }
+      if (live && live !== last) { last = live; txt.textContent = live; }
+      else if (!live) { txt.textContent = FILLERS[i++ % FILLERS.length]; }
+      tt.textContent = `${Math.round((Date.now() - t0) / 1000)}초`;
+    };
+    tick();
+    busyTimer = setInterval(tick, 900);
+  }
+  function stopBusy(el) { clearInterval(busyTimer); busyTimer = null; el.innerHTML = ''; }
+
   /* ── 1. 분석 ── */
   $('#f1').addEventListener('submit', async (e) => {
     e.preventDefault();
     const url = $('#url').value.trim();
     $('#b1').disabled = true;
-    $('#m1').textContent = '메뉴마다 마우스를 올려 하위 메뉴를 확인하는 중입니다 — 10~30초 걸립니다';
+    $('#m1').textContent = '';
     ['#s2', '#s3', '#s4'].forEach((s) => { $(s).hidden = true; });
+    startBusy($('#busy1'), '/api/status');
     try {
       const r = await api('/api/sitemap', { url });
+      stopBusy($('#busy1'));
       if (!r.ok) { $('#m1').innerHTML = `<span class="err">실패: ${esc(r.error)}</span>`; return; }
       analysis = r;
       $('#m1').textContent = `${r.title || ''} — 메뉴 ${r.menuCount}개, 찍을 수 있는 페이지 ${r.pages.length}개`;
       renderTree(r);
       $('#s2').hidden = false; $('#s3').hidden = false;
       $('#s2').scrollIntoView({ behavior: 'smooth', block: 'start' });
-    } finally { $('#b1').disabled = false; }
+    } finally { stopBusy($('#busy1')); $('#b1').disabled = false; }
   });
 
   function renderTree(r) {
@@ -169,7 +209,7 @@
     const r = await api('/api/capture', { pages, width, check });
     if (!r.ok) { $('#m3').innerHTML = `<span class="err">${esc(r.error)}</span>`; $('#b3').disabled = false; return; }
     $('#s4').hidden = false;
-    $('#grid').innerHTML = pages.map((p) => `<div class="card pending" data-url="${esc(norm(p.url))}"><div class="t">기다리는 중</div><div class="b"><b>${esc(p.path.join(' > '))}</b><span class="mute">${esc(shortUrl(p.url))}</span></div></div>`).join('');
+    $('#grid').innerHTML = pages.map((p) => `<div class="card pending" data-url="${esc(norm(p.url))}"><div class="t">기다리는 중</div><div class="b"><b>${esc(p.path.join(' > '))}</b><span class="mute">${esc(shortUrl(p.url))}</span><div class="act"></div></div></div>`).join('');
     $('#links').innerHTML = '';
     $('#m4').textContent = `저장 위치: ${r.outDir}`;
     $('#s4').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -178,25 +218,62 @@
     poll(r.id);
   });
 
+  const fileUrl = (id, f) => `/files/${encodeURIComponent(id)}/${encodeURIComponent(f)}`;
+  function renderCard(card, row, id) {
+    const cls = row.status === '확인됨' ? 'ok' : row.status === '검수 필요' ? 'warn' : 'bad';
+    const file = row.files && row.files[0] ? fileUrl(id, row.files[0]) : null;
+    card.innerHTML = `<div class="t">${file ? `<a href="${file}" target="_blank"><img src="${file}" alt=""></a>` : `<div class="err" style="padding:12px">${esc(row.error || '이미지 없음')}</div>`}</div>
+      <div class="b"><b>${esc(row.path || row.name)}</b><span class="badge ${cls}">${esc(row.status)}</span>
+      ${row.docHeight ? ` <span class="mute">${row.docHeight.toLocaleString('en-US')}px</span>` : ''}
+      ${row.retakes ? ` <span class="mute">· ${row.retakes}번째 다시 찍음</span>` : ''}
+      ${row.gaps && row.gaps.length ? `<div class="mute">${esc(row.gaps.join(' · '))}</div>` : ''}
+      ${row.diffFile ? `<div><a href="${fileUrl(id, row.diffFile)}" target="_blank">무엇이 달랐는지 보기</a></div>` : ''}
+      ${row.applied && row.applied.length ? `<div class="applied">적용: ${esc(row.applied.join(', '))}</div>` : ''}
+      ${row.ignored ? `<div class="ignored">못 알아들은 요청: "${esc(row.ignored)}" — 메모로만 남겼습니다</div>` : ''}
+      ${row.previous && row.previous.length ? `<div class="prev">이전: ${row.previous.map((f) => `<a href="${fileUrl(id, f)}" target="_blank">${esc(f)}</a>`).join(', ')}</div>` : ''}
+      <div class="retake">
+        <textarea placeholder="하자가 있으면 적어 주세요. 예) GNB 빼줘 / 팝업 닫고 찍어 / 이미지가 덜 떠서 천천히 / 2배로 선명하게 / 모바일로"></textarea>
+        <div class="r"><button class="rt">다시 찍기</button><span class="mute">요청은 그대로 저장되고, 알아들은 것만 반영됩니다</span></div>
+      </div></div>`;
+    card.querySelector('.rt').onclick = async () => {
+      const request = card.querySelector('textarea').value.trim();
+      const r = await api('/api/retake', { id, url: row.url, request });
+      if (!r.ok) { alert(r.error); return; }
+      card.classList.add('pending');
+      card.dataset.stamp = '';
+      card.querySelector('.t').innerHTML = '다시 찍는 중';
+      if (!timer) timer = setInterval(() => poll(id), 1500);
+    };
+  }
+
   async function poll(id) {
     const j = await api(`/api/job?id=${encodeURIComponent(id)}`);
     if (!j.ok) return;
     $('#log').textContent = j.log.slice(-40).join('\n');
     $('#log').scrollTop = $('#log').scrollHeight;
+    // 기다리는 카드에는 지금 무엇을 하는지
+    for (const card of document.querySelectorAll('.card.pending')) {
+      const a = j.activity && j.activity[card.dataset.url];
+      const act = card.querySelector('.act');
+      if (act) act.textContent = a || '';
+      if (a) card.querySelector('.t').textContent = '찍는 중';
+    }
     for (const row of j.rows) {
       const card = document.querySelector(`.card[data-url="${CSS.escape(norm(row.url))}"]`);
-      if (!card || !card.classList.contains('pending')) continue;
+      if (!card) continue;
+      const stamp = `${row.status}|${(row.files || []).join(',')}|${row.retakes || 0}`;
+      if (card.dataset.stamp === stamp) continue;
+      card.dataset.stamp = stamp;
       card.classList.remove('pending');
-      const cls = row.status === '확인됨' ? 'ok' : row.status === '검수 필요' ? 'warn' : 'bad';
-      const file = row.files && row.files[0] ? `/files/${encodeURIComponent(id)}/${encodeURIComponent(row.files[0])}` : null;
-      card.innerHTML = `<div class="t">${file ? `<a href="${file}" target="_blank"><img src="${file}" alt=""></a>` : `<div class="err" style="padding:12px">${esc(row.error || '이미지 없음')}</div>`}</div>
-        <div class="b"><b>${esc(row.path || row.name)}</b><span class="badge ${cls}">${esc(row.status)}</span>
-        ${row.docHeight ? ` <span class="mute">${row.docHeight.toLocaleString('en-US')}px</span>` : ''}
-        ${row.gaps && row.gaps.length ? `<div class="mute">${esc(row.gaps.join(' · '))}</div>` : ''}
-        ${row.diffFile ? `<div><a href="/files/${encodeURIComponent(id)}/${encodeURIComponent(row.diffFile)}" target="_blank">무엇이 달랐는지 보기</a></div>` : ''}</div>`;
+      if (row.status === '다시 찍는 중') {
+        card.classList.add('pending');
+        card.querySelector('.t').innerHTML = '다시 찍는 중';
+        continue;
+      }
+      renderCard(card, row, id);
     }
     if (j.status === '완료' || j.status === '실패') {
-      clearInterval(timer);
+      clearInterval(timer); timer = null;
       $('#b3').disabled = false;
       const ok = j.rows.filter((r) => r.status === '확인됨').length;
       const warn = j.rows.filter((r) => r.status === '검수 필요').length;

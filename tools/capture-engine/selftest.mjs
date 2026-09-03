@@ -231,6 +231,20 @@ const CASES = [
     check: (r) => (r.title === 'PC 레이아웃' ? null : `사이트 판정: "${r.title}"`),
   },
   {
+    // 테라클 캡처에서 GNB 가 화면마다 반복됐다. 처음엔 흐름 안에 있다가 스크롤하면
+    // 고정으로 바뀌는 헤더는, 첫 화면에 남겨 둔 것이 다음 화면마다 다시 찍힌다.
+    // 첫 화면에 남긴 헤더는 CSS 가 뭐라 하든 두 번째 화면부터 숨겨야 한다.
+    name: '스크롤하면 고정되는 헤더는 첫 화면에만 한 번 나온다',
+    file: 'stickyheader.html', mode: 'stitch', steps: ['sticky', 'motion', 'anim'], color: true,
+    check: (r, cmp, shots, extra) => {
+      if (!extra || !extra.rows) return '색을 못 셌다';
+      const { top, below } = extra.rows;
+      if (top < 40) return `첫 화면에 헤더가 ${top}줄뿐이다 (80줄 근처여야 한다)`;
+      if (below > 0) return `헤더 색이 두 번째 화면 아래에 ${below}줄이나 있다 — GNB 가 반복됐다`;
+      return null;
+    },
+  },
+  {
     // 정보구조는 헤더 목록의 중첩을 그대로 읽는다. 숨긴 드롭다운도 읽고,
     // 모바일 메뉴에 반복된 링크는 한 번만 세고, 외부·앵커·파일은 표시한다.
     name: '정보구조: 메뉴 트리를 읽고 중복·외부·앵커를 가른다',
@@ -356,6 +370,29 @@ async function main() {
     return stitchPage;
   }
 
+  /** 결과 그림에서 특정 색이 든 가로줄을 센다. 위쪽 띠와 그 아래를 따로 센다. */
+  async function countColorRows(png, rgb, splitY) {
+    const p = await getDiffPage();
+    return p.evaluate(async ({ b64, rgb, splitY }) => {
+      const bin = atob(b64); const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const bmp = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
+      const cv = new OffscreenCanvas(bmp.width, bmp.height); const cx = cv.getContext('2d');
+      cx.drawImage(bmp, 0, 0);
+      const d = cx.getImageData(0, 0, bmp.width, bmp.height).data;
+      let top = 0, below = 0;
+      for (let y = 0; y < bmp.height; y++) {
+        let hit = 0;
+        for (let x = 0; x < bmp.width; x += 4) {
+          const i = (y * bmp.width + x) * 4;
+          if (Math.abs(d[i] - rgb[0]) < 12 && Math.abs(d[i + 1] - rgb[1]) < 12 && Math.abs(d[i + 2] - rgb[2]) < 12) hit++;
+        }
+        if (hit > bmp.width / 8) { if (y < splitY) top++; else below++; }
+      }
+      return { top, below, height: bmp.height };
+    }, { b64: png.toString('base64'), rgb, splitY });
+  }
+
   /** 한 항목을 한 번 돌린다. 브라우저가 죽었으면 그 사실을 알려준다. */
   async function attempt(c) {
     if (c.sitemap) {
@@ -380,7 +417,8 @@ async function main() {
       shots.push(r);
     }
     const cmp = c.twice ? await compareCaptures(await getDiffPage(), shots[0].slices, shots[1].slices) : null;
-    return { shots, cmp };
+    const extra = c.color ? { rows: await countColorRows(shots[0].slices[0], [255, 0, 170], 200) } : null;
+    return { shots, cmp, extra };
   }
 
   let failed = 0;
@@ -416,7 +454,7 @@ async function main() {
         continue;
       }
     }
-    const problem = c.check(out.shots[0], out.cmp, out.shots);
+    const problem = c.check(out.shots[0], out.cmp, out.shots, out.extra);
     if (problem) { console.log(`  ✗ ${c.name}\n      ${problem}`); failed++; }
     else console.log(`  ✓ ${c.name}`);
   }

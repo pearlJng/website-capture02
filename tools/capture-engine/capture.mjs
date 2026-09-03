@@ -236,6 +236,21 @@ function inPageTameFixed(viewportWidth) {
   const keep = headers.length ? headers[0].el : null;
 
   const hidden = [];
+  if (keep) keep.setAttribute('data-cap-header', '');   // 두 번째 화면부터는 이것도 숨긴다
+  // 고정이 아니어도 맨 위에 가로로 길게 앉은 것은 헤더다. JS 가 스크롤 위치만큼
+  // 내려 붙이는 헤더(position: absolute 그대로)는 fixed 검사로는 절대 안 잡힌다.
+  // 표만 붙여 둔다 — 첫 화면에는 그대로 두고, 두 번째 화면부터 숨긴다.
+  if (!keep) {
+    for (const el of document.querySelectorAll('body *')) {
+      const cs = getComputedStyle(el);
+      if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+      const r = el.getBoundingClientRect();
+      if (r.top > 8 || r.top < -8 || r.width < viewportWidth * 0.6 || r.height < 30 || r.height > 250) continue;
+      if (!/^(header|nav)$/i.test(el.tagName) && !/header|gnb|nav/i.test((el.className || '') + ' ' + (el.id || ''))) continue;
+      el.setAttribute('data-cap-header', '');
+      break;
+    }
+  }
   for (const item of roots) {
     if (item.el === keep) continue;
     item.el.setAttribute('data-cap-hidden', '');
@@ -252,13 +267,41 @@ function inPageHideAllFixed() {
   for (const el of document.querySelectorAll('body *')) {
     if (el.hasAttribute('data-cap-hidden')) continue;
     const cs = getComputedStyle(el);
-    if (cs.position !== 'fixed' && cs.position !== 'sticky') continue;
+    // 첫 화면에 남겨 둔 헤더는 CSS 가 뭐라 하든 여기서 숨긴다. 스크롤에 따라
+    // 고정으로 바뀌었다 풀렸다 하는 헤더가 화면마다 다시 찍혀 GNB 가 반복됐다.
+    if (!el.hasAttribute('data-cap-header') && cs.position !== 'fixed' && cs.position !== 'sticky') continue;
     if (cs.display === 'none' || cs.visibility === 'hidden') continue;
     const r = el.getBoundingClientRect();
     if (r.width < 8 || r.height < 8) continue;
     el.setAttribute('data-cap-hidden', '');
     el.style.setProperty('visibility', 'hidden', 'important');
     n++;
+  }
+  return n;
+}
+
+/**
+ * 팝업·모달·딤을 걷어낸다. 수정 요청에 "팝업"이 있을 때 쓴다.
+ * 화면의 4할 이상을 덮는 고정 요소, 그리고 이름에 popup·modal·layer·dim 이
+ * 들어간 떠 있는 요소를 지운다. 숨기는 게 아니라 지운다 — 스크롤 잠금까지 같이 푼다.
+ */
+function inPageClosePopups() {
+  const vw = window.innerWidth, vh = window.innerHeight;
+  let n = 0;
+  for (const el of [...document.querySelectorAll('body *')]) {
+    if (!el.isConnected) continue;
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+    const floating = cs.position === 'fixed' || cs.position === 'absolute';
+    if (!floating) continue;
+    const r = el.getBoundingClientRect();
+    const covers = r.width * r.height >= vw * vh * 0.4;
+    const named = /popup|modal|layer|dim|overlay|dimmed/i.test((el.className || '') + ' ' + (el.id || ''));
+    if (covers || (named && r.width >= 200 && r.height >= 120)) { el.remove(); n++; }
+  }
+  for (const el of [document.documentElement, document.body]) {
+    el.style.setProperty('overflow', 'auto', 'important');
+    if (getComputedStyle(el).position === 'fixed') el.style.setProperty('position', 'static', 'important');
   }
   return n;
 }
@@ -462,6 +505,10 @@ export async function captureSite(context, url, opts = {}) {
   const scale = opts.scale || 1;
   const timeout = opts.timeout || 45000;
   const progress = typeof opts.onProgress === 'function' ? opts.onProgress : () => {};
+  // 수정 요청으로 켜는 것들. hideHeader: 첫 화면에서도 헤더를 숨긴다.
+  // closePopups: 팝업·모달을 지운다. slow: 기다리는 시간을 배로 늘린다.
+  const tweaks = opts.tweaks || {};
+  const slow = tweaks.slow ? 2 : 1;
   const started = Date.now();
   const notes = [];
   // 어디서 시간이 갔는지. 안 재면 짐작으로 고치게 된다 — 그래서 한 번 틀렸다.
@@ -483,7 +530,7 @@ export async function captureSite(context, url, opts = {}) {
     // 어차피 이미지는 칸마다 따로 기다리므로 여기서 오래 붙잡을 이유가 없다.
     await page.waitForLoadState('load', { timeout: 10000 }).catch(() => {});
     await page.waitForLoadState('networkidle', { timeout: 4000 }).catch(() => {});
-    await page.waitForTimeout(SETTLE_MS);
+    await page.waitForTimeout(SETTLE_MS * slow);
     lap('열기');
 
     // 찾기는 항상, 걷어내기는 단계를 켰을 때만.
@@ -513,6 +560,12 @@ export async function captureSite(context, url, opts = {}) {
       const n = await page.evaluate(inPageFreezeAnimations);
       if (n.length) notes.push('정지: ' + n.join(', '));
       await page.waitForTimeout(150);
+    }
+
+    if (tweaks.closePopups) {
+      const n = await page.evaluate(inPageClosePopups);
+      notes.push(n ? `수정 요청: 팝업·모달 ${n}개 지움` : '수정 요청: 지울 팝업을 못 찾았습니다');
+      await page.waitForTimeout(300);
     }
 
     if (steps.has('sticky')) {
@@ -554,18 +607,20 @@ export async function captureSite(context, url, opts = {}) {
       let y = 0;
       let height = docHeight;
       let lastY = -1;      // 직전에 실제로 도달한 자리
+      let hiddenLater = 0; // 두 번째 조각부터 숨긴 고정 요소 수
       for (let i = 0; i < MAX_SCROLL_STEPS && y < height; i++) {
         progress(`찍는 중 ${i + 1}/${Math.ceil(height / VIEWPORT_H(page))}칸`);
         await page.evaluate(inPageScrollTo, y);
-        await page.waitForTimeout(i === 0 ? SHOT_SETTLE_FIRST_MS : SHOT_SETTLE_MS);
+        await page.waitForTimeout((i === 0 ? SHOT_SETTLE_FIRST_MS : SHOT_SETTLE_MS) * slow);
         // 이 칸(과 다음 칸)의 지연 로딩 이미지가 뜰 때까지. 없으면 바로 지나간다.
-        await page.evaluate(inPageWaitNearImages, SHOT_IMAGE_WAITS);
+        await page.evaluate(inPageWaitNearImages, { rounds: SHOT_IMAGE_WAITS.rounds * slow, ms: SHOT_IMAGE_WAITS.ms });
 
-        // 두 번째 조각부터는 따라붙는 고정 요소를 전부 숨긴다.
-        // 첫 조각에는 남겨야 헤더가 스냅샷에 한 번 들어간다.
-        if (i === 1 && steps.has('sticky')) {
+        // 두 번째 조각부터는 따라붙는 고정 요소를 전부 숨긴다. 첫 조각에는 남겨야
+        // 헤더가 스냅샷에 한 번 들어간다 (수정 요청으로 첫 화면에서도 뺄 수 있다).
+        // 매 조각마다 다시 본다 — 스크롤하다 고정으로 바뀌는 것이 있다.
+        if (steps.has('sticky') && (i >= 1 || tweaks.hideHeader)) {
           const n = await page.evaluate(inPageHideAllFixed);
-          if (n) notes.push(`두 번째 조각부터 고정 요소 ${n}개 숨김`);
+          if (n) hiddenLater += n;
         }
 
         const at = await page.evaluate(inPageWhere);
@@ -592,6 +647,7 @@ export async function captureSite(context, url, opts = {}) {
         y = at.y + at.innerHeight;                       // 실제 위치 기준으로 다음 칸
       }
       shotCount = shots.length;
+      if (hiddenLater) notes.push(`${tweaks.hideHeader ? '첫' : '두 번째'} 조각부터 고정 요소 ${hiddenLater}개 숨김`);
       scrolled = { reachedBottom: !stalled, height };
       lap('찍기');
       progress(`${shotCount}칸 이어 붙이는 중`);
