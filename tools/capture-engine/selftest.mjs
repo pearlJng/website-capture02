@@ -259,6 +259,21 @@ const CASES = [
     },
   },
   {
+    // 마지막 안전망. 매 프레임 헤더를 새로 만드는 페이지는 숨긴 직후 다음 프레임에
+    // 새것이 생겨 DOM 으로는 어떤 방법으로도 못 잡는다. 둘째 조각 위쪽에 첫 조각과
+    // 같은 띠가 찍혀 있으면, 그만큼 겹치게 다시 찍고 조각마다 위를 잘라낸다.
+    name: 'DOM 으로 못 잡는 헤더도 그림을 보고 잘라내 첫 화면에만 한 번 나온다',
+    file: 'headerrepaint.html', mode: 'stitch', steps: ['sticky', 'motion', 'anim'], color: true,
+    check: (r, cmp, shots, extra) => {
+      if (!extra || !extra.rows) return '색을 못 셌다';
+      const { top, below } = extra.rows;
+      if (top < 40) return `첫 화면에 헤더가 ${top}줄뿐이다`;
+      if (below > 0) return `헤더 색이 두 번째 화면 아래에 ${below}줄이나 있다 — GNB 가 반복됐다`;
+      if (!(r.notes || []).some((n) => n.includes('잘라냈습니다'))) return '그림 안전망이 동작한 기록이 없다';
+      return null;
+    },
+  },
+  {
     // 정보구조는 헤더 목록의 중첩을 그대로 읽는다. 숨긴 드롭다운도 읽고,
     // 모바일 메뉴에 반복된 링크는 한 번만 세고, 외부·앵커·파일은 표시한다.
     name: '정보구조: 메뉴 트리를 읽고 중복·외부·앵커를 가른다',

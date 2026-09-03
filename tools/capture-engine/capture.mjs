@@ -12,7 +12,7 @@
  *   slice   — 초장문.                 한 장으로 찍으면 오래 걸리거나 실패한다
  */
 
-import { stitchShots } from './stitch.mjs';
+import { stitchShots, repeatedTopBand } from './stitch.mjs';
 
 export const VIEWPORT = { width: 1440, height: 900 };
 
@@ -681,6 +681,12 @@ export async function captureSite(context, url, opts = {}) {
       let lastY = -1;      // 직전에 실제로 도달한 자리
       let hiddenLater = 0; // 두 번째 조각부터 숨긴 고정 요소 수
       let pinned = null;   // 직전 조각에서 화면 위·아래 띠에 있던 요소들의 자리
+      // 마지막 안전망. DOM 으로 못 잡은 헤더가 둘째 조각 위쪽에도 찍혀 있으면,
+      // 그 띠 높이만큼 겹치게 다시 내려가며 찍고 조각마다 위를 잘라낸다.
+      // GoFullPage 가 "고정 헤더" 옵션으로 하는 일이 이것이다. 그림을 보고 판단하므로
+      // 헤더가 어떻게 만들어졌든 상관없다.
+      let reserve = 0;
+      let bandChecked = false;
       for (let i = 0; i < MAX_SCROLL_STEPS && y < height; i++) {
         progress(`찍는 중 ${i + 1}/${Math.ceil(height / VIEWPORT_H(page))}칸`);
         await page.evaluate(inPageScrollTo, y);
@@ -718,11 +724,26 @@ export async function captureSite(context, url, opts = {}) {
         lastY = at.y;
 
         const buf = await page.screenshot({ animations, timeout: SHOT_TIMEOUT });
-        shots.push({ y: at.y, height: at.innerHeight, buf });
+
+        if (i === 1 && !bandChecked && opts.stitchPage) {
+          bandChecked = true;
+          const px = await repeatedTopBand(opts.stitchPage, shots[0].buf, buf, Math.round(320 * scale)).catch(() => 0);
+          const band = Math.ceil(px / scale);
+          if (band >= 24) {
+            reserve = band + 4;
+            notes.push(`따라붙는 헤더 ${band}px 가 그림에 남아 있어, 겹치게 찍고 조각마다 위를 잘라냈습니다`);
+            progress(`따라붙는 헤더 ${band}px 발견 — 겹치게 다시 찍습니다`);
+            shots.length = 0; y = 0; lastY = -1; pinned = null; i = -1;
+            await page.evaluate(inPageScrollTo, 0);
+            continue;
+          }
+        }
+
+        shots.push({ y: at.y, height: at.innerHeight, buf, crop: i === 0 ? 0 : reserve });
 
         height = at.height;                              // 지연 로딩으로 늘어날 수 있다
         if (at.y + at.innerHeight >= height - 2) break;  // 바닥에 닿았다
-        y = at.y + at.innerHeight;                       // 실제 위치 기준으로 다음 칸
+        y = at.y + at.innerHeight - reserve;             // 실제 위치 기준으로 다음 칸 (헤더만큼 겹친다)
       }
       shotCount = shots.length;
       if (hiddenLater) notes.push(`${tweaks.hideHeader ? '첫' : '두 번째'} 조각부터 고정 요소 ${hiddenLater}개 숨김`);
