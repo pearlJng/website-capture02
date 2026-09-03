@@ -16,13 +16,12 @@
 import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { captureSite, STEPS, VIEWPORT } from './capture.mjs';
+import { captureSite, STEPS, DEVICES, contextOptionsFor } from './capture.mjs';
 import { compareCaptures, renderDiffStrip, VERDICT } from './diff.mjs';
 import { createBrowserHost, isBrowserDeath, pickBrowser } from './browser.mjs';
 import { writeTable } from './csv.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36';
 const FLAGS = new Set(['help', 'no-check']);
 const NUMERIC = new Set(['scale', 'concurrency', 'retry']);
 
@@ -47,6 +46,25 @@ function findUrlFile(name) {
     resolve(HERE, '..', 'gdweb-scan', name)];
   for (const p of tried) if (existsSync(p)) return p;
   throw new Error(`주소 목록을 못 찾았습니다: ${name}\n찾아본 곳:\n  ` + tried.join('\n  '));
+}
+
+/**
+ * --width 1440 또는 --width 1440,1920,375.
+ * 아무 폭이나 받지 않는다 — 크기마다 UA·터치·기본 배율이 다르고,
+ * 그걸 정해 두지 않으면 "375px 짜리 데스크탑 페이지" 같은 게 나온다.
+ */
+function parseWidths(v) {
+  if (!v) return [1440];
+  const want = String(v).split(',').map((x) => x.trim()).filter(Boolean);
+  const out = [];
+  for (const w of want) {
+    if (!DEVICES[w]) {
+      throw new Error(`--width ${w} 는 없습니다. 쓸 수 있는 값: ` +
+        Object.keys(DEVICES).map((k) => `${k}(${DEVICES[k].label})`).join(', '));
+    }
+    if (!out.includes(Number(w))) out.push(Number(w));
+  }
+  return out;
 }
 
 function loadUrls(args) {
@@ -103,7 +121,7 @@ function renderReport(rows, meta) {
   L.push('  풀페이지 스크린샷 결과');
   L.push('  ' + '─'.repeat(70));
   L.push(`  대상        ${rows.length}건`);
-  L.push(`  배율        ${meta.scale}배  ·  가로 ${VIEWPORT.width}px 기준`);
+  L.push(`  화면        ${meta.device} (가로 ${meta.width}px)  ·  ${meta.scale}배율`);
   L.push(`  브라우저     ${meta.browser}${meta.codecs ? '' : '  ← H.264·AAC 코덱 없음. 동영상이 오류 화면으로 찍힙니다'}`);
   L.push(`  저장 위치   ${meta.out}`);
   L.push('');
@@ -169,9 +187,46 @@ p.warn{background:var(--warnbg);color:var(--warn);border-radius:4px;padding:.8re
 <p class="sum">확인됨 ${rows.filter((r) => r.status === '확인됨').length} ·
   검수 필요 ${rows.filter((r) => r.status === '검수 필요').length} ·
   실패 ${rows.filter((r) => r.status === '실패').length}
-  &nbsp;|&nbsp; ${meta.scale}배율 · 가로 ${VIEWPORT.width}px · ${esc(meta.browser)} · ${meta.when}</p>
+  &nbsp;|&nbsp; ${esc(meta.device)} · 가로 ${meta.width}px · ${meta.scale}배율 · ${esc(meta.browser)} · ${meta.when}</p>
 ${meta.codecs ? '' : '<p class="warn">이 컴퓨터에 크롬이 없어 번들 크로미움으로 찍었습니다. H.264·AAC 코덱이 없어 동영상 영역이 플레이어 오류 화면으로 찍힙니다 — 크롬을 설치하면 해결됩니다.</p>'}
 <div class="grid">${rows.map(card).join('\n')}</div>`;
+}
+
+/** 폭을 여러 개 찍었을 때, 어느 폭으로 들어갈지 고르는 표지 페이지. */
+function renderRootIndex(runs, meta) {
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const card = (run) => {
+    const ok = run.rows.filter((r) => r.status === '확인됨').length;
+    const review = run.rows.filter((r) => r.status === '검수 필요').length;
+    const fail = run.rows.filter((r) => r.status === '실패').length;
+    const first = run.rows.find((r) => r.files && r.files.length);
+    const thumb = first ? `<img src="${esc(run.device.width)}/${esc(encodeURIComponent(first.files[0]))}" alt="">` : '';
+    return `<a class="c" href="${esc(run.device.width)}/목록.html">
+      <div class="t">${thumb}</div>
+      <h2>${esc(run.device.label)}</h2>
+      <p>가로 ${run.device.width}px · ${run.meta.scale}배율</p>
+      <p><b class="ok">확인됨 ${ok}</b>${review ? ` · <b class="warn">검수 ${review}</b>` : ''}${fail ? ` · <b class="bad">실패 ${fail}</b>` : ''}</p>
+    </a>`;
+  };
+  return `<!doctype html><meta charset=utf-8><title>스크린샷 — 화면 크기별</title>
+<style>
+:root{color-scheme:light dark}
+body{margin:0;padding:32px;font:15px/1.6 -apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo',sans-serif;background:#f6f6f7;color:#111}
+h1{font-size:22px;margin:0 0 4px}
+.sub{color:#666;margin:0 0 28px}
+.g{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:20px}
+.c{display:block;background:#fff;border:1px solid #e3e3e6;border-radius:12px;padding:16px;text-decoration:none;color:inherit}
+.c:hover{border-color:#999}
+.t{height:180px;overflow:hidden;border-radius:8px;background:#eee;margin-bottom:12px}
+.t img{width:100%;display:block}
+h2{font-size:16px;margin:0 0 2px}
+.c p{margin:0;color:#666;font-size:13px}
+b{font-weight:600}.ok{color:#0a7d3c}.warn{color:#a06000}.bad{color:#b3261e}
+@media (prefers-color-scheme:dark){body{background:#161617;color:#eee}.c{background:#1f1f21;border-color:#333}.sub,.c p{color:#999}}
+</style>
+<h1>화면 크기별 스크린샷</h1>
+<p class="sub">${esc(meta.browser)} · ${esc(meta.when)} — 크기를 골라 들어가세요</p>
+<div class="g">${runs.map(card).join('')}</div>`;
 }
 
 const CSV_COLS = ['이름', 'URL', '상태', '덜뜬것', '파일', '문서높이', '분할수', '차이비율', '차이구간', '시도횟수', '메모', '오류'];
@@ -187,7 +242,11 @@ async function main() {
 
 옵션
   --out <폴더>        저장 위치 (기본 ./결과)
-  --scale <n>         배율 (기본 1, 선명하게 하려면 2)
+  --width <px>        화면 크기. 1440(기본) | 1920 | 375
+                      쉼표로 여러 개: --width 1440,1920,375
+                      375 는 모바일로 찍습니다 (아이폰 UA·터치·기본 2배율).
+                      여러 개면 폭마다 하위 폴더가 생깁니다
+  --scale <n>         배율 (기본: 데스크탑 1, 모바일 2)
   --retry <n>         두 번이 다를 때 다시 찍는 횟수 (기본 2)
   --concurrency <n>   동시 실행 (기본 2)
   --no-check          검사 없이 한 번만 찍기 (빠르지만 품질 보장 없음)
@@ -209,11 +268,14 @@ async function main() {
   const urls = loadUrls(args);
   if (!urls.length) { console.error('URL 이 없습니다.'); process.exitCode = 1; return; }
 
-  const scale = args.scale || 1;
+  let widths;
+  try { widths = parseWidths(args.width); }
+  catch (e) { console.error(e.message); process.exitCode = 1; return; }
+
   const retry = args.retry ?? 2;
   const check = !args['no-check'];
-  const outDir = resolve(HERE, args.out || './결과');
-  mkdirSync(outDir, { recursive: true });
+  const outRoot = resolve(HERE, args.out || './결과');
+  mkdirSync(outRoot, { recursive: true });
 
   const pick = await pickBrowser(args.browser);
   const host = createBrowserHost({ prefer: args.browser });
@@ -221,7 +283,42 @@ async function main() {
   const shutdown = async () => { if (!closed) { closed = true; await host.close().catch(() => {}); } };
   process.on('SIGINT', () => { shutdown().finally(() => process.exit(130)); });
 
-  const ctxOpts = { viewport: VIEWPORT, deviceScaleFactor: scale, userAgent: UA, locale: 'ko-KR', timezoneId: 'Asia/Seoul' };
+  if (!pick.codecs) {
+    console.error('');
+    console.error('  ⚠ 이 컴퓨터에 크롬이 없어 번들 크로미움으로 찍습니다.');
+    console.error('    크로미움에는 H.264(MP4)·AAC 코덱이 없습니다 — 특허가 걸려 있어');
+    console.error('    브랜드 크롬에만 들어갑니다. 유튜브 임베드나 MP4 비디오가 있는');
+    console.error('    페이지는 플레이어 오류 화면이 그대로 찍힙니다.');
+    console.error('    크롬을 설치하면 자동으로 크롬을 씁니다.');
+    console.error('');
+  }
+
+  // 폭이 여러 개면 폭마다 하위 폴더를 만든다. 하나면 예전처럼 평평하게 둔다.
+  const many = widths.length > 1;
+  const runs = [];
+  try {
+    for (const w of widths) {
+      const device = DEVICES[w];
+      const scale = args.scale || device.scale;
+      const dir = many ? join(outRoot, String(w)) : outRoot;
+      mkdirSync(dir, { recursive: true });
+      runs.push(await runWidth({ args, urls, host, pick, device, scale, outDir: dir, check, retry, shutdown }));
+    }
+  } finally {
+    await shutdown();
+  }
+
+  if (many) {
+    const rootIndex = join(outRoot, '목록.html');
+    writeFileSync(rootIndex, renderRootIndex(runs, { browser: pick.name, when: new Date().toLocaleString('ko-KR') }));
+    console.error(`\n폭 ${widths.join('·')} 전체를 한눈에 → open "${rootIndex}"`);
+  }
+  if (host.restarts) console.error(`브라우저가 ${host.restarts}번 죽어서 다시 띄웠습니다.`);
+}
+
+/** 화면 크기 하나로 전부 찍는다. 브라우저는 밖에서 받아 폭이 바뀌어도 다시 안 띄운다. */
+async function runWidth({ args, urls, host, pick, device, scale, outDir, check, retry, shutdown }) {
+  const ctxOpts = contextOptionsFor(device, scale);
   let diffPage = null;
   async function getDiffPage() {
     if (diffPage && !diffPage.isClosed()) return diffPage;
@@ -251,16 +348,7 @@ async function main() {
     }
   };
 
-  console.error(`${urls.length}곳 캡처 시작 — ${pick.name} · ${scale}배율${check ? ' · 찍고 나서 스스로 검사합니다' : ' · 검사 없음'}`);
-  if (!pick.codecs) {
-    console.error('');
-    console.error('  ⚠ 이 컴퓨터에 크롬이 없어 번들 크로미움으로 찍습니다.');
-    console.error('    크로미움에는 H.264(MP4)·AAC 코덱이 없습니다 — 특허가 걸려 있어');
-    console.error('    브랜드 크롬에만 들어갑니다. 유튜브 임베드나 MP4 비디오가 있는');
-    console.error('    페이지는 플레이어 오류 화면이 그대로 찍힙니다.');
-    console.error('    크롬을 설치하면 자동으로 크롬을 씁니다.');
-    console.error('');
-  }
+  console.error(`\n${device.label} — ${urls.length}곳 · ${pick.name} · ${scale}배율${check ? ' · 찍고 나서 스스로 검사합니다' : ' · 검사 없음'}`);
   const used = new Set();
   let done = 0;
   let rows;
@@ -342,13 +430,15 @@ async function main() {
         notes: last.notes,
       };
     });
-  } finally {
-    await shutdown();
+  } catch (e) {
+    await shutdown();   // 폭이 여러 개라도 여기서 끝난다
+    throw e;
   }
 
   const meta = {
     scale, out: outDir, when: new Date().toLocaleString('ko-KR'),
     browser: pick.name, codecs: pick.codecs,
+    device: device.label, width: device.width,
   };
   const report = renderReport(rows, meta);
   console.log(report);
@@ -364,9 +454,10 @@ async function main() {
     '메모': (r.notes || []).join(' / '), '오류': r.error || '',
   }))));
 
-  console.error(`\n저장: ${outDir}`);
+  console.error(`저장: ${outDir}`);
   console.error(`목록을 한눈에 보시려면 → open "${join(outDir, '목록.html')}"`);
-  if (host.restarts) console.error(`브라우저가 ${host.restarts}번 죽어서 다시 띄웠습니다.`);
+
+  return { rows, meta, outDir, device };
 }
 
 main().catch((e) => { console.error(e); process.exitCode = 1; });

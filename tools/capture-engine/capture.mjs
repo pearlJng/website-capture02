@@ -15,6 +15,36 @@
 import { stitchShots } from './stitch.mjs';
 
 export const VIEWPORT = { width: 1440, height: 900 };
+
+/**
+ * 뽑을 수 있는 화면 크기.
+ *
+ * 1440 은 데스크탑 레이아웃이 확실히 나오면서 좌우 여백이 과하지 않은 폭이고,
+ * 1920 은 큰 모니터에서 보는 모습, 375 는 아이폰 기준 모바일이다.
+ *
+ * 모바일은 폭만 줄인다고 되지 않는다. `isMobile` 을 켜야 브라우저가
+ * <meta viewport> 를 존중하고, `hasTouch` 가 있어야 터치로만 열리는 메뉴가
+ * 제대로 동작한다. UA 도 같이 바꿔야 서버가 모바일 페이지를 준다.
+ * 배율 1배로 375px 짜리 그림을 주면 쓸 데가 없으므로 기본 2배로 둔다.
+ */
+export const DEVICES = {
+  1440: { width: 1440, height: 900, label: '데스크탑 1440', mobile: false, scale: 1 },
+  1920: { width: 1920, height: 1080, label: '데스크탑 1920', mobile: false, scale: 1 },
+  375: { width: 375, height: 812, label: '모바일 375', mobile: true, scale: 2 },
+};
+export const DESKTOP_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36';
+export const MOBILE_UA = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Mobile/15E148 Safari/604.1';
+
+/** 크기 하나에 맞는 브라우저 컨텍스트 설정. shoot 과 score 가 같은 걸 써야 한다. */
+export function contextOptionsFor(device, scale) {
+  return {
+    viewport: { width: device.width, height: device.height },
+    deviceScaleFactor: scale,
+    userAgent: device.mobile ? MOBILE_UA : DESKTOP_UA,
+    isMobile: device.mobile, hasTouch: device.mobile,
+    locale: 'ko-KR', timezoneId: 'Asia/Seoul',
+  };
+}
 export const MODES = ['stitch', 'fullpage'];
 export const STEPS = ['sticky', 'motion', 'anim', 'slice'];
 
@@ -322,11 +352,15 @@ function inPageScrollTo(y) {
   const se = document.scrollingElement || document.documentElement;
   const at = () => Math.round(Math.max(
     window.scrollY, se.scrollTop, document.body ? document.body.scrollTop : 0));
-  const off = () => Math.abs(at() - y);
+  // 갈 수 있는 끝을 넘겨 목표를 잡으면 "못 갔다"고 오해하고 아래 요소 찾기로
+  // 넘어가, 멀쩡히 바닥에 닿아 있는데 엉뚱한 데로 튄다. 먼저 갈 수 있는
+  // 범위로 자른다.
+  const target = Math.min(y, Math.max(0, (se.scrollHeight || 0) - (se.clientHeight || 0)));
+  const off = () => Math.abs(at() - target);
 
-  se.scrollTop = y;
-  if (off() > 2) window.scrollTo(0, y);
-  if (off() > 2 && document.body) document.body.scrollTop = y;
+  se.scrollTop = target;
+  if (off() > 2) window.scrollTo(0, target);
+  if (off() > 2 && document.body) document.body.scrollTop = target;
 
   if (off() > 2) {
     // 스크롤을 가로채는 페이지에서는 "이 요소를 보여 달라"가 먹기도 한다
@@ -335,7 +369,7 @@ function inPageScrollTo(y) {
     for (const el of document.querySelectorAll('body *')) {
       const r = el.getBoundingClientRect();
       if (r.height < 20) continue;
-      const d = Math.abs(r.top + base - y);
+      const d = Math.abs(r.top + base - target);
       if (d < bestDiff) { bestDiff = d; best = el; }
     }
     if (best) { try { best.scrollIntoView({ block: 'start' }); } catch { /* 구형 */ } }
@@ -398,6 +432,8 @@ export async function captureSite(context, url, opts = {}) {
   const started = Date.now();
   const notes = [];
   const page = await context.newPage();
+  // 가로 폭은 상수가 아니라 실제 창에서 읽는다 — 1440·1920·375 를 같은 코드로 찍는다.
+  const vw = (page.viewportSize() || VIEWPORT).width;
 
   try {
     try {
@@ -429,7 +465,7 @@ export async function captureSite(context, url, opts = {}) {
     }
 
     if (steps.has('sticky')) {
-      const r = await page.evaluate(inPageTameFixed, VIEWPORT.width);
+      const r = await page.evaluate(inPageTameFixed, vw);
       if (r.hidden.length) {
         notes.push('고정 요소 ' + r.hidden.length + '개 숨김(' +
           r.hidden.slice(0, 4).join(', ') + (r.hidden.length > 4 ? '…' : '') + ')' +
@@ -448,7 +484,7 @@ export async function captureSite(context, url, opts = {}) {
 
     // 가로는 항상 뷰포트 폭으로 고정한다. 옆으로 흐르는 요소가 있으면 찍는
     // 순간마다 문서 폭이 달라지는데, 방문자가 1440px 창에서 보는 건 1440px 까지다.
-    const overflowX = m.docWidth - VIEWPORT.width;
+    const overflowX = m.docWidth - vw;
     if (overflowX > 2) notes.push(`가로로 ${overflowX}px 삐져나온 부분은 잘랐습니다 (뷰포트 폭 기준)`);
 
     const ready = await page.evaluate(inPageReadiness);
@@ -505,15 +541,15 @@ export async function captureSite(context, url, opts = {}) {
       shotCount = shots.length;
 
       let finalHeight = (await page.evaluate(inPageWhere)).height;
-      if (stalled && shots.length) {
-        // 못 간 만큼을 빈 배경으로 채워 내보내면 "빈 그림"이 된다.
-        // 찍은 데까지만 내보내고, 어디서 멈췄는지는 위 메모에 남아 있다.
+      if (shots.length) {
+        // 찍은 마지막 조각의 아래끝을 넘겨 캔버스를 잡으면 그만큼이 빈 배경이 된다.
+        // 문서가 스크롤로 닿을 수 있는 것보다 길다고 나오는 경우가 실제로 있다.
         const last = shots[shots.length - 1];
         finalHeight = Math.min(finalHeight, last.y + last.height);
       }
       if (!opts.stitchPage) throw new Error('이어붙일 페이지가 필요합니다 (stitchPage)');
       slices = await stitchShots(opts.stitchPage, shots, {
-        width: VIEWPORT.width, height: finalHeight, scale,
+        width: vw, height: finalHeight, scale,
         maxHeight: Math.floor(SAFE_PIXELS / scale),
         background: opts.background,
       });
@@ -531,7 +567,7 @@ export async function captureSite(context, url, opts = {}) {
         if (h <= 0) break;
         slices.push(await page.screenshot({
           fullPage: true, animations, timeout: SHOT_TIMEOUT,
-          clip: { x: 0, y, width: VIEWPORT.width, height: h },
+          clip: { x: 0, y, width: vw, height: h },
         }));
       }
       if (sliceCount > 1) notes.push(`${sliceCount}장으로 분할 (실픽셀 ${actualPx.toLocaleString('en-US')}px)`);
