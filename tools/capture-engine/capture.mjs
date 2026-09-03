@@ -48,23 +48,27 @@ export function contextOptionsFor(device, scale) {
 export const MODES = ['stitch', 'fullpage'];
 export const STEPS = ['sticky', 'motion', 'anim', 'slice'];
 
-const SETTLE_MS = 2500;
+const SETTLE_MS = 1500;
 /** 한 번에 내려가는 양. 화면의 절반씩 — 지연 로딩이 따라올 시간을 준다. */
 const SCROLL_STEP_RATIO = 0.5;
 const MAX_SCROLL_STEPS = 120;
 const SCROLL_CFG = {
   ratio: SCROLL_STEP_RATIO,
   maxSteps: MAX_SCROLL_STEPS,
-  stepMs: 500,            // 한 칸에서 기본으로 머무는 시간
-  stepImageWaits: 10,     // 그 자리 이미지가 다 뜰 때까지 최대 2.2초 더
-  upMs: 250,              // 되올라올 때는 조금 빠르게
-  settleMs: 900,
-  finalImageWaits: 25,    // 마지막에는 최대 5.5초까지 기다린다
+  stepMs: 300,            // 한 칸에서 기본으로 머무는 시간. 관찰자가 발동하고 요청이 나가기엔 충분하다
+  stepImageWaits: 8,      // 그 자리(화면 근처) 이미지가 다 뜰 때까지 최대 1.8초 더
+  settleMs: 600,
+  finalImageWaits: 15,    // 마지막에는 최대 3.3초까지 기다린다
 };
 const SHOT_TIMEOUT = 120000;
-/** 한 칸으로 옮긴 뒤 등장 애니메이션이 끝나기를 기다리는 시간 */
-const SHOT_SETTLE_MS = 700;
-const SHOT_SETTLE_FIRST_MS = 1000;
+/**
+ * 한 칸으로 옮긴 뒤 찍기 전에 기다리는 시간.
+ * 등장 전환이 끝나기를 기다리는 게 아니다 — 그건 스크린샷의 animations:'disabled'
+ * 가 끝으로 돌려 준다. 관찰자가 발동해 클래스가 붙고, 그 칸 이미지가 그려질
+ * 시간만 주면 된다. 700ms 에서 줄였다.
+ */
+const SHOT_SETTLE_MS = 350;
+const SHOT_SETTLE_FIRST_MS = 700;
 
 /**
  * 한 번에 찍을 실픽셀 높이의 상한.
@@ -282,8 +286,17 @@ async function inPageScrollThrough(cfg) {
   const docH = () => Math.max(document.documentElement.scrollHeight,
     document.body ? document.body.scrollHeight : 0);
 
-  /** 아직 받아오는 중인 이미지 수. complete 인데 크기가 0 인 건 깨진 것이라 따로 센다. */
-  const loading = () => [...document.images].filter((im) => !im.complete).length;
+  /**
+   * 아직 받아오는 중인 이미지 수 — 화면 근처(위아래 한 화면)만 센다.
+   * 지연 로딩 이미지는 화면에 올 때까지 complete 가 false 라서, 문서 전체를
+   * 세면 아래쪽 수십 장 때문에 매 칸마다 최대치를 기다린다. 모바일은 한 줄
+   * 레이아웃이라 문서가 길어 이게 몇 분씩 먹었다.
+   */
+  const near = (im) => {
+    const r = im.getBoundingClientRect();
+    return r.bottom > -window.innerHeight && r.top < window.innerHeight * 2;
+  };
+  const loading = () => [...document.images].filter((im) => !im.complete && near(im)).length;
   const waitImages = async (rounds) => {
     for (let k = 0; k < rounds && loading() > 0; k++) await sleep(220);
   };
@@ -316,12 +329,9 @@ async function inPageScrollThrough(cfg) {
   const reachedBottom = !scrollable || bottomY + window.innerHeight >= height - 8;
   await waitImages(cfg.finalImageWaits);
 
-  // ── 되올라오기 ── 한 번에 뛰지 않는다. 올라올 때 발동하는 것도 있다.
-  for (let i = 0; i < cfg.maxSteps; i++) {
-    if (se().scrollTop <= 0 && window.scrollY <= 0) break;
-    move(-window.innerHeight * cfg.ratio);
-    await sleep(cfg.upMs);
-  }
+  // ── 맨 위로 ── 한 번에 뛴다. 예전엔 칸칸이 되올라왔는데(올라올 때 발동하는
+  // 것이 있을까 해서), 이어붙이기가 어차피 위에서부터 다시 내려가며 찍으므로
+  // 여기서 천천히 올라올 이유가 없다. 긴 문서에서 10초 남짓을 먹던 자리다.
   window.scrollTo(0, 0);
   se().scrollTop = 0;
   await sleep(cfg.settleMs);
@@ -424,11 +434,14 @@ function inPageMeasure() {
  * 한 사이트를 찍는다.
  * @returns {{ok:boolean, slices?:Buffer[], docHeight?:number, notes?:string[], error?:string}}
  */
+const VIEWPORT_H = (page) => (page.viewportSize() || VIEWPORT).height;
+
 export async function captureSite(context, url, opts = {}) {
   const steps = new Set(opts.steps || []);
   const mode = opts.mode || 'stitch';
   const scale = opts.scale || 1;
   const timeout = opts.timeout || 45000;
+  const progress = typeof opts.onProgress === 'function' ? opts.onProgress : () => {};
   const started = Date.now();
   const notes = [];
   const page = await context.newPage();
@@ -436,6 +449,7 @@ export async function captureSite(context, url, opts = {}) {
   const vw = (page.viewportSize() || VIEWPORT).width;
 
   try {
+    progress('여는 중');
     try {
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
     } catch (e) {
@@ -454,14 +468,16 @@ export async function captureSite(context, url, opts = {}) {
         : '스무스 스크롤 감지(미처리): ' + motion.found.join(', '));
     }
 
+    progress('위에서 아래까지 훑는 중 — 지연 로딩 콘텐츠를 불러옵니다');
     const scrolled = await page.evaluate(inPageScrollThrough, SCROLL_CFG);
+    progress(`훑기 끝 — 문서 ${scrolled.height.toLocaleString('en-US')}px`);
     if (!scrolled.reachedBottom) notes.push('끝까지 스크롤하지 못했습니다 — 무언가가 스크롤을 가로챕니다');
-    await page.waitForTimeout(1200);
+    await page.waitForTimeout(500);
 
     if (steps.has('anim')) {
       const n = await page.evaluate(inPageFreezeAnimations);
       if (n.length) notes.push('정지: ' + n.join(', '));
-      await page.waitForTimeout(300);
+      await page.waitForTimeout(150);
     }
 
     if (steps.has('sticky')) {
@@ -505,6 +521,7 @@ export async function captureSite(context, url, opts = {}) {
       let height = docHeight;
       let lastY = -1;      // 직전에 실제로 도달한 자리
       for (let i = 0; i < MAX_SCROLL_STEPS && y < height; i++) {
+        progress(`찍는 중 ${i + 1}/${Math.ceil(height / VIEWPORT_H(page))}칸`);
         await page.evaluate(inPageScrollTo, y);
         await page.waitForTimeout(i === 0 ? SHOT_SETTLE_FIRST_MS : SHOT_SETTLE_MS);
 
@@ -539,6 +556,7 @@ export async function captureSite(context, url, opts = {}) {
         y = at.y + at.innerHeight;                       // 실제 위치 기준으로 다음 칸
       }
       shotCount = shots.length;
+      progress(`${shotCount}칸 이어 붙이는 중`);
 
       let finalHeight = (await page.evaluate(inPageWhere)).height;
       if (shots.length) {

@@ -23,7 +23,7 @@ import { writeTable } from './csv.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FLAGS = new Set(['help', 'no-check']);
-const NUMERIC = new Set(['scale', 'concurrency', 'retry']);
+const NUMERIC = new Set(['scale', 'concurrency', 'retry', 'max-minutes']);
 
 function parseArgs(argv) {
   const out = {};
@@ -206,6 +206,7 @@ async function main() {
                       존중·기본 2배율. 사이트가 모바일 페이지를 내줍니다
   --scale <n>         배율 (기본: 데스크탑 1, 모바일 2)
   --retry <n>         두 번이 다를 때 다시 찍는 횟수 (기본 2)
+  --max-minutes <n>   한 곳에 이 시간 넘게 걸리면 중단하고 실패로 적습니다 (기본 8)
   --concurrency <n>   동시 실행 (기본 2)
   --no-check          검사 없이 한 번만 찍기 (빠르지만 품질 보장 없음)
   --browser <이름>    auto(기본) | chrome | msedge | chromium
@@ -271,24 +272,44 @@ async function shootAll({ args, urls, host, pick, device, scale, outDir, check, 
     return diffPage;
   }
   // 조각을 이어 붙일 캔버스를 두는 페이지. 대상 사이트와 섞이면 안 되므로 따로 둔다.
-  let stitchPage = null;
-  async function getStitchPage() {
-    if (stitchPage && !stitchPage.isClosed()) return stitchPage;
+  // 캡처마다 새 페이지를 준다 — 캔버스가 페이지 전역이라, 두 캡처가 동시에
+  // 한 페이지를 쓰면 서로 지운다. 검사용 캡처를 동시에 돌리다가 실제로 났다.
+  let stitchCtx = null;
+  async function newStitchPage() {
     const b = await host.get();
-    stitchPage = await (await b.newContext({ viewport: { width: 200, height: 200 } })).newPage();
-    return stitchPage;
+    if (!stitchCtx || stitchCtx.browser() !== b) {
+      stitchCtx = await b.newContext({ viewport: { width: 200, height: 200 } });
+    }
+    return stitchCtx.newPage();
   }
 
-  const shootOnce = async (url) => {
+  // 한 곳씩 찍을 때는 단계를 보여준다. 몇 분씩 아무 말이 없으면 멈춘 줄 안다 — 실제로 그랬다.
+  const verbose = urls.length === 1 || (args.concurrency || 2) === 1;
+  const maxMs = (args['max-minutes'] || 8) * 60 * 1000;
+
+  const shootOnce = async (url, label) => {
     const browser = await host.get();
     const ctx = await browser.newContext(ctxOpts);
+    const stitchPage = await newStitchPage();
+    let timer = null;
     try {
-      return await captureSite(ctx, url, {
+      const work = captureSite(ctx, url, {
         steps: [...STEPS], scale, mode: args.mode || 'stitch',
-        stitchPage: await getStitchPage(),
+        stitchPage,
+        onProgress: verbose ? (m) => console.error(`      ${label} · ${m}`) : undefined,
       });
+      // 시간 제한. 넘기면 컨텍스트를 닫아 진행 중인 evaluate 를 끊는다.
+      const limit = new Promise((_, rej) => {
+        timer = setTimeout(() => {
+          ctx.close().catch(() => {});
+          rej(new Error(`${maxMs / 60000}분이 넘어 중단했습니다 (--max-minutes 로 늘릴 수 있습니다)`));
+        }, maxMs);
+      });
+      return await Promise.race([work, limit]);
     } finally {
+      clearTimeout(timer);
       await ctx.close().catch(() => {});
+      await stitchPage.close().catch(() => {});
     }
   };
 
@@ -299,24 +320,37 @@ async function shootAll({ args, urls, host, pick, device, scale, outDir, check, 
     let last = null, prev = null, cmp = null, tries = 0;
     let err = null;
 
-    for (let attempt = 0; attempt <= (check ? retry : 0); attempt++) {
-      let shot;
-      try {
-        shot = await shootOnce(url);
-      } catch (e) {
-        const msg = e.message.split('\n')[0];
-        if (isBrowserDeath(msg) && attempt === 0) continue;   // 브라우저가 죽었으면 다시 띄우고 재시도
-        shot = { ok: false, error: msg };
+    const capture = async (label) => {
+      try { return await shootOnce(url, label); }
+      catch (e) { const msg = e.message.split('\n')[0]; return { ok: false, error: msg, died: isBrowserDeath(msg) }; }
+    };
+    const same = (c) => c.verdict === VERDICT.SAME || c.verdict === VERDICT.SAME_PIXELS;
+
+    // 검사용 두 번째 캡처는 첫 번째가 끝나길 기다릴 이유가 없다. 둘을 동시에
+    // 찍으면 대부분(두 번이 같은 경우) 시간이 절반이 된다. 다르면 그때부터 한 번씩.
+    const total = check ? retry + 1 : 1;
+    let attempt = 0, revived = false, settled = false;
+    while (attempt < total && !err && !settled) {
+      const parallel = check && attempt === 0 && total >= 2;
+      const shots = parallel
+        ? await Promise.all([capture('1번째'), capture('2번째')])
+        : [await capture(`${attempt + 1}번째`)];
+      attempt += shots.length;
+
+      // 브라우저가 죽었으면 다시 띄우고 처음부터 한 번만 다시
+      if (shots.some((x) => x.died) && !revived) { revived = true; attempt = 0; tries = 0; last = null; continue; }
+
+      for (const shot of shots) {
+        if (!shot.ok) { err = shot.error; break; }
+        tries++;
+        if (!check) { last = shot; settled = true; break; }
+        if (last) {
+          cmp = await compareCaptures(await getDiffPage(), last.slices, shot.slices);
+          prev = last;   // 달랐을 때 무엇이 달랐는지 보여주려면 직전 것도 들고 있어야 한다
+          if (same(cmp)) { last = shot; settled = true; break; }
+        }
+        last = shot;
       }
-      if (!shot.ok) { err = shot.error; break; }
-      tries++;
-      if (!check) { last = shot; break; }
-      if (last) {
-        cmp = await compareCaptures(await getDiffPage(), last.slices, shot.slices);
-        prev = last;   // 달랐을 때 무엇이 달랐는지 보여주려면 직전 것도 들고 있어야 한다
-        if (cmp.verdict === VERDICT.SAME || cmp.verdict === VERDICT.SAME_PIXELS) { last = shot; break; }
-      }
-      last = shot;
     }
 
     const name = fileNameFor(url, last && last.title, used);
