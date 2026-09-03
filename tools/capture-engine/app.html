@@ -2,7 +2,7 @@
 <html lang="ko">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>웹사이트 캡처</title>
+<title>웹사이트 스냅샷</title>
 <style>
   :root { --ink: #111; --mute: #6b6b70; --line: #e3e3e6; --bg: #f6f6f7; --card: #fff; --ok: #0a7d3c; --warn: #a06000; --bad: #b3261e; --accent: #1a56db; }
   * { box-sizing: border-box; }
@@ -60,6 +60,12 @@
   .card .sel { position: absolute; left: 10px; top: 10px; width: 20px; height: 20px; accent-color: var(--accent); }
   .card { position: relative; }
   .export { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 14px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: #fafafa; }
+  .export .grow { flex: 1 1 auto; }
+  .export .f { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--mute); }
+  .export .f input { font: inherit; font-size: 13px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+  .export .f input.nm { width: 220px; } .export .f input.dir { width: 320px; }
+  .export .right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .export .msg { flex-basis: 100%; }
   .export .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
   .export .seg label { padding: 7px 12px; cursor: pointer; font-size: 14px; }
   .export .seg label:has(input:checked) { background: var(--accent); color: #fff; }
@@ -70,7 +76,7 @@
   .card .prev { font-size: 12px; color: var(--mute); }
 </style>
 <main>
-  <h1>웹사이트 캡처</h1>
+  <h1>웹사이트 스냅샷</h1>
 
   <section class="step" id="s1">
     <h2><span class="n">1</span>주소</h2>
@@ -115,12 +121,15 @@
     <div class="grid" id="grid"></div>
     <div class="export" id="export" hidden>
       <span class="seg"><label><input type="radio" name="fmt" value="img" checked>IMG</label><label><input type="radio" name="fmt" value="pdf">PDF</label></span>
-      <button class="primary" id="exportAll">일괄 출력</button>
-      <button id="exportSel">선택 출력</button>
-      <span class="mute" id="selCount"></span>
+      <label class="f"><span id="nameLabel">폴더 이름</span><input class="nm" id="exportName" placeholder="사이트 1920"></label>
+      <label class="f">저장 위치<input class="dir" id="exportDir" placeholder="비우면 결과 폴더 안 내보내기/"></label>
+      <span class="right">
+        <button id="selToggle">전체 해제</button>
+        <span class="mute" id="selCount"></span>
+        <button class="primary" id="exportBtn">출력하기</button>
+      </span>
       <span class="msg" id="exportMsg"></span>
     </div>
-    <div class="done-links" id="links"></div>
   </section>
 </main>
 <script>
@@ -234,7 +243,6 @@
     if (!r.ok) { $('#m3').innerHTML = `<span class="err">${esc(r.error)}</span>`; $('#b3').disabled = false; return; }
     $('#s4').hidden = false;
     $('#grid').innerHTML = pages.map((p) => `<div class="card pending" data-url="${esc(norm(p.url))}"><div class="t">기다리는 중</div><div class="b"><b>${esc(p.path.join(' > '))}</b><span class="mute">${esc(shortUrl(p.url))}</span><div class="act"></div></div></div>`).join('');
-    $('#links').innerHTML = '';
     $('#m4').textContent = `저장 위치: ${r.outDir}`;
     $('#s4').scrollIntoView({ behavior: 'smooth', block: 'start' });
     clearInterval(timer);
@@ -246,7 +254,7 @@
   function renderCard(card, row, id) {
     const cls = row.status === '확인됨' ? 'ok' : row.status === '검수 필요' ? 'warn' : 'bad';
     const file = row.files && row.files[0] ? fileUrl(id, row.files[0]) : null;
-    card.innerHTML = `${file ? `<input type="checkbox" class="sel" title="선택 출력에 넣기">` : ''}<div class="t">${file ? `<a href="${file}" target="_blank"><img src="${file}" alt=""></a>` : `<div class="err" style="padding:12px">${esc(row.error || '이미지 없음')}</div>`}</div>
+    card.innerHTML = `${file ? `<input type="checkbox" class="sel" title="출력에 넣기" checked>` : ''}<div class="t">${file ? `<a href="${file}" target="_blank"><img src="${file}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'err',style:'padding:12px;font-size:12px',textContent:'그림을 못 불러왔어요: ' + decodeURIComponent(this.src.split('/').pop())}))"></a>` : `<div class="err" style="padding:12px">${esc(row.error || '이미지 없음')}</div>`}</div>
       <div class="b"><b>${esc(row.path || row.name)}</b><span class="badge ${cls}">${esc(row.status)}</span>
       ${row.docHeight ? ` <span class="mute">${row.docHeight.toLocaleString('en-US')}px</span>` : ''}
       ${row.retakes ? ` <span class="mute">· ${row.retakes}번째 다시 찍음</span>` : ''}
@@ -272,21 +280,29 @@
 
   /* ── 내보내기 ── */
   let currentJob = null;
-  const selCards = () => [...document.querySelectorAll('.card .sel:checked')].map((c) => c.closest('.card').dataset.url);
-  document.addEventListener('change', (e) => { if (e.target.classList.contains('sel')) $('#selCount').textContent = `${selCards().length}개 선택`; });
-  async function doExport(all) {
+  const allSel = () => [...document.querySelectorAll('.card .sel')];
+  const selCards = () => allSel().filter((c) => c.checked).map((c) => c.closest('.card').dataset.url);
+  function updateSel() {
+    const n = selCards().length, t = allSel().length;
+    $('#selCount').textContent = `${n}/${t}개`;
+    $('#selToggle').textContent = n === t && t > 0 ? '전체 해제' : '전체 선택';
+    $('#exportBtn').disabled = n === 0;
+  }
+  document.addEventListener('change', (e) => { if (e.target.classList.contains('sel')) updateSel(); });
+  $('#selToggle').onclick = () => { const on = $('#selToggle').textContent === '전체 선택'; allSel().forEach((c) => { c.checked = on; }); updateSel(); };
+  document.querySelectorAll('input[name=fmt]').forEach((r) => { r.onchange = () => { $('#nameLabel').textContent = r.value === 'pdf' && r.checked ? '파일 이름' : '폴더 이름'; }; });
+  async function doExport() {
     const format = document.querySelector('input[name=fmt]:checked').value;
-    const urls = all ? [] : selCards();
-    if (!all && !urls.length) { $('#exportMsg').textContent = '카드 왼쪽 위 체크박스로 먼저 골라 주세요'; return; }
+    const urls = selCards();
+    if (!urls.length) { $('#exportMsg').textContent = '카드 왼쪽 위 체크박스로 먼저 골라 주세요'; return; }
     $('#exportMsg').textContent = format === 'pdf' ? 'PDF 한 권으로 묶고 있어요…' : '폴더에 담고 있어요…';
-    const r = await api('/api/export', { id: currentJob, urls, format });
+    const r = await api('/api/export', { id: currentJob, urls, format, dir: $('#exportDir').value, name: $('#exportName').value });
     if (!r.ok) { $('#exportMsg').innerHTML = `<span class="err">${esc(r.error)}</span>`; return; }
     $('#exportMsg').innerHTML = format === 'pdf'
       ? `PDF ${r.pages}쪽으로 묶었어요 → <code>${esc(r.path)}</code>`
       : `${r.count}장을 폴더에 담았어요 → <code>${esc(r.path)}</code>`;
   }
-  $('#exportAll').onclick = () => doExport(true);
-  $('#exportSel').onclick = () => doExport(false);
+  $('#exportBtn').onclick = doExport;
 
   async function poll(id) {
     const j = await api(`/api/job?id=${encodeURIComponent(id)}`);
@@ -319,14 +335,17 @@
       $('#b3').disabled = false;
       currentJob = id;
       $('#export').hidden = !j.rows.some((r) => r.files && r.files.length);
+      if (j.exportDefaults) {
+        $('#exportName').placeholder = j.exportDefaults.name;
+        $('#exportDir').placeholder = j.exportDefaults.dir;
+      }
+      updateSel();
       const ok = j.rows.filter((r) => r.status === '확인됨').length;
       const warn = j.rows.filter((r) => r.status === '검수 필요').length;
       const bad = j.rows.filter((r) => r.status === '실패').length;
       const secs = Math.round(((j.finishedAt || Date.now()) - j.startedAt) / 1000);
       $('#m4').innerHTML = `${j.status} — 확인됨 ${ok} · 검수 필요 ${warn} · 실패 ${bad} · ${secs}초${j.error ? ` <span class="err">${esc(j.error)}</span>` : ''}<br>저장 위치: <code>${esc(j.outDir)}</code>`;
-      $('#links').innerHTML = `<a href="/files/${encodeURIComponent(id)}/${encodeURIComponent('목록.html')}" target="_blank"><button>목록 페이지 열기</button></a>
-        <a href="/files/${encodeURIComponent(id)}/${encodeURIComponent('목록.csv')}" target="_blank"><button>CSV</button></a>
-        <a href="/files/${encodeURIComponent(id)}/${encodeURIComponent('보고서.txt')}" target="_blank"><button>보고서</button></a>`;
+
     }
   }
 </script>

@@ -71,7 +71,9 @@ function loadUrls(args) {
 
 /** 파일 이름으로 쓸 수 있게 다듬는다. 제목이 없으면 주소에서 딴다. */
 function fileNameFor(url, title, used) {
-  let base = (title || '').replace(/[\\/:*?"<>|\n\r\t]+/g, ' ').trim();
+  // # % & + 도 뺀다 — 파일 이름으로는 되지만 <img src> 에 넣으면 주소로 잘못 읽힌다
+  // (# 뒤는 조각, % 는 인코딩). 테라클 Recruit 가 목록 썸네일에서만 안 보인 이유.
+  let base = (title || '').replace(/[\\/:*?"<>|#%&+\n\r\t]+/g, ' ').trim();
   if (!base) { try { base = new URL(url).hostname; } catch { base = 'page'; } }
   base = base.replace(/\s+/g, ' ').slice(0, 60).trim() || 'page';
   let name = base, n = 2;
@@ -146,10 +148,10 @@ function renderIndex(rows, meta) {
       : r.status === '검수 필요' ? '<span class="b warn">검수 필요</span>'
       : '<span class="b bad">실패</span>';
     const img = r.files && r.files[0]
-      ? `<a href="${esc(r.files[0])}" target="_blank"><img src="${esc(r.files[0])}" alt="${esc(r.name)}"></a>`
+      ? `<a href="${encodeURIComponent(r.files[0])}" target="_blank"><img src="${encodeURIComponent(r.files[0])}" alt="${esc(r.name)}"></a>`
       : `<div class="none">${esc(r.error || '이미지 없음')}</div>`;
     const extra = [
-      r.diffFile ? `<p class="d">두 번이 ${(r.ratio * 100).toFixed(2)}% 달랐습니다 — <a href="${esc(r.diffFile)}" target="_blank">차이 보기</a></p>` : '',
+      r.diffFile ? `<p class="d">두 번이 ${(r.ratio * 100).toFixed(2)}% 달랐습니다 — <a href="${encodeURIComponent(r.diffFile)}" target="_blank">차이 보기</a></p>` : '',
       r.gaps && r.gaps.length ? `<p class="d">덜 뜬 것: ${esc(r.gaps.join(' · '))}</p>` : '',
     ].join('');
     return `<figure>${img}<figcaption><b>${esc(r.name)}</b>${badge}

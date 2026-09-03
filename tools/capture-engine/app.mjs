@@ -30,8 +30,8 @@ const safeName = (t) => String(t || 'page').replace(/[\\/:*?"<>|\n\r\t]+/g, ' ')
 const stampNow = () => new Date().toISOString().slice(0, 16).replace('T', ' ').replace(':', '');
 
 /** 고른 결과를 정보구조 순서대로 번호를 붙여 폴더에 복사한다. */
-function exportImages(job, rows) {
-  const dir = join(job.outDir, '내보내기', `이미지 ${stampNow()}`);
+function exportImages(job, rows, { baseDir, name }) {
+  const dir = join(baseDir, name);
   mkdirSync(dir, { recursive: true });
   const pad = String(rows.length).length;
   const files = [];
@@ -46,8 +46,8 @@ function exportImages(job, rows) {
 }
 
 /** 고른 결과를 PDF 한 권으로 묶는다. 쪽마다 그림 크기 그대로 — 긴 페이지는 긴 쪽이 된다. */
-async function exportPdf(job, rows) {
-  const dir = join(job.outDir, '내보내기');
+async function exportPdf(job, rows, { baseDir, name }) {
+  const dir = baseDir;
   mkdirSync(dir, { recursive: true });
   const pdf = await PDFDocument.create();
   pdf.setTitle(`${rows[0] && rows[0].url ? new URL(rows[0].url).hostname : 'site'} ${job.device}`);
@@ -63,9 +63,7 @@ async function exportPdf(job, rows) {
       pages++;
     }
   }
-  let hostName = 'site';
-  try { hostName = new URL(rows[0].url).hostname; } catch { /* 무시 */ }
-  const file = join(dir, `${hostName} ${job.width} ${stampNow()}${rows.length < job.rows.length ? ' (선택)' : ''}.pdf`);
+  const file = join(dir, `${name}.pdf`);
   writeFileSync(file, await pdf.save());
   return { file, pages };
 }
@@ -306,9 +304,15 @@ const server = createServer(async (req, res) => {
       return json(res, 200, { ok: true, applied, ignored });
     }
     if (req.method === 'POST' && u.pathname === '/api/export') {
-      const { id, urls, format } = await readBody(req);
+      const { id, urls, format, dir, name } = await readBody(req);
       const job = jobs.get(id);
       if (!job) return json(res, 404, { ok: false, error: '없는 작업' });
+      // 저장 위치·이름은 사용자가 정한다. 비우면 작업 폴더의 내보내기/ 와 "<사이트> <폭>".
+      let hostName = 'site';
+      try { hostName = new URL(job.requested[0].url).hostname; } catch { /* 무시 */ }
+      const baseDir = resolve(String(dir || '').trim().replace(/^~(?=$|\/)/, process.env.HOME || '') || join(job.outDir, '내보내기'));
+      const outName = safeName(name) === 'page' && !String(name || '').trim() ? `${hostName} ${job.width}` : safeName(name);
+      try { mkdirSync(baseDir, { recursive: true }); } catch (e) { return json(res, 400, { ok: false, error: `저장 위치를 만들 수 없습니다: ${e.message}` }); }
       const want = Array.isArray(urls) && urls.length ? new Set(urls.map(normUrl)) : null;
       // 정보구조 순서(요청 순서)대로
       const order = new Map(job.requested.map((p, i) => [normUrl(p.url), i]));
@@ -317,18 +321,20 @@ const server = createServer(async (req, res) => {
         .sort((a, b) => (order.get(normUrl(a.url)) ?? 999) - (order.get(normUrl(b.url)) ?? 999));
       if (!rows.length) return json(res, 400, { ok: false, error: '내보낼 그림이 없습니다' });
       if (format === 'pdf') {
-        const r = await exportPdf(job, rows);
+        const r = await exportPdf(job, rows, { baseDir, name: outName });
         reveal(r.file);
         return json(res, 200, { ok: true, format, path: r.file, pages: r.pages, count: rows.length });
       }
-      const r = exportImages(job, rows);
+      const r = exportImages(job, rows, { baseDir, name: outName });
       reveal(join(r.dir, r.files[0]));
       return json(res, 200, { ok: true, format: 'img', path: r.dir, files: r.files, count: rows.length });
     }
     if (req.method === 'GET' && u.pathname === '/api/job') {
       const job = jobs.get(u.searchParams.get('id'));
       if (!job) return json(res, 404, { ok: false, error: '없는 작업' });
-      return json(res, 200, { ok: true, ...job });
+      let hostName = 'site';
+      try { hostName = new URL(job.requested[0].url).hostname; } catch { /* 무시 */ }
+      return json(res, 200, { ok: true, ...job, exportDefaults: { dir: join(job.outDir, '내보내기'), name: `${hostName} ${job.width}` } });
     }
     // 결과 파일. /files/<작업>/<파일>
     if (req.method === 'GET' && u.pathname.startsWith('/files/')) {
