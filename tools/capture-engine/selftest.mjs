@@ -269,10 +269,10 @@ const CASES = [
       if (r.menu[4].kind !== '외부') return `Blog 가 ${r.menu[4].kind} (기대 외부)`;
       if (r.menu[5].kind !== '없음') return `Contact 가 ${r.menu[5].kind} (기대 없음)`;
       if (r.menuCount !== 10) return `메뉴를 ${r.menuCount}개로 셌다 (기대 10 — 모바일 메뉴 중복이 섞였나)`;
-      if (!r.loose.some((x) => x.label === '로그인')) return '헤더의 로그인 링크를 놓쳤다';
+      if (r.loose.some((x) => x.label === '로그인')) return '로그인이 헤더의 다른 링크에 남아 있다 — 유틸리티로 가야 한다';
       if (r.loose.some((x) => x.href.includes('/news/'))) return '본문 뉴스 링크가 헤더 링크로 딸려 왔다 (포장 클래스에 nav 가 있어서)';
-      const util = r.utility.map((x) => x.label);
-      if (util.join('|') !== '마이페이지') return `유틸리티 메뉴가 ${util.join(' / ')} (기대 마이페이지 — 언어 선택은 정보구조에 안 적는다)`;
+      const util = r.utility.map((x) => x.label).sort();
+      if (util.join('|') !== '로그인|마이페이지') return `유틸리티 메뉴가 ${util.join(' / ')} (기대 로그인 / 마이페이지 — 언어 선택은 정보구조에 안 적는다)`;
       if (!(r.languages || []).includes('KOR / EN')) return `뺀 언어 선택을 기록하지 않았다 (${(r.languages || []).join(', ')})`;
       if (r.footer.length !== 3) return `푸터 링크 ${r.footer.length}개 (기대 3)`;
       // 메인페이지 구성
@@ -298,7 +298,9 @@ const CASES = [
       if (!r.ok) return `실패: ${r.error}`;
       if (r.method !== 'hover') return `${r.method} 로 읽었다 — 두 번째 줄 메뉴를 GNB 줄로 못 찾았다`;
       const top = r.menu.map((x) => x.label);
-      if (top.join('|') !== 'ABOUT|LOOKBOOK|QUOTATION|SHOP') return `최상위가 ${top.join(' / ')}`;
+      if (top.join('|') !== 'ABOUT|LOOKBOOK|QUOTATION|SHOP') return `최상위가 ${top.join(' / ')} — 로고·검색·LOGIN·CART 줄을 GNB 로 잡았나`;
+      const util = r.utility.map((x) => x.label).sort().join('|');
+      if (util !== 'CART|LOGIN') return `유틸리티가 ${util || '(없음)'} (기대 CART / LOGIN)`;
       const shop = r.menu[3];
       const kids = shop.children.map((x) => x.label);
       if (kids.join('|') !== 'NEW ARRIVAL|WOMEN|MEN|KID|GIFT|COMMUNITY') return `SHOP 하위가 ${kids.join(' / ') || '(없음)'} — 서서히 열리는 드롭다운을 못 봤다`;

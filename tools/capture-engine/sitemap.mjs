@@ -253,6 +253,14 @@ function inPageReadSections() {
       node = kids.sort((a, b) => rect(b).h - rect(a).h)[0];
     }
   }
+  // 3) 그래도 못 나눴으면, 화면 폭의 6할 이상 · 250px 이상인 덩어리 중 그런 덩어리를
+  //    조상으로 갖지 않는 것(가장 바깥 큰 덩어리)들을 위에서 아래로 늘어놓는다.
+  if (blocks.length < 3) {
+    const big = [...document.body.querySelectorAll('div, section, article, main')]
+      .filter((el) => !isChrome(el) && rect(el).h >= 250 && el.getBoundingClientRect().width >= window.innerWidth * 0.6);
+    const outer = big.filter((el) => !big.some((o) => o !== el && o.contains(el) && rect(o).h < rect(el).h * 3));
+    if (outer.length >= 2) blocks = outer;
+  }
   blocks.sort((a, b) => rect(a).top - rect(b).top);
 
   // 구간 사이에 큰 빈 틈이 있으면 거기 뭔가 있는 것이다 — section 으로 안 싸인 덩어리.
@@ -360,6 +368,9 @@ const LANG = /^(en|eng|english|kr|ko|kor|korean|한국어|한글|jp|ja|jpn|japan
 const langLabel = (t) => { const parts = String(t || '').split(/[\/|·,]/).map((x) => x.trim()).filter(Boolean); return parts.length > 0 && parts.every((x) => LANG.test(x)); };
 const isLang = (x) => langLabel(x.label) || (x.children && x.children.length >= 2 && x.children.every((c) => langLabel(c.label)));
 
+/** 로그인·장바구니·검색·마이페이지처럼 어느 사이트에나 있는 유틸리티 항목 */
+const UTIL = /^(login|log ?in|logout|log ?out|join|sign ?up|sign ?in|register|cart|bag|basket|search|site search|mypage|my ?page|my account|account|wish ?list|alarm|notification|order|주문조회|로그인|로그아웃|회원가입|장바구니|검색|사이트 검색|마이페이지|찜|위시리스트|알림|고객센터|customer center|cs center|q&a)$/i;
+
 /* ──────────────────── 마우스를 올려 GNB 를 찾는다 ──────────────────── */
 
 const kindOfHref = (href, origin) => {
@@ -405,14 +416,39 @@ async function discoverByHover(page, origin, progress) {
     if (!rows.has(key)) rows.set(key, []);
     rows.get(key).push(it);
   }
-  let row = null;
+  // 줄마다 "메뉴다움"을 점수로 매긴다. 항목 수만 세면 로고·검색·LOGIN·CART 가 앉은
+  // 유틸리티 줄이 GNB 줄과 비기거나 이긴다 — K'sox 에서 실제로 그랬다.
+  // 사이트 안 페이지로 가는 짧은 글자 항목은 +1, 유틸리티(로그인·장바구니·검색·로고)는 −1,
+  // 화면 가운데 앉은 줄은 +1 (GNB 는 가운데나 왼쪽, 유틸리티는 오른쪽에 붙는다).
+  const isUtil = (it) => UTIL.test(it.label) || (it.href && /\/(login|logout|join|signup|sign-up|cart|shop_cart|basket|search|mypage|my-page|wishlist|order)\b/i.test(it.href.replace(origin, '')));
+  const isLogo = (it) => { try { const u = new URL(it.href); return u.origin === origin && (u.pathname === '/' || u.pathname === '') && it.h >= 28 && (it.w >= 100 || /logo|로고/i.test(it.label)); } catch { return false; } };
+  const score = (items) => {
+    let n = 0;
+    for (const it of items) {
+      if (isUtil(it) || isLogo(it)) n -= 1;
+      else if (!it.href || it.href.startsWith(origin)) n += 1;
+    }
+    const xs = items.map((it) => it.x + it.w / 2);
+    const center = (Math.min(...xs) + Math.max(...xs)) / 2;
+    if (Math.abs(center - vw / 2) < vw * 0.2) n += 1;
+    return n;
+  };
+  let row = null, best = -Infinity;
   for (const items of rows.values()) {
     const distinct = items.filter((it, i) => items.findIndex((o) => o.label === it.label) === i);
-    if (distinct.length >= 3 && (!row || distinct.length > row.length)) row = distinct;
+    if (distinct.length < 3) continue;
+    const sc = score(distinct);
+    // 같은 점수면 아래쪽 줄 — 메뉴는 로고 아래에 온다
+    if (sc > best || (sc === best && distinct[0].y > row[0].y)) { best = sc; row = distinct; }
   }
   if (!row) return null;
   row.sort((a, b) => a.x - b.x);
-  // 한 줄에 로고나 유틸리티가 섞이면 폭이 튄다. 가운데 무리(서로 400px 안)만 남긴다.
+  // 로그인·장바구니·검색·로고는 GNB 가 아니다. GNB 줄에 섞였든 다른 줄(로고 옆)에
+  // 있든 유틸리티로 따로 낸다.
+  const utilityRow = [...row.filter((it) => isUtil(it) || isLogo(it)),
+    ...[...rows.values()].flat().filter((it) => !row.includes(it) && isUtil(it))];
+  row = row.filter((it) => !isUtil(it) && !isLogo(it));
+  if (row.length < 2) return null;
   const seenId = new Set(base.map((b) => b.id));
 
   const hoverPath = async (path) => {
@@ -490,7 +526,9 @@ async function discoverByHover(page, origin, progress) {
     if (isLang(m)) languages.push(m.label);
     else gnb.push(m);
   }
-  return { menu: gnb, languages };
+  const utility = utilityRow.filter((it) => it.href && !isLogo(it))
+    .map((it) => ({ label: it.label, href: it.href, kind: kindOfHref(it.href, origin), depth: 0, children: [] }));
+  return { menu: gnb, languages, utility };
 }
 
 /* ──────────────────────────────── 조립 ──────────────────────────────── */
@@ -551,8 +589,11 @@ export async function extractSitemap(context, url, opts = {}) {
       const leftovers = flat.filter((x) => x.kind !== '없음' && !inHover.has(`${x.href}|${x.label}`))
         .map((x) => ({ ...x, depth: 0, children: [] }));
       // 유틸리티는 주소가 같으면 하나다 (EN 과 English 가 같은 곳으로 간다)
-      home.utility = [...(home.utility || []), ...leftovers]
+      home.utility = [...(found.utility || []), ...(home.utility || []), ...leftovers]
         .filter((x, i, arr) => arr.findIndex((o) => (x.href ? o.href === x.href : o.label === x.label)) === i);
+      // 유틸리티로 간 것은 "헤더의 다른 링크"에 다시 안 나온다
+      const inUtil = new Set(home.utility.map((x) => normUrl(x.href)));
+      home.loose = home.loose.filter((x) => !inUtil.has(normUrl(x.href)));
       home.menu = hovered;
       home.languages = found.languages;
       method = 'hover';
