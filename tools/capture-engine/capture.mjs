@@ -16,8 +16,18 @@ export const VIEWPORT = { width: 1440, height: 900 };
 export const STEPS = ['sticky', 'motion', 'anim', 'slice'];
 
 const SETTLE_MS = 2500;
-const SCROLL_STEP_RATIO = 0.8;
-const MAX_SCROLL_STEPS = 60;
+/** 한 번에 내려가는 양. 화면의 절반씩 — 지연 로딩이 따라올 시간을 준다. */
+const SCROLL_STEP_RATIO = 0.5;
+const MAX_SCROLL_STEPS = 120;
+const SCROLL_CFG = {
+  ratio: SCROLL_STEP_RATIO,
+  maxSteps: MAX_SCROLL_STEPS,
+  stepMs: 500,            // 한 칸에서 기본으로 머무는 시간
+  stepImageWaits: 10,     // 그 자리 이미지가 다 뜰 때까지 최대 2.2초 더
+  upMs: 250,              // 되올라올 때는 조금 빠르게
+  settleMs: 900,
+  finalImageWaits: 25,    // 마지막에는 최대 5.5초까지 기다린다
+};
 const SHOT_TIMEOUT = 120000;
 
 /**
@@ -101,7 +111,7 @@ function inPageHandleMotion(destroyThem) {
 }
 
 /** 돌고 있는 것을 멈춘다. 등장 애니메이션은 끝 상태로 보내고, 루프는 처음으로 되감는다. */
-function inPageFreezeAnimations() {
+async function inPageFreezeAnimations() {
   const notes = [];
 
   let swipers = 0;
@@ -124,11 +134,26 @@ function inPageFreezeAnimations() {
     if (loops) notes.push('GSAP 무한 트윈 ' + loops + '개 정지');
   }
 
+  // 비디오는 멈추는 것만으로 부족하다. currentTime 을 옮기면 그 지점 프레임을
+  // 다시 디코딩할 때까지 화면이 비어 있어서, 그대로 찍으면 까맣게 나온다.
+  // 테라클 히어로 영상이 그랬다. seeked 를 기다린 뒤에 넘어간다.
   let videos = 0;
+  const seeks = [];
   for (const el of document.querySelectorAll('video')) {
-    if (el.paused) continue;
-    try { el.pause(); el.currentTime = 0; videos++; } catch { /* 크로스오리진이면 못 건드린다 */ }
+    try {
+      if (!el.paused) { el.pause(); videos++; }
+      if (el.currentTime !== 0 && el.seekable && el.seekable.length) {
+        const done = new Promise((r) => {
+          const on = () => { el.removeEventListener('seeked', on); r(); };
+          el.addEventListener('seeked', on);
+          setTimeout(on, 1500);   // 못 기다릴 상황이면 그냥 넘어간다
+        });
+        el.currentTime = 0;
+        seeks.push(done);
+      }
+    } catch { /* 크로스오리진이면 못 건드린다 */ }
   }
+  if (seeks.length) await Promise.all(seeks);
   if (videos) notes.push('비디오 ' + videos + '개 정지');
 
   let finished = 0, looped = 0;
@@ -186,40 +211,101 @@ function inPageRestoreFixed() {
   }
 }
 
-/** 끝까지 훑어 지연 로딩과 스크롤 트리거를 전부 발동시킨 뒤 맨 위로 돌아온다. */
+/**
+ * 맨 위에서 맨 아래까지 훑고, 다시 맨 위로 올라온 뒤에 찍는다.
+ *
+ * 예전에는 한 칸에 420ms 만 머물렀다. 지연 로딩 이미지가 **뜨기 시작만 하고
+ * 다 뜨기 전에** 지나가 버려서, 두 번 찍어도 똑같이 빈 채로 나왔다.
+ * 두 장이 같으니 채점기는 "확인됨"으로 셌고, 사람 눈에는 불완전했다.
+ *
+ * 그래서 세 가지를 바꿨다.
+ *   - 더 촘촘하게(화면의 절반씩) 내려간다
+ *   - 각 칸에서 **그 자리 이미지가 다 뜰 때까지** 기다린다
+ *   - 바닥을 찍은 뒤 **한 칸씩 되올라온다.** 올라올 때 발동하는 것도 있다
+ */
 async function inPageScrollThrough(cfg) {
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const se = () => document.scrollingElement || document.documentElement;
   const docH = () => Math.max(document.documentElement.scrollHeight,
     document.body ? document.body.scrollHeight : 0);
 
-  let last = -1;
-  for (let i = 0; i < cfg.maxSteps; i++) {
-    const step = window.innerHeight * cfg.ratio;
-    // scrollTop 에 직접 넣는다. scrollBy 는 스무스 스크롤 라이브러리가 가로채는
-    // 경우가 있는데, 이 대입은 대개 그대로 먹는다.
+  /** 아직 받아오는 중인 이미지 수. complete 인데 크기가 0 인 건 깨진 것이라 따로 센다. */
+  const loading = () => [...document.images].filter((im) => !im.complete).length;
+  const waitImages = async (rounds) => {
+    for (let k = 0; k < rounds && loading() > 0; k++) await sleep(220);
+  };
+
+  const move = (delta) => {
     const el = se();
     const before = el.scrollTop;
-    el.scrollTop = before + step;
-    if (el.scrollTop === before) window.scrollBy(0, step);  // 그래도 안 움직이면 원래 방법으로
-    await sleep(420);
+    el.scrollTop = Math.max(0, before + delta);
+    // scrollTop 대입이 안 먹으면(가로채는 라이브러리) 원래 방법으로
+    if (el.scrollTop === before) window.scrollBy(0, delta);
+    return before;
+  };
+
+  // ── 내려가기 ──
+  let last = -1;
+  for (let i = 0; i < cfg.maxSteps; i++) {
+    move(window.innerHeight * cfg.ratio);
+    await sleep(cfg.stepMs);
+    await waitImages(cfg.stepImageWaits);      // 이 자리에서 뜨기 시작한 것들을 기다린다
     const y = window.scrollY || se().scrollTop;
     if (y === last) break;
     last = y;
   }
 
   // 스무스 스크롤은 감속 중이라 위치가 늦게 도착한다. 정착을 기다린 뒤에 잰다.
-  // 이걸 안 기다려서 멀쩡히 끝까지 간 사이트를 '미완주'로 잘못 찍은 적이 있다.
-  await sleep(900);
+  await sleep(cfg.settleMs);
   const height = docH();
-  const y = Math.max(window.scrollY, se().scrollTop);
+  const bottomY = Math.max(window.scrollY, se().scrollTop);
   const scrollable = height > window.innerHeight + 4;
-  const reachedBottom = !scrollable || y + window.innerHeight >= height - 8;
+  const reachedBottom = !scrollable || bottomY + window.innerHeight >= height - 8;
+  await waitImages(cfg.finalImageWaits);
 
+  // ── 되올라오기 ── 한 번에 뛰지 않는다. 올라올 때 발동하는 것도 있다.
+  for (let i = 0; i < cfg.maxSteps; i++) {
+    if (se().scrollTop <= 0 && window.scrollY <= 0) break;
+    move(-window.innerHeight * cfg.ratio);
+    await sleep(cfg.upMs);
+  }
   window.scrollTo(0, 0);
   se().scrollTop = 0;
-  await sleep(600);
-  return { deepest: last, scrollable, reachedBottom, height, bottomY: Math.round(y) };
+  await sleep(cfg.settleMs);
+  await waitImages(cfg.finalImageWaits);
+
+  return { deepest: last, scrollable, reachedBottom, height, bottomY: Math.round(bottomY) };
+}
+
+/**
+ * 찍기 직전에 "덜 된 것"을 센다.
+ *
+ * 결정성 검사는 두 번이 같은지만 본다. 두 번 다 똑같이 비어 있으면 통과한다 —
+ * 실제로 그 일이 났다. 그래서 화면에 마땅히 있어야 할 것이 없는지를 따로 센다.
+ * 이건 픽셀이 아니라 DOM 을 보는 검사라, 캡처를 직접 하는 쪽만 할 수 있다.
+ */
+function inPageReadiness() {
+  const imgs = [...document.images];
+  const loading = imgs.filter((im) => !im.complete).length;
+  const broken = imgs.filter((im) => im.complete && im.naturalWidth === 0).length;
+
+  // 자리는 차지하는데 투명한 요소 = 등장 애니메이션이 아직 안 끝났거나 되감긴 것
+  let invisible = 0;
+  for (const el of document.querySelectorAll('body *')) {
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+    if (Number(cs.opacity) > 0.05) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width < 40 || r.height < 24) continue;
+    if (el.querySelector('[data-cap-hidden]')) continue;
+    invisible++;
+  }
+
+  // 자동재생 비디오가 첫 프레임도 못 그린 상태인지
+  const videos = [...document.querySelectorAll('video')];
+  const blankVideos = videos.filter((v) => v.readyState < 2).length;
+
+  return { images: imgs.length, loading, broken, invisible, videos: videos.length, blankVideos };
 }
 
 function inPageMeasure() {
@@ -265,7 +351,7 @@ export async function captureSite(context, url, opts = {}) {
         : '스무스 스크롤 감지(미처리): ' + motion.found.join(', '));
     }
 
-    const scrolled = await page.evaluate(inPageScrollThrough, { ratio: SCROLL_STEP_RATIO, maxSteps: MAX_SCROLL_STEPS });
+    const scrolled = await page.evaluate(inPageScrollThrough, SCROLL_CFG);
     if (!scrolled.reachedBottom) notes.push('끝까지 스크롤하지 못했습니다 — 무언가가 스크롤을 가로챕니다');
     await page.waitForTimeout(1200);
 
@@ -287,6 +373,13 @@ export async function captureSite(context, url, opts = {}) {
 
     // 폰트가 덜 그려진 채로 찍으면 두 번 찍을 때 달라진다.
     await page.evaluate(() => document.fonts && document.fonts.ready).catch(() => {});
+    await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+
+    const ready = await page.evaluate(inPageReadiness);
+    if (ready.loading) notes.push(`아직 받아오는 중인 이미지 ${ready.loading}개`);
+    if (ready.broken) notes.push(`깨진 이미지 ${ready.broken}개`);
+    if (ready.invisible) notes.push(`자리는 있는데 투명한 요소 ${ready.invisible}개`);
+    if (ready.blankVideos) notes.push(`첫 프레임도 못 그린 비디오 ${ready.blankVideos}개`);
 
     const m = await page.evaluate(inPageMeasure);
     const docHeight = m.docHeight;
@@ -324,7 +417,7 @@ export async function captureSite(context, url, opts = {}) {
 
     return {
       ok: true, url, title: m.title, docHeight, scale, slices,
-      sliceCount: slices.length, notes, docWidth: m.docWidth, motionLibs: motion.found,
+      sliceCount: slices.length, notes, docWidth: m.docWidth, ready, motionLibs: motion.found,
       motionHandled: steps.has('motion'), reachedBottom: scrolled.reachedBottom,
       finalUrl: page.url() !== url ? page.url() : undefined,
       ms: Date.now() - started,

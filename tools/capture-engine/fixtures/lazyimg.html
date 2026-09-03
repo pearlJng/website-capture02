@@ -1,0 +1,35 @@
+<!doctype html><meta charset=utf-8><title>지연 로딩 이미지가 늦게 뜨는 페이지</title>
+<style>
+body{margin:0;font:16px/1.6 system-ui}
+.slot{height:600px;display:grid;place-items:center;border-bottom:1px solid #ddd}
+.slot img{width:400px;height:300px;object-fit:cover;background:#eee}
+</style>
+<h1 style="padding:24px">아래로 내려가야 그림이 뜨고, 뜨는 데 시간이 걸립니다</h1>
+<div id="slots"></div>
+<script>
+/*
+ * 아임웹 사이트들이 이랬다. 스크롤이 너무 빨라서 이미지가 "뜨기 시작만 하고"
+ * 다 뜨기 전에 지나가 버렸다. 두 번 다 똑같이 비어서 채점기는 통과로 셌고
+ * 사람 눈에는 불완전했다.
+ *
+ * 화면에 들어올 때 로딩을 시작하고, 서버가 일부러 늦게 준다(/느린그림.svg).
+ * 캡처가 다 기다렸는지 확인한다.
+ */
+const box = document.getElementById('slots');
+for (let i = 0; i < 6; i++) {
+  const slot = document.createElement('div');
+  slot.className = 'slot';
+  const img = document.createElement('img');
+  img.dataset.src = '/느린그림.svg?n=' + i;
+  slot.appendChild(img);
+  box.appendChild(slot);
+}
+const io = new IntersectionObserver((entries) => {
+  for (const e of entries) {
+    if (!e.isIntersecting) continue;
+    e.target.src = e.target.dataset.src;
+    io.unobserve(e.target);
+  }
+});
+document.querySelectorAll('img').forEach((img) => io.observe(img));
+</script>

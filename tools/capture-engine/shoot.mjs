@@ -99,14 +99,15 @@ function renderReport(rows, meta) {
   L.push(`  저장 위치   ${meta.out}`);
   L.push('');
   L.push(`  확인됨      ${String(ok).padStart(3)}건   두 번 찍어 같았습니다. 그대로 쓰셔도 됩니다`);
-  if (review) L.push(`  검수 필요   ${String(review).padStart(3)}건   찍히긴 했는데 두 번이 달랐습니다. __차이.png 를 보세요`);
+  if (review) L.push(`  검수 필요   ${String(review).padStart(3)}건   두 번이 다르거나, 화면에 덜 뜬 것이 있습니다`);
   if (fail) L.push(`  실패        ${String(fail).padStart(3)}건   캡처 자체가 안 됐습니다`);
   L.push('');
   L.push('  ' + '─'.repeat(70));
   for (const r of rows) {
     const mark = r.status === '확인됨' ? '✓' : r.status === '검수 필요' ? '△' : '✗';
     const tail = r.status === '실패' ? r.error
-      : r.status === '검수 필요' ? `${(r.ratio * 100).toFixed(2)}% 다름 · ${r.where || ''}`
+      : r.status === '검수 필요' ? (r.gaps && r.gaps.length ? r.gaps.join(' · ')
+        : `${(r.ratio * 100).toFixed(2)}% 다름 · ${r.where || ''}`)
       // 검사 때문에 기본 2번 찍는다. 3번 이상이어야 "다시 찍어서 안정됐다"는 뜻이다.
       : `${r.docHeight.toLocaleString('en-US')}px${r.tries > 2 ? ` · ${r.tries}번 만에 안정` : ''}`;
     L.push(`  ${mark} ${pad(clip(r.name, 30), 32)}${tail}`);
@@ -125,8 +126,10 @@ function renderIndex(rows, meta) {
     const img = r.files && r.files[0]
       ? `<a href="${esc(r.files[0])}" target="_blank"><img src="${esc(r.files[0])}" alt="${esc(r.name)}"></a>`
       : `<div class="none">${esc(r.error || '이미지 없음')}</div>`;
-    const extra = r.diffFile
-      ? `<p class="d">두 번이 ${(r.ratio * 100).toFixed(2)}% 달랐습니다 — <a href="${esc(r.diffFile)}" target="_blank">차이 보기</a></p>` : '';
+    const extra = [
+      r.diffFile ? `<p class="d">두 번이 ${(r.ratio * 100).toFixed(2)}% 달랐습니다 — <a href="${esc(r.diffFile)}" target="_blank">차이 보기</a></p>` : '',
+      r.gaps && r.gaps.length ? `<p class="d">덜 뜬 것: ${esc(r.gaps.join(' · '))}</p>` : '',
+    ].join('');
     return `<figure>${img}<figcaption><b>${esc(r.name)}</b>${badge}
       <p class="d">${esc(r.url)}</p>${extra}</figcaption></figure>`;
   };
@@ -160,7 +163,7 @@ figcaption b{font-size:.95rem;letter-spacing:-.01em}
 <div class="grid">${rows.map(card).join('\n')}</div>`;
 }
 
-const CSV_COLS = ['이름', 'URL', '상태', '파일', '문서높이', '분할수', '차이비율', '차이구간', '시도횟수', '메모', '오류'];
+const CSV_COLS = ['이름', 'URL', '상태', '덜뜬것', '파일', '문서높이', '분할수', '차이비율', '차이구간', '시도횟수', '메모', '오류'];
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
@@ -255,6 +258,16 @@ async function main() {
       }
 
       const stable = !check || !cmp || cmp.verdict === VERDICT.SAME || cmp.verdict === VERDICT.SAME_PIXELS;
+
+      // 두 번이 같다고 제대로 찍힌 건 아니다. 두 번 다 똑같이 비어 있을 수 있다 —
+      // 아임웹에서 실제로 그 일이 났다. 화면에 있어야 할 것이 없는지 따로 본다.
+      const rd = last.ready || {};
+      const gaps = [];
+      if (rd.loading) gaps.push(`안 뜬 이미지 ${rd.loading}개`);
+      if (rd.broken) gaps.push(`깨진 이미지 ${rd.broken}개`);
+      if (rd.invisible) gaps.push(`투명한 요소 ${rd.invisible}개`);
+      if (rd.blankVideos) gaps.push(`빈 비디오 ${rd.blankVideos}개`);
+      const complete = gaps.length === 0;
       const files = last.slices.map((buf, i) => {
         const f = last.slices.length === 1 ? `${name}.png` : `${name} (${i + 1}).png`;
         writeFileSync(join(outDir, f), buf);
@@ -269,11 +282,13 @@ async function main() {
         if (strip) { diffFile = `${name}__차이.png`; writeFileSync(join(outDir, diffFile), strip); }
       }
 
-      console.error(`  [${++done}/${urls.length}] ${stable ? '✓' : '△'} ${name} — ${last.docHeight.toLocaleString('en-US')}px${stable ? '' : ` · 두 번이 ${(cmp.ratio * 100).toFixed(2)}% 다름`}`);
+      const mark = stable && complete ? '✓' : '△';
+      const why = !stable ? `두 번이 ${(cmp.ratio * 100).toFixed(2)}% 다름` : gaps.join(' · ');
+      console.error(`  [${++done}/${urls.length}] ${mark} ${name} — ${last.docHeight.toLocaleString('en-US')}px${why ? ' · ' + why : ''}`);
 
       return {
-        name, url, status: stable ? '확인됨' : '검수 필요',
-        files, diffFile, tries,
+        name, url, status: stable && complete ? '확인됨' : '검수 필요',
+        gaps, files, diffFile, tries,
         docHeight: last.docHeight, sliceCount: last.sliceCount,
         ratio: cmp ? cmp.ratio : 0,
         where: cmp && cmp.region ? `y ${cmp.region.y}~${cmp.region.y + cmp.region.h}` : '',
@@ -291,7 +306,8 @@ async function main() {
   writeFileSync(join(outDir, '보고서.txt'), report + '\n');
   writeFileSync(join(outDir, '목록.html'), renderIndex(rows, meta));
   writeFileSync(join(outDir, '목록.csv'), writeTable(CSV_COLS, rows.map((r) => ({
-    '이름': r.name, 'URL': r.url, '상태': r.status, '파일': (r.files || []).join(' / '),
+    '이름': r.name, 'URL': r.url, '상태': r.status, '덜뜬것': (r.gaps || []).join(' · '),
+    '파일': (r.files || []).join(' / '),
     '문서높이': r.docHeight ?? '', '분할수': r.sliceCount ?? '',
     '차이비율': r.ratio ? (r.ratio * 100).toFixed(4) + '%' : '',
     '차이구간': r.where || '', '시도횟수': r.tries ?? '',

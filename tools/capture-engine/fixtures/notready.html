@@ -1,0 +1,16 @@
+<!doctype html><meta charset=utf-8><title>내용이 투명하게 남아 있는 페이지</title>
+<style>
+body{margin:0;font:16px/1.6 system-ui}
+.reveal{height:300px;margin:40px;background:#48c;opacity:0}
+</style>
+<h1 style="padding:24px">아래 세 덩어리는 끝까지 투명한 채로 남습니다</h1>
+<!--
+  두 번 찍어 같은지만 보면 이런 페이지가 통과한다 — 두 번 다 똑같이 비어
+  있으니까. 아임웹 사이트에서 실제로 그 일이 났다. 사람 눈에는 불완전한데
+  채점기는 "확인됨"으로 셌다.
+  그래서 픽셀이 아니라 DOM 을 본다: 자리는 차지하는데 투명한 요소를 센다.
+-->
+<div class="reveal"></div>
+<div class="reveal"></div>
+<div class="reveal"></div>
+<div style="height:400px;background:#eee"></div>

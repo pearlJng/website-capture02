@@ -110,6 +110,33 @@ const CASES = [
     },
   },
   {
+    // 두 번 찍어 같은지만 보면 "두 번 다 똑같이 비어 있는" 페이지가 통과한다.
+    // 아임웹에서 실제로 그 일이 났다. 픽셀이 아니라 DOM 을 봐야 잡힌다.
+    name: '두 번 다 같더라도 내용이 안 뜬 상태를 잡아낸다',
+    file: 'notready.html', steps: [], twice: true,
+    check: (r, cmp) => {
+      if (!same(cmp.verdict)) return '두 번이 달랐다 — 이 픽스처는 항상 같아야 한다';
+      if (!r.ready) return '완성도를 재지 않았다';
+      if (r.ready.invisible < 3) return `투명한 요소를 ${r.ready.invisible}개만 셌다 (3개여야 한다)`;
+      if (!(r.notes || []).some((n) => n.includes('투명한 요소'))) return '메모에 남기지 않았다';
+      return null;
+    },
+  },
+  {
+    // 늦게 오는 이미지를 끝까지 기다리는지. 다만 이 픽스처는 스크롤 속도까지
+    // 가르지는 못한다 — 뒤에 붙인 networkidle 대기만으로도 통과하기 때문이다.
+    // 스크롤을 느리게 한 것이 실제 사이트에서 효과가 있는지는 라이브에서만 안다.
+    name: '늦게 오는 지연 로딩 이미지를 다 받은 뒤에 찍는다',
+    file: 'lazyimg.html', steps: [],
+    check: (r) => {
+      if (!r.ready) return '완성도를 재지 않았다';
+      const { images, loading, broken } = r.ready;
+      if (images < 6) return `이미지를 ${images}개만 찾았다 (6개여야 한다)`;
+      if (loading || broken) return `아직 안 뜬 이미지 ${loading}개 · 깨진 것 ${broken}개`;
+      return null;
+    },
+  },
+  {
     // 법무법인 유강이 가로 폭 1,642 대 1,654 로 실패했다.
     // 뷰포트 폭으로 잘라내면 폭이 고정되고, 방문자가 보는 것과도 일치한다.
     name: '가로로 삐져나온 양이 달라져도 뷰포트 폭으로 잘라 같게 만든다',
@@ -156,6 +183,15 @@ function makeServer() {
   return createServer(async (req, res) => {
     const name = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '') || 'index.html';
     if (name.includes('..')) { res.writeHead(400).end(); return; }
+    // 일부러 늦게 주는 그림. 스크롤이 기다려 주는지 시험한다.
+    if (name === '느린그림.svg') {
+      setTimeout(() => {
+        res.writeHead(200, { 'content-type': 'image/svg+xml' }).end(
+          '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300">' +
+          '<rect width="400" height="300" fill="#3a7"/></svg>');
+      }, 900);
+      return;
+    }
     try {
       let body = await readFile(join(HERE, 'fixtures', name));
       if (extname(name) === '.html') {
