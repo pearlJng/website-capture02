@@ -40,9 +40,10 @@ function inPageReadNav() {
   const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
   const seen = new Set();
 
-  const labelOf = (a) => clean(a.innerText || a.textContent)
+  const cap = (t) => (t.length > 50 ? t.slice(0, 47) + '…' : t);
+  const labelOf = (a) => cap(clean(a.innerText || a.textContent)
     || clean(a.getAttribute('aria-label') || a.getAttribute('title'))
-    || clean([...a.querySelectorAll('img[alt]')].map((i) => i.alt).join(' '));
+    || clean([...a.querySelectorAll('img[alt]')].map((i) => i.alt).join(' ')));
 
   const kindOf = (u) => {
     if (!u) return '없음';
@@ -100,28 +101,44 @@ function inPageReadNav() {
     .filter((u) => !u.parentElement.closest('ul, ol') || !root.contains(u.parentElement.closest('ul, ol')));
 
   const pick = (sel) => [...document.querySelectorAll(sel)];
-  // 헤더 후보를 문서 순서대로. header 가 nav 를 품고 있으면 header 에서 다 읽히고 nav 는 비게 된다.
-  const headerRoots = pick('header, nav, [role="navigation"], [class*="gnb"], [id*="gnb"], [class*="header"], [id*="header"], [class*="menu"], [id*="menu"], [class*="nav"], [id*="nav"]')
-    .filter((el) => !el.closest('footer, [class*="footer"], [id*="footer"]'));
-  const footerRoots = pick('footer, [class*="footer"], [id*="footer"]');
+  const vh = window.innerHeight;
+  const HEADERISH = 'header, nav, [role="navigation"], [class*="gnb"], [id*="gnb"], [class*="header"], [id*="header"], [class*="menu"], [id*="menu"], [class*="nav"], [id*="nav"]';
+  const FOOTERISH = 'footer, [class*="footer"], [id*="footer"]';
+  // 이름만 보고 고르면 안 된다. 아임웹은 페이지 전체를 감싸는 요소의 클래스에도
+  // nav·menu 가 들어가서, 본문의 뉴스 카드까지 "헤더 링크"로 딸려 왔다.
+  // 헤더·내비는 한 화면을 넘지 않는다 — 페이지 높이짜리는 헤더가 아니다.
+  const small = (el, k) => el !== document.body && el !== document.documentElement
+    && el.getBoundingClientRect().height <= vh * k;
+  const headerRoots = pick(HEADERISH).filter((el) => small(el, 1.2) && !el.closest(FOOTERISH));
+  const footerRoots = pick(FOOTERISH).filter((el) => small(el, 2));
 
-  const menu = [];
+  // 헤더 안의 목록을 전부 읽고, GNB 와 유틸리티(알림·마이페이지·언어)를 가른다.
+  // 사이트 안 페이지로 가는 항목이 3개 이상인 목록이 GNB 다. 하나도 없으면
+  // 가장 긴 목록을 GNB 로 본다.
+  const lists = [];
   for (const root of headerRoots) {
     for (const list of topLists(root)) {
-      // 다른 후보 안에서 이미 읽은 목록이면 건너뛴다
       if (list.__read) continue;
       list.__read = true;
       for (const u of list.querySelectorAll('ul, ol')) u.__read = true;
-      menu.push(...walkList(list, 0));
+      const items = walkList(list, 0);
+      if (items.length) lists.push(items);
     }
   }
-  // 목록 밖에 있는 헤더 링크(로고·로그인·언어 등)
+  const countPages = (items) => items.reduce((n, x) => n + (x.kind === '페이지' ? 1 : 0) + countPages(x.children), 0);
+  let gnbLists = lists.filter((items) => countPages(items) >= 3);
+  if (!gnbLists.length && lists.length) gnbLists = [lists.reduce((a, b) => (b.length > a.length ? b : a))];
+  const menu = gnbLists.flat();
+  const utility = lists.filter((l) => !gnbLists.includes(l)).flat()
+    .filter((x) => x.kind !== '없음');
+
+  // 목록 밖에 있는 헤더 링크(로고·로그인·언어 등). 주소 없는 버튼은 뺀다.
   const loose = [];
   for (const root of headerRoots) {
     for (const a of root.querySelectorAll('a')) {
       if (a.closest('ul, ol')) continue;
       const l = linkOf(a);
-      if (!l || !l.label) continue;
+      if (!l || !l.label || l.kind === '없음') continue;
       const k = key(l);
       if (seen.has(k)) continue;
       seen.add(k);
@@ -145,7 +162,9 @@ function inPageReadNav() {
     url: location.href,
     h1: clean((document.querySelector('h1') || {}).textContent),
     description: clean((document.querySelector('meta[name="description"]') || {}).content),
-    menu, loose, footer,
+    menu, utility, loose, footer,
+    // 판정이 틀렸을 때 들여다볼 수 있게 헤더 원문을 남긴다
+    headerHtml: headerRoots.slice(0, 4).map((el) => el.outerHTML).join('\n\n').slice(0, 300000),
   };
 }
 
@@ -161,8 +180,15 @@ function inPageReadSections() {
   const vh = window.innerHeight;
   const docH = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
   const rect = (el) => { const r = el.getBoundingClientRect(); return { top: Math.round(r.top + window.scrollY), h: Math.round(r.height) }; };
-  const isChrome = (el) => !!el.closest('header, footer, nav, [class*="header"], [class*="footer"], [id*="header"], [id*="footer"]')
-    || getComputedStyle(el).position === 'fixed';
+  // 헤더·푸터 판정도 이름만 보면 안 된다 (위 inPageReadNav 의 이유와 같다).
+  // 한 화면 반을 넘는 요소는 이름에 header 가 들어 있어도 본문 포장이다.
+  const CHROMEISH = 'header, footer, nav, [class*="header"], [class*="footer"], [id*="header"], [id*="footer"]';
+  const isChrome = (el) => {
+    for (let n = el; n && n !== document.body; n = n.parentElement) {
+      if (n.matches(CHROMEISH) && n.getBoundingClientRect().height <= vh * 1.5) return true;
+    }
+    return getComputedStyle(el).position === 'fixed';
+  };
 
   // 1) 사이트가 스스로 구간을 표시한 경우
   let blocks = [...document.querySelectorAll('.doz_section, main > section, body section')]
@@ -329,7 +355,8 @@ export async function extractSitemap(context, url, opts = {}) {
     const count = (items) => items.reduce((n, x) => n + 1 + count(x.children), 0);
     return {
       ok: true, url, finalUrl: page.url(), title: home.title, description: home.description,
-      menu: home.menu, loose: home.loose, footer: home.footer, main, pages,
+      menu: home.menu, utility: home.utility || [], loose: home.loose, footer: home.footer, main, pages,
+      headerHtml: home.headerHtml,
       menuCount: count(home.menu), inspected, ms: Date.now() - started,
     };
   } catch (e) {
@@ -345,8 +372,8 @@ const short = (href, origin) => {
   if (!href) return '';
   try {
     const u = new URL(href);
-    if (u.origin === origin) return (u.pathname + u.search + u.hash) || '/';
-    return u.href;
+    const out = u.origin === origin ? ((u.pathname + u.search + u.hash) || '/') : u.href;
+    return out.length > 70 ? out.slice(0, 67) + '…' : out;
   } catch { return href; }
 };
 
@@ -372,6 +399,11 @@ export function renderTree(r) {
   };
   walk(r.menu, '  ');
 
+  if (r.utility && r.utility.length) {
+    L.push('');
+    L.push('  유틸리티 메뉴 (알림·마이페이지·언어 등)');
+    for (const l of r.utility) L.push(`    · ${l.label}  ${short(l.href, origin)}${l.kind === '외부' ? '  (외부)' : ''}`);
+  }
   if (r.loose.length) {
     L.push('');
     L.push('  헤더의 다른 링크');
@@ -407,6 +439,7 @@ export function flattenRows(r) {
     }
   };
   walk(r.menu, []);
+  for (const l of (r.utility || [])) rows.push({ '깊이': 0, '경로': l.label, '이름': l.label, 'URL': l.href, '종류': l.kind, '출처': '유틸리티' });
   for (const l of r.loose) rows.push({ '깊이': 0, '경로': l.label, '이름': l.label, 'URL': l.href, '종류': l.kind, '출처': '헤더' });
   for (const l of r.footer) rows.push({ '깊이': 0, '경로': l.label, '이름': l.label, 'URL': l.href, '종류': l.kind, '출처': '푸터' });
   return rows;
@@ -475,7 +508,9 @@ async function main() {
       console.log(tree);
       const base = urls.length > 1 ? `정보구조 - ${new URL(r.finalUrl || url).hostname}` : '정보구조';
       writeFileSync(join(outDir, `${base}.txt`), tree + '\n');
-      writeFileSync(join(outDir, `${base}.json`), JSON.stringify(r, null, 2));
+      const { headerHtml, ...rest } = r;
+      writeFileSync(join(outDir, `${base}.json`), JSON.stringify(rest, null, 2));
+      if (headerHtml) writeFileSync(join(outDir, `${base.replace('정보구조', '헤더원문')}.html`), headerHtml);
       writeFileSync(join(outDir, `${base}.csv`), writeTable(['깊이', '경로', '이름', 'URL', '종류', '출처'], flattenRows(r)));
       writeFileSync(join(outDir, `${base.replace('정보구조', '메인페이지')}.csv`),
         writeTable(['순서', '유형', '제목', '시작px', '높이px', '구성요소', 'GNB항목', '텍스트'], sectionRows(r)));

@@ -250,6 +250,9 @@ const CASES = [
       if (r.menu[5].kind !== '없음') return `Contact 가 ${r.menu[5].kind} (기대 없음)`;
       if (r.menuCount !== 10) return `메뉴를 ${r.menuCount}개로 셌다 (기대 10 — 모바일 메뉴 중복이 섞였나)`;
       if (!r.loose.some((x) => x.label === '로그인')) return '헤더의 로그인 링크를 놓쳤다';
+      if (r.loose.some((x) => x.href.includes('/news/'))) return '본문 뉴스 링크가 헤더 링크로 딸려 왔다 (포장 클래스에 nav 가 있어서)';
+      const util = r.utility.map((x) => x.label);
+      if (util.join('|') !== '마이페이지|English') return `유틸리티 메뉴가 ${util.join(' / ')} (기대 마이페이지 / English — 알림은 주소가 없어 뺀다)`;
       if (r.footer.length !== 3) return `푸터 링크 ${r.footer.length}개 (기대 3)`;
       // 메인페이지 구성
       const sec = (r.main && r.main.sections) || [];

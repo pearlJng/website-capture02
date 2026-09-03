@@ -30,6 +30,11 @@ footer{padding:24px;background:#eee}
       <li><a href="javascript:void(0)">Contact</a></li>
     </ul>
   </nav>
+  <ul class="util">
+    <li><a href="javascript:void(0)">알림</a></li>
+    <li><a href="/mypage.html">마이페이지</a></li>
+    <li><a href="https://en.example.com/">English</a></li>
+  </ul>
   <a href="/login.html">로그인</a>
 </header>
 <!-- 모바일 메뉴: 같은 링크가 한 번 더 있다. 결과에 두 번 나오면 안 된다. -->
@@ -41,6 +46,9 @@ footer{padding:24px;background:#eee}
     <li><a href="/products.html">Products</a></li>
   </ul>
 </div>
+<!-- 아임웹처럼 페이지 전체를 감싸는 요소의 클래스에 nav 가 들어 있다.
+     이 안의 뉴스 링크가 "헤더 링크"로 딸려 오면 안 된다. -->
+<div class="page-nav-wrapper">
 <main>
   <section id="hero" style="height:820px;position:relative;background:#123">
     <video muted playsinline style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover"></video>
@@ -65,6 +73,8 @@ footer{padding:24px;background:#eee}
     <form><input placeholder="이름" style="height:44px"><textarea placeholder="내용"></textarea><button style="height:44px;width:160px">보내기</button></form>
   </section>
 </main>
+<div class="news"><a href="/news/1.html">01 뉴스 — 회사가 상을 받았습니다. 자세히 보기</a></div>
+</div>
 <footer>
   <a href="/privacy.html">개인정보처리방침</a>
   <a href="/terms.html">이용약관</a>
