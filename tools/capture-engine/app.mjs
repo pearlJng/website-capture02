@@ -312,6 +312,15 @@ const readBody = (req) => new Promise((res, rej) => {
 });
 const json = (res, code, obj) => { res.writeHead(code, { 'content-type': 'application/json; charset=utf-8' }).end(JSON.stringify(obj)); };
 
+/** 이 요청이 이 컴퓨터의 브라우저에서 온 것인가. 터널(ngrok·cloudflared)이나 다른
+ *  컴퓨터에서 온 요청에는 맥 저장 창을 띄우면 안 된다 — 창은 여기 뜨고 그 사람은 못 본다. */
+const isLocalRequest = (req) => {
+  const ip = req.socket.remoteAddress || '';
+  const host = (req.headers.host || '').split(':')[0];
+  return !req.headers['x-forwarded-for'] && /^(127\.0\.0\.1|::1|::ffff:127\.0\.0\.1)$/.test(ip)
+    && (host === '127.0.0.1' || host === 'localhost');
+};
+
 const server = createServer(async (req, res) => {
   const u = new URL(req.url, 'http://127.0.0.1');
   try {
@@ -384,6 +393,7 @@ const server = createServer(async (req, res) => {
       if (!job) return json(res, 404, { ok: false, error: '없는 작업' });
       let hostName = 'site';
       try { hostName = new URL(job.requested[0].url).hostname; } catch { /* 무시 */ }
+      if (!isLocalRequest(req)) return json(res, 200, { ok: true, native: false });
       return json(res, 200, await pickSavePath({ defaultName: `${hostName} ${job.width}`, format }));
     }
     if (req.method === 'POST' && u.pathname === '/api/export') {
@@ -403,7 +413,7 @@ const server = createServer(async (req, res) => {
         .filter((r) => r.files && r.files.length && (!want || want.has(normUrl(r.url))))
         .sort((a, b) => (order.get(normUrl(a.url)) ?? 999) - (order.get(normUrl(b.url)) ?? 999));
       if (!rows.length) return json(res, 400, { ok: false, error: '내보낼 그림이 없습니다' });
-      const viaBrowser = PUBLIC || process.platform !== 'darwin';
+      const viaBrowser = PUBLIC || process.platform !== 'darwin' || !isLocalRequest(req);
       if (format === 'pdf') {
         const r = await exportPdf(job, rows, { baseDir, name: outName });
         if (viaBrowser) return json(res, 200, { ok: true, format, pages: r.pages, count: rows.length, download: offerDownload(r.file, `${outName}.pdf`, 'application/pdf') });

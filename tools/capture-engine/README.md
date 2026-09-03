@@ -197,6 +197,19 @@ docker run -d -p 8890:8890 -e APP_PASSWORD='원하는비밀번호' -v $PWD/결�
 - Fly.io / Railway / Render 같은 곳은 Dockerfile 을 그대로 읽는다. 환경변수에 `APP_PASSWORD` 를 넣고, 메모리를 2GB 로 잡으면 된다.
   결과 파일을 남기려면 `/app/결과` 에 볼륨을 붙인다.
 
+### 돈 안 들이고 — 내 맥을 서버로 (터널)
+
+서버를 빌리지 않아도 된다. 내 맥에서 앱을 띄우고 터널로 밖에 연다. 맥이 켜져 있는 동안만 된다.
+
+```bash
+node app.mjs --password 비밀번호          # 터미널 1
+ngrok http 8890                            # 터미널 2 → https://xxxx.ngrok-free.app 이 뜬다
+```
+
+ngrok 은 무료 계정에 고정 주소 하나를 준다(대시보드 → Domains). `ngrok http --url=내주소.ngrok-free.app 8890` 으로 띄우면 매번 같은 주소다.
+cloudflared 도 된다: `cloudflared tunnel --url http://localhost:8890` (계정 없이, 주소는 매번 바뀐다).
+터널로 들어온 사람에게는 맥 저장 창 대신 브라우저 내려받기로 나간다.
+
 같은 사무실 안에서만 쓸 거면 서버 없이도 된다. 맥에서 `node app.mjs --host 0.0.0.0 --password 비밀번호` 로 띄우고
 `http://<그 맥의 IP>:8890/` 으로 들어가면 된다 (그 맥이 켜져 있는 동안).
 
