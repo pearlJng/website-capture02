@@ -245,6 +245,20 @@ const CASES = [
     },
   },
   {
+    // 그래도 GNB 가 반복됐다. 스크롤할 때마다 헤더를 통째로 새로 만들어 스크롤 위치에
+    // 얹는 사이트는 표도 인라인 style 도 매번 사라진다. CSS 를 믿지 말고 "스크롤이
+    // 달라졌는데 같은 자리에 있는 것"을 잡아야 한다.
+    name: '스크롤마다 새로 만드는 헤더도 첫 화면에만 한 번 나온다',
+    file: 'headerclone.html', mode: 'stitch', steps: ['sticky', 'motion', 'anim'], color: true,
+    check: (r, cmp, shots, extra) => {
+      if (!extra || !extra.rows) return '색을 못 셌다';
+      const { top, below } = extra.rows;
+      if (top < 40) return `첫 화면에 헤더가 ${top}줄뿐이다`;
+      if (below > 0) return `헤더 색이 두 번째 화면 아래에 ${below}줄이나 있다 — GNB 가 반복됐다`;
+      return null;
+    },
+  },
+  {
     // 정보구조는 헤더 목록의 중첩을 그대로 읽는다. 숨긴 드롭다운도 읽고,
     // 모바일 메뉴에 반복된 링크는 한 번만 세고, 외부·앵커·파일은 표시한다.
     name: '정보구조: 메뉴 트리를 읽고 중복·외부·앵커를 가른다',

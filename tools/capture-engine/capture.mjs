@@ -263,9 +263,20 @@ function inPageTameFixed(viewportWidth) {
 
 /** 고정·스티키 요소를 전부 숨긴다. 조각마다 따라 붙는 것을 막는다. */
 function inPageHideAllFixed() {
+  // 숨김 규칙을 문서에 심는다. 인라인 style 은 사이트 JS 가 갈아엎을 수 있지만 속성+규칙은 남는다.
+  if (!document.getElementById('cap-hide-rule')) {
+    const st = document.createElement('style');
+    st.id = 'cap-hide-rule';
+    st.textContent = '[data-cap-hidden]{visibility:hidden!important}';
+    (document.head || document.documentElement).appendChild(st);
+  }
   let n = 0;
   for (const el of document.querySelectorAll('body *')) {
-    if (el.hasAttribute('data-cap-hidden')) continue;
+    if (el.hasAttribute('data-cap-hidden')) {
+      // 이미 숨긴 것도 다시 다진다 — 인라인 style 을 사이트가 지웠을 수 있다
+      el.style.setProperty('visibility', 'hidden', 'important');
+      continue;
+    }
     const cs = getComputedStyle(el);
     // 첫 화면에 남겨 둔 헤더는 CSS 가 뭐라 하든 여기서 숨긴다. 스크롤에 따라
     // 고정으로 바뀌었다 풀렸다 하는 헤더가 화면마다 다시 찍혀 GNB 가 반복됐다.
@@ -306,11 +317,62 @@ function inPageClosePopups() {
   return n;
 }
 
+/**
+ * 결정적인 판별: 스크롤 위치가 달라졌는데도 화면의 같은 자리에 있는 요소는
+ * 따라붙는 것이다 — position 이 fixed 든 absolute 든, JS 로 매번 새로 만들든 상관없다.
+ * 화면 위쪽 띠(헤더)와 아래쪽 띠(플로팅 바)에 점을 찍어 거기 있는 요소들의 자리를
+ * 재고, 직전 조각과 비교한다. GNB 가 조각마다 반복된 마지막 원인이 이것이었다.
+ */
+function inPageHidePinned(prev) {
+  if (!document.getElementById('cap-hide-rule')) {
+    const st = document.createElement('style');
+    st.id = 'cap-hide-rule';
+    st.textContent = '[data-cap-hidden]{visibility:hidden!important}';
+    (document.head || document.documentElement).appendChild(st);
+  }
+  const W = window.innerWidth, H = window.innerHeight;
+  const pts = [];
+  for (const y of [4, 24, 48, 80, 120, 160, 200, H - 8, H - 40, H - 80]) {
+    for (const x of [0.06, 0.2, 0.35, 0.5, 0.65, 0.8, 0.94]) pts.push([Math.round(W * x), y]);
+  }
+  const seen = new Map();
+  for (const [x, y] of pts) {
+    for (const el of document.elementsFromPoint(x, y)) {
+      if (el === document.documentElement || el === document.body) continue;
+      if (!seen.has(el)) seen.set(el, el.getBoundingClientRect());
+    }
+  }
+  // 요소 정체가 아니라 "생김새+자리"로 견준다. 스크롤마다 헤더를 새로 만드는
+  // 사이트는 요소가 매번 다른 것이라 정체로는 못 잇는다. 태그·자리·크기·글자 앞부분.
+  const sig = (el, r) => `${el.tagName}|${Math.round(r.top)}|${Math.round(r.left)}|${Math.round(r.width)}|${Math.round(r.height)}|` +
+    ((el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 60));
+  const cur = {};
+  for (const [el, r] of seen) cur[sig(el, r)] = true;
+  let hidden = 0;
+  // 흐름 안의 요소는 스크롤한 만큼 움직이므로 몇십 px 만 달라도 가를 수 있다.
+  // 마지막 조각은 바닥에 걸려 조금만 내려가는데, 거기서 헤더가 한 번 더 찍혔었다.
+  if (prev && Math.abs(window.scrollY - prev.scrollY) >= 24) {
+    for (const [el, r] of seen) {
+      if (!prev.ids[sig(el, r)]) continue;             // 직전 조각에 같은 생김새가 같은 자리에 없었다
+      if (el.hasAttribute('data-cap-hidden')) continue;
+      if (r.height > H * 0.6) continue;                 // 화면 대부분을 덮는 건 배경·포장이다
+      if (r.height < 8 || r.width < 8) continue;
+      if (el.closest('[data-cap-hidden]')) continue;    // 조상이 이미 숨겨졌다
+      el.setAttribute('data-cap-hidden', '');
+      el.style.setProperty('visibility', 'hidden', 'important');
+      hidden++;
+    }
+  }
+  return { ids: cur, scrollY: window.scrollY, hidden };
+}
+
 function inPageRestoreFixed() {
   for (const el of document.querySelectorAll('[data-cap-hidden]')) {
     el.style.removeProperty('visibility');
     el.removeAttribute('data-cap-hidden');
   }
+  const st = document.getElementById('cap-hide-rule');
+  if (st) st.remove();
 }
 
 /**
@@ -608,6 +670,7 @@ export async function captureSite(context, url, opts = {}) {
       let height = docHeight;
       let lastY = -1;      // 직전에 실제로 도달한 자리
       let hiddenLater = 0; // 두 번째 조각부터 숨긴 고정 요소 수
+      let pinned = null;   // 직전 조각에서 화면 위·아래 띠에 있던 요소들의 자리
       for (let i = 0; i < MAX_SCROLL_STEPS && y < height; i++) {
         progress(`찍는 중 ${i + 1}/${Math.ceil(height / VIEWPORT_H(page))}칸`);
         await page.evaluate(inPageScrollTo, y);
@@ -621,6 +684,11 @@ export async function captureSite(context, url, opts = {}) {
         if (steps.has('sticky') && (i >= 1 || tweaks.hideHeader)) {
           const n = await page.evaluate(inPageHideAllFixed);
           if (n) hiddenLater += n;
+        }
+        // 스크롤이 달라도 같은 자리에 남는 요소를 잡는다. 첫 조각은 자리만 재 둔다.
+        if (steps.has('sticky')) {
+          pinned = await page.evaluate(inPageHidePinned, pinned);
+          if (pinned.hidden) { hiddenLater += pinned.hidden; await page.waitForTimeout(80); }
         }
 
         const at = await page.evaluate(inPageWhere);
