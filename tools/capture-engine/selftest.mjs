@@ -254,17 +254,18 @@ const CASES = [
       if (!r.loose.some((x) => x.label === '로그인')) return '헤더의 로그인 링크를 놓쳤다';
       if (r.loose.some((x) => x.href.includes('/news/'))) return '본문 뉴스 링크가 헤더 링크로 딸려 왔다 (포장 클래스에 nav 가 있어서)';
       const util = r.utility.map((x) => x.label);
-      if (util.join('|') !== '마이페이지|English') return `유틸리티 메뉴가 ${util.join(' / ')} (기대 마이페이지 / English — 알림은 주소가 없어 뺀다)`;
+      if (util.join('|') !== 'EN|日本語|마이페이지') return `유틸리티 메뉴가 ${util.join(' / ')} (기대 EN / 日本語 / 마이페이지 — 언어 선택은 GNB 가 아니고, English 는 EN 과 같은 곳이라 접는다)`;
       if (r.footer.length !== 3) return `푸터 링크 ${r.footer.length}개 (기대 3)`;
       // 메인페이지 구성
       const sec = (r.main && r.main.sections) || [];
       const types = sec.map((x) => x.type);
-      if (sec.length !== 4) return `메인 구간을 ${sec.length}개로 셌다 (기대 4): ${types.join(' / ')}`;
+      if (sec.length !== 5) return `메인 구간을 ${sec.length}개로 셌다 (기대 5 — section 없는 배너를 틈에서 찾아야 한다): ${types.join(' / ')}`;
       if (!types[0].startsWith('히어로 (동영상)')) return `1구간이 ${types[0]} (기대 히어로 (동영상))`;
       if (types[1] !== '이미지 + 텍스트') return `2구간이 ${types[1]} (기대 이미지 + 텍스트)`;
-      if (types[2] !== '카드 3열') return `3구간이 ${types[2]} (기대 카드 3열)`;
-      if (types[3] !== '문의 · 폼') return `4구간이 ${types[3]} (기대 문의 · 폼)`;
-      if (!sec[1].gnb || !sec[2].gnb) return 'About us / Technology 구간을 GNB 항목과 연결하지 못했다';
+      if (types[2] !== 'CTA 배너') return `3구간이 ${types[2]} (기대 CTA 배너)`;
+      if (types[3] !== '카드 3열') return `4구간이 ${types[3]} (기대 카드 3열)`;
+      if (types[4] !== '문의 · 폼') return `5구간이 ${types[4]} (기대 문의 · 폼)`;
+      if (!sec[1].gnb || !sec[3].gnb) return 'About us / Technology 구간을 GNB 항목과 연결하지 못했다';
       return null;
     },
   },

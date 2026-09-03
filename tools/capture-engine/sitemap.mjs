@@ -255,12 +255,35 @@ function inPageReadSections() {
   }
   blocks.sort((a, b) => rect(a).top - rect(b).top);
 
+  // 구간 사이에 큰 빈 틈이 있으면 거기 뭔가 있는 것이다 — section 으로 안 싸인 덩어리.
+  // 테라클 메인에서 히어로 다음 1,300px 이 통째로 빠졌다. 틈을 절반 이상 채우는
+  // 가장 큰 요소를 찾아 끼운다.
+  const all = [...document.body.querySelectorAll('div, section, article, main > *')];
+  const filled = [];
+  for (let i = 0; i < blocks.length; i++) {
+    filled.push(blocks[i]);
+    if (i === blocks.length - 1) break;
+    const a = rect(blocks[i]), b = rect(blocks[i + 1]);
+    const gapTop = a.top + a.h, gapBottom = b.top, gap = gapBottom - gapTop;
+    if (gap < 250) continue;
+    let best = null, bestH = 0;
+    for (const el of all) {
+      if (isChrome(el) || blocks.includes(el)) continue;
+      const r = rect(el);
+      if (r.top < gapTop - 20 || r.top + r.h > gapBottom + 20 || r.h < gap * 0.5) continue;
+      if (r.h > bestH) { best = el; bestH = r.h; }
+    }
+    if (best) filled.push(best);
+  }
+  blocks = filled;
+
   const menuLabels = new Set([...document.querySelectorAll('header a, nav a')].map((a) => clean(a.textContent).toLowerCase()).filter(Boolean));
 
   const describe = (el, i) => {
     const { top, h } = rect(el);
     const heading = el.querySelector('h1, h2, h3, h4, [class*="title"], [class*="heading"]');
-    const headText = clean(heading && heading.textContent).slice(0, 60);
+    // textContent 는 <br> 을 지워 "테라클에서는재활용이" 처럼 붙는다. innerText 는 줄바꿈을 준다.
+    const headText = clean(heading && (heading.innerText || heading.textContent)).slice(0, 60);
     const text = clean(el.innerText).slice(0, 90);
     const imgs = [...el.querySelectorAll('img')].filter((im) => im.getBoundingClientRect().width >= 40);
     const bgImg = [el, ...el.querySelectorAll('*')].slice(0, 60).some((x) => /url\(/.test(getComputedStyle(x).backgroundImage));
@@ -423,7 +446,18 @@ async function discoverByHover(page, origin, progress) {
   strip(menu);
   // 주소 없는 항목도 남긴다 — 눌러야 팝업이 열리는 "Contact" 같은 메뉴가 있다.
   // 알림·마이페이지 같은 버튼은 보통 다른 줄(유틸리티 바)에 있어 여기 안 섞인다.
-  return menu;
+  // 언어 선택은 같은 줄에 앉아 있어도 GNB 가 아니다 — 유틸리티로 넘긴다.
+  const LANG = /^(en|eng|english|kr|ko|kor|korean|한국어|한글|jp|ja|jpn|japanese|日本語|cn|zh|chinese|中文|简体中文|繁體中文|中文\s*\((简体|繁體|繁体)\)|de|deutsch|german|fr|français|french|es|español|spanish|vi|tiếng việt|th|ไทย|language|languages|lang|언어|global)$/i;
+  const isLang = (x) => LANG.test(x.label) || (x.children.length >= 2 && x.children.every((c) => LANG.test(c.label)));
+  const utility = [];
+  const gnb = [];
+  for (const m of menu) {
+    if (isLang(m)) {
+      const flat = m.children.length ? m.children : [m];
+      for (const c of flat) utility.push({ ...c, depth: 0, children: [], group: '언어' });
+    } else gnb.push(m);
+  }
+  return { menu: gnb, utility };
 }
 
 /* ──────────────────────────────── 조립 ──────────────────────────────── */
@@ -451,7 +485,8 @@ export async function extractSitemap(context, url, opts = {}) {
 
     // 1순위: 마우스를 올려 찾은 것. 2순위: DOM 구조로 읽은 것.
     let method = 'dom';
-    const hovered = await discoverByHover(page, origin, progress).catch(() => null);
+    const found = await discoverByHover(page, origin, progress).catch(() => null);
+    const hovered = found && found.menu;
     if (hovered && hovered.length >= 3) {
       // DOM 으로 읽은 것 중 hover 로 못 본 항목(드롭다운이 hover 로 안 열리는 경우)은 유틸리티로 넘긴다
       const inHover = new Set();
@@ -462,7 +497,9 @@ export async function extractSitemap(context, url, opts = {}) {
       flatten(home.menu);
       const leftovers = flat.filter((x) => x.kind !== '없음' && !inHover.has(`${x.href}|${x.label}`))
         .map((x) => ({ ...x, depth: 0, children: [] }));
-      home.utility = [...(home.utility || []), ...leftovers].filter((x, i, arr) => arr.findIndex((o) => o.href === x.href && o.label === x.label) === i);
+      // 유틸리티는 주소가 같으면 하나다 (EN 과 English 가 같은 곳으로 간다)
+      home.utility = [...found.utility, ...(home.utility || []), ...leftovers]
+        .filter((x, i, arr) => arr.findIndex((o) => (x.href ? o.href === x.href : o.label === x.label)) === i);
       home.menu = hovered;
       method = 'hover';
     }
@@ -572,9 +609,16 @@ export function renderTree(r) {
     for (const l of r.loose) L.push(`    · ${l.label}  ${short(l.href, origin)}${l.kind === '외부' ? '  (외부)' : ''}`);
   }
   if (r.footer.length) {
+    // 푸터는 GNB 를 한 번 더 늘어놓기 마련이다. 같은 곳으로 가는 건 접는다.
+    const inMenu = new Set();
+    const collect = (items) => { for (const x of items) { if (x.href) inMenu.add(normUrl(x.href)); collect(x.children); } };
+    collect(r.menu);
+    for (const u of (r.utility || [])) if (u.href) inMenu.add(normUrl(u.href));
+    const rest = r.footer.filter((l) => !l.href || !inMenu.has(normUrl(l.href)));
+    const dup = r.footer.length - rest.length;
     L.push('');
-    L.push('  푸터');
-    for (const l of r.footer) L.push(`    · ${l.label}  ${short(l.href, origin)}${l.kind === '외부' ? '  (외부)' : ''}`);
+    L.push(`  푸터${dup ? `  (메뉴와 같은 링크 ${dup}개는 생략)` : ''}`);
+    for (const l of rest) L.push(`    · ${l.label}  ${short(l.href, origin)}${l.kind === '외부' ? '  (외부)' : ''}`);
   }
   if (r.main && r.main.sections.length) {
     L.push('');
