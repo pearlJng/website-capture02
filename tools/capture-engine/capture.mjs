@@ -48,7 +48,7 @@ export function contextOptionsFor(device, scale) {
 export const MODES = ['stitch', 'fullpage'];
 export const STEPS = ['sticky', 'motion', 'anim', 'slice'];
 
-const SETTLE_MS = 1500;
+const SETTLE_MS = 800;
 /** 한 번에 내려가는 양. 화면의 절반씩 — 지연 로딩이 따라올 시간을 준다. */
 const SCROLL_STEP_RATIO = 0.5;
 const MAX_SCROLL_STEPS = 120;
@@ -67,8 +67,10 @@ const SHOT_TIMEOUT = 120000;
  * 가 끝으로 돌려 준다. 관찰자가 발동해 클래스가 붙고, 그 칸 이미지가 그려질
  * 시간만 주면 된다. 700ms 에서 줄였다.
  */
-const SHOT_SETTLE_MS = 350;
-const SHOT_SETTLE_FIRST_MS = 700;
+const SHOT_SETTLE_MS = 250;
+const SHOT_SETTLE_FIRST_MS = 600;
+/** 칸을 찍기 전에 그 칸(과 다음 칸) 이미지가 다 뜨기를 기다리는 최대 횟수 × 간격 */
+const SHOT_IMAGE_WAITS = { rounds: 10, ms: 150 };
 
 /**
  * 한 번에 찍을 실픽셀 높이의 상한.
@@ -358,6 +360,24 @@ function inPageWhere() {
  * 한다. 그러면 아무리 넣어도 제자리다. 그래서 여러 방법을 차례로 시도하고,
  * 마지막에는 그 자리에 있는 요소를 화면으로 데려오는 방법까지 써 본다.
  */
+/**
+ * 화면 근처(위아래 한 화면) 이미지가 다 뜰 때까지 기다린다. 이어붙이기가
+ * 훑기 없이 한 번에 내려가므로, 지연 로딩 이미지는 이 자리에서 받아 와야 한다.
+ * 다음 칸까지 포함해 기다리는 건 경계에서 이미지가 늦게 떠 레이아웃이 밀리는
+ * 일을 줄이기 위해서다.
+ */
+async function inPageWaitNearImages(cfg) {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const near = (im) => {
+    const r = im.getBoundingClientRect();
+    return r.bottom > -window.innerHeight && r.top < window.innerHeight * 2;
+  };
+  const loading = () => [...document.images].filter((im) => !im.complete && near(im)).length;
+  let k = 0;
+  for (; k < cfg.rounds && loading() > 0; k++) await sleep(cfg.ms);
+  return k;
+}
+
 function inPageScrollTo(y) {
   const se = document.scrollingElement || document.documentElement;
   const at = () => Math.round(Math.max(
@@ -444,6 +464,10 @@ export async function captureSite(context, url, opts = {}) {
   const progress = typeof opts.onProgress === 'function' ? opts.onProgress : () => {};
   const started = Date.now();
   const notes = [];
+  // 어디서 시간이 갔는지. 안 재면 짐작으로 고치게 된다 — 그래서 한 번 틀렸다.
+  const timing = {};
+  let tick = started;
+  const lap = (k) => { const now = Date.now(); timing[k] = (timing[k] || 0) + (now - tick); tick = now; };
   const page = await context.newPage();
   // 가로 폭은 상수가 아니라 실제 창에서 읽는다 — 1440·1920·375 를 같은 코드로 찍는다.
   const vw = (page.viewportSize() || VIEWPORT).width;
@@ -455,8 +479,12 @@ export async function captureSite(context, url, opts = {}) {
     } catch (e) {
       return { ok: false, url, error: 'goto: ' + e.message.split('\n')[0], ms: Date.now() - started };
     }
-    await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
+    // networkidle 은 분석 스크립트가 계속 두드리는 사이트에서 제한 시간을 꽉 채운다.
+    // 어차피 이미지는 칸마다 따로 기다리므로 여기서 오래 붙잡을 이유가 없다.
+    await page.waitForLoadState('load', { timeout: 10000 }).catch(() => {});
+    await page.waitForLoadState('networkidle', { timeout: 4000 }).catch(() => {});
     await page.waitForTimeout(SETTLE_MS);
+    lap('열기');
 
     // 찾기는 항상, 걷어내기는 단계를 켰을 때만.
     const motion = await page.evaluate(inPageHandleMotion, steps.has('motion'));
@@ -468,11 +496,18 @@ export async function captureSite(context, url, opts = {}) {
         : '스무스 스크롤 감지(미처리): ' + motion.found.join(', '));
     }
 
-    progress('위에서 아래까지 훑는 중 — 지연 로딩 콘텐츠를 불러옵니다');
-    const scrolled = await page.evaluate(inPageScrollThrough, SCROLL_CFG);
-    progress(`훑기 끝 — 문서 ${scrolled.height.toLocaleString('en-US')}px`);
-    if (!scrolled.reachedBottom) notes.push('끝까지 스크롤하지 못했습니다 — 무언가가 스크롤을 가로챕니다');
-    await page.waitForTimeout(500);
+    // 한 방 캡처는 찍기 전에 문서를 한 번 훑어야 한다 — 지연 로딩을 다 불러와야
+    // 한 장에 담기기 때문이다. 이어붙이기는 내려가면서 칸마다 찍으므로 그 자리에서
+    // 불러오면 된다. 같은 문서를 두 번 내려가던 것을 한 번으로 줄였다.
+    let scrolled = { reachedBottom: true, height: 0 };
+    if (mode !== 'stitch') {
+      progress('위에서 아래까지 훑는 중 — 지연 로딩 콘텐츠를 불러옵니다');
+      scrolled = await page.evaluate(inPageScrollThrough, SCROLL_CFG);
+      progress(`훑기 끝 — 문서 ${scrolled.height.toLocaleString('en-US')}px`);
+      if (!scrolled.reachedBottom) notes.push('끝까지 스크롤하지 못했습니다 — 무언가가 스크롤을 가로챕니다');
+      await page.waitForTimeout(500);
+      lap('훑기');
+    }
 
     if (steps.has('anim')) {
       const n = await page.evaluate(inPageFreezeAnimations);
@@ -492,7 +527,8 @@ export async function captureSite(context, url, opts = {}) {
 
     // 폰트가 덜 그려진 채로 찍으면 두 번 찍을 때 달라진다.
     await page.evaluate(() => document.fonts && document.fonts.ready).catch(() => {});
-    await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+    if (mode !== 'stitch') await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
+    lap('준비');
 
     const m = await page.evaluate(inPageMeasure);
     const docHeight = m.docHeight;
@@ -502,8 +538,6 @@ export async function captureSite(context, url, opts = {}) {
     // 순간마다 문서 폭이 달라지는데, 방문자가 1440px 창에서 보는 건 1440px 까지다.
     const overflowX = m.docWidth - vw;
     if (overflowX > 2) notes.push(`가로로 ${overflowX}px 삐져나온 부분은 잘랐습니다 (뷰포트 폭 기준)`);
-
-    const ready = await page.evaluate(inPageReadiness);
 
     let slices;
     let shotCount = 0;
@@ -524,6 +558,8 @@ export async function captureSite(context, url, opts = {}) {
         progress(`찍는 중 ${i + 1}/${Math.ceil(height / VIEWPORT_H(page))}칸`);
         await page.evaluate(inPageScrollTo, y);
         await page.waitForTimeout(i === 0 ? SHOT_SETTLE_FIRST_MS : SHOT_SETTLE_MS);
+        // 이 칸(과 다음 칸)의 지연 로딩 이미지가 뜰 때까지. 없으면 바로 지나간다.
+        await page.evaluate(inPageWaitNearImages, SHOT_IMAGE_WAITS);
 
         // 두 번째 조각부터는 따라붙는 고정 요소를 전부 숨긴다.
         // 첫 조각에는 남겨야 헤더가 스냅샷에 한 번 들어간다.
@@ -556,6 +592,8 @@ export async function captureSite(context, url, opts = {}) {
         y = at.y + at.innerHeight;                       // 실제 위치 기준으로 다음 칸
       }
       shotCount = shots.length;
+      scrolled = { reachedBottom: !stalled, height };
+      lap('찍기');
       progress(`${shotCount}칸 이어 붙이는 중`);
 
       let finalHeight = (await page.evaluate(inPageWhere)).height;
@@ -572,6 +610,7 @@ export async function captureSite(context, url, opts = {}) {
         background: opts.background,
       });
       notes.push(`화면 ${shotCount}칸을 찍어 이어 붙였습니다`);
+      lap('붙이기');
     } else {
       // ── 예전 방식: 한 방에 풀페이지 ── 비교용으로 남겨 둔다
       const actualPx = docHeight * scale;
@@ -589,7 +628,10 @@ export async function captureSite(context, url, opts = {}) {
         }));
       }
       if (sliceCount > 1) notes.push(`${sliceCount}장으로 분할 (실픽셀 ${actualPx.toLocaleString('en-US')}px)`);
+      lap('찍기');
     }
+
+    const ready = await page.evaluate(inPageReadiness);
 
     if (ready.loading) notes.push(`아직 받아오는 중인 이미지 ${ready.loading}개`);
     if (ready.broken) notes.push(`깨진 이미지 ${ready.broken}개`);
@@ -606,7 +648,7 @@ export async function captureSite(context, url, opts = {}) {
       motionLibs: motion.found,
       motionHandled: steps.has('motion'), reachedBottom: scrolled.reachedBottom,
       finalUrl: page.url() !== url ? page.url() : undefined,
-      ms: Date.now() - started,
+      ms: Date.now() - started, timing,
     };
   } catch (e) {
     return { ok: false, url, error: e.message.split('\n')[0], notes, ms: Date.now() - started };

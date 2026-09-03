@@ -297,6 +297,12 @@ async function shootAll({ args, urls, host, pick, device, scale, outDir, check, 
         steps: [...STEPS], scale, mode: args.mode || 'stitch',
         stitchPage,
         onProgress: verbose ? (m) => console.error(`      ${label} · ${m}`) : undefined,
+      }).then((r) => {
+        if (verbose && r.ok && r.timing) {
+          const parts = Object.entries(r.timing).map(([k, v]) => `${k} ${(v / 1000).toFixed(1)}`).join(' · ');
+          console.error(`      ${label} · 완료 ${(r.ms / 1000).toFixed(1)}초 (${parts})`);
+        }
+        return r;
       });
       // 시간 제한. 넘기면 컨텍스트를 닫아 진행 중인 evaluate 를 끊는다.
       const limit = new Promise((_, rej) => {
