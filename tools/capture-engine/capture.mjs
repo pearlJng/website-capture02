@@ -224,8 +224,10 @@ async function inPageScrollThrough(cfg) {
 
 function inPageMeasure() {
   const d = document.documentElement;
+  const b = document.body;
   return {
-    docHeight: Math.max(d.scrollHeight, document.body ? document.body.scrollHeight : 0),
+    docHeight: Math.max(d.scrollHeight, b ? b.scrollHeight : 0),
+    docWidth: Math.max(d.scrollWidth, b ? b.scrollWidth : 0),
     title: (document.title || '').slice(0, 120),
   };
 }
@@ -288,6 +290,18 @@ export async function captureSite(context, url, opts = {}) {
 
     const m = await page.evaluate(inPageMeasure);
     const docHeight = m.docHeight;
+
+    // 가로는 항상 뷰포트 폭으로 고정한다.
+    //
+    // 풀페이지 캡처의 기본 폭은 문서의 scrollWidth 인데, 가로로 삐져나온
+    // 요소가 있으면 그 양만큼 폭이 늘어난다. 마퀴처럼 옆으로 흐르는 것이
+    // 있으면 찍는 순간마다 폭이 달라진다 — 법무법인 유강이 1,642px 대
+    // 1,654px 로 나온 이유다.
+    //
+    // 애초에 방문자가 1440px 창에서 보는 것은 1440px 까지다. 그 바깥은
+    // 화면에 없다. 잘라내는 게 맞고, 덤으로 폭이 고정된다.
+    const overflowX = m.docWidth - VIEWPORT.width;
+    if (overflowX > 2) notes.push(`가로로 ${overflowX}px 삐져나온 부분은 잘랐습니다 (뷰포트 폭 기준)`);
     const animations = steps.has('anim') ? 'disabled' : 'allow';
     const actualPx = docHeight * scale;
     const wantSlices = steps.has('slice') && actualPx > SAFE_PIXELS;
@@ -299,13 +313,10 @@ export async function captureSite(context, url, opts = {}) {
       const y = i * sliceH;
       const h = Math.min(sliceH, docHeight - y);
       if (h <= 0) break;
-      const shot = sliceCount === 1
-        ? await page.screenshot({ fullPage: true, animations, timeout: SHOT_TIMEOUT })
-        : await page.screenshot({
-            fullPage: true, animations, timeout: SHOT_TIMEOUT,
-            clip: { x: 0, y, width: VIEWPORT.width, height: h },
-          });
-      slices.push(shot);
+      slices.push(await page.screenshot({
+        fullPage: true, animations, timeout: SHOT_TIMEOUT,
+        clip: { x: 0, y, width: VIEWPORT.width, height: h },
+      }));
     }
     if (sliceCount > 1) notes.push(sliceCount + '장으로 분할 (실픽셀 ' + actualPx.toLocaleString('en-US') + 'px)');
 
@@ -313,7 +324,7 @@ export async function captureSite(context, url, opts = {}) {
 
     return {
       ok: true, url, title: m.title, docHeight, scale, slices,
-      sliceCount: slices.length, notes, motionLibs: motion.found,
+      sliceCount: slices.length, notes, docWidth: m.docWidth, motionLibs: motion.found,
       motionHandled: steps.has('motion'), reachedBottom: scrolled.reachedBottom,
       finalUrl: page.url() !== url ? page.url() : undefined,
       ms: Date.now() - started,

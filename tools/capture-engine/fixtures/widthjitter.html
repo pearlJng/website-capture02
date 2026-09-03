@@ -1,0 +1,10 @@
+<!doctype html><meta charset=utf-8><title>가로로 삐져나온 폭이 흔들리는 페이지</title>
+<style>body{margin:0;font:16px/1.6 system-ui;overflow-x:visible}</style>
+<h1 style="padding:24px">본문은 항상 같고, 오른쪽으로 삐져나온 양만 달라집니다</h1>
+<div style="height:1500px;background:linear-gradient(#fff,#dde)"></div>
+<!--
+  법무법인 유강이 1,642px 대 1,654px 로 실패했다. 세로가 아니라 가로 폭이
+  달랐다 — 옆으로 흐르는 요소가 있으면 찍는 순간의 위치에 따라 문서 폭이
+  바뀐다. 방문자가 1440px 창에서 보는 건 1440px 까지이므로 잘라내야 한다.
+-->
+<div style="position:absolute;top:100px;left:1200px;width:calc(400px + __JITTER__px);height:60px;background:#8ab"></div>
