@@ -1,0 +1,33 @@
+<!doctype html><meta charset=utf-8>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>판정 전</title>
+<style>
+body{margin:0;font:16px/1.6 system-ui}
+h1{margin:0;padding:40px 24px;font-size:40px}
+.pc{background:#dde7ff}.mo{background:#ffe1d6}
+ul{padding:0 24px 40px 44px}
+section{height:700px;background:linear-gradient(#fff,#eee)}
+</style>
+<h1 id="h">판정 전</h1>
+<ul id="why"></ul>
+<section></section>
+<script>
+/*
+ * 사이트가 방문자를 모바일로 보는지 PC 로 보는지 판정하는 네 가지 근거.
+ * 실제 사이트(아임웹 포함)는 이 중 한두 개만 본다 — 서버는 UA, CSS 는 폭,
+ * 메뉴는 터치. 375 로 찍을 때 넷이 다 "모바일"이어야 어떤 사이트든
+ * 모바일 페이지를 내준다.
+ */
+const ua = /iPhone|iPad|Android|Mobile/i.test(navigator.userAgent);
+const narrow = matchMedia('(max-width: 768px)').matches;
+const touch = navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
+const hidpi = devicePixelRatio >= 2;
+const votes = [['UA', ua], ['폭', narrow], ['터치', touch], ['고해상도', hidpi]];
+const mobile = votes.every(([, v]) => v);
+const pc = votes.every(([, v]) => !v);
+document.title = mobile ? '모바일 레이아웃' : pc ? 'PC 레이아웃' : '섞임: ' + votes.filter(([, v]) => v).map(([k]) => k).join('·');
+const h = document.getElementById('h');
+h.textContent = document.title;
+h.className = mobile ? 'mo' : 'pc';
+document.getElementById('why').innerHTML = votes.map(([k, v]) => `<li>${k}: ${v ? '모바일' : 'PC'}</li>`).join('');
+</script>

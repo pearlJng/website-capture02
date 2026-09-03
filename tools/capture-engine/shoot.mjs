@@ -49,22 +49,17 @@ function findUrlFile(name) {
 }
 
 /**
- * --width 1440 또는 --width 1440,1920,375.
- * 아무 폭이나 받지 않는다 — 크기마다 UA·터치·기본 배율이 다르고,
- * 그걸 정해 두지 않으면 "375px 짜리 데스크탑 페이지" 같은 게 나온다.
+ * --width 1440 | 1920 | 375. 하나만 받는다 — 주소를 넣고 크기를 고르면 그 화면이 나온다.
+ * 아무 폭이나 받지 않는다. 크기마다 UA·터치·기본 배율이 다르고, 그걸 정해
+ * 두지 않으면 "375px 짜리 데스크탑 페이지" 같은 게 나온다.
  */
-function parseWidths(v) {
-  if (!v) return [1440];
-  const want = String(v).split(',').map((x) => x.trim()).filter(Boolean);
-  const out = [];
-  for (const w of want) {
-    if (!DEVICES[w]) {
-      throw new Error(`--width ${w} 는 없습니다. 쓸 수 있는 값: ` +
-        Object.keys(DEVICES).map((k) => `${k}(${DEVICES[k].label})`).join(', '));
-    }
-    if (!out.includes(Number(w))) out.push(Number(w));
+function pickDevice(v) {
+  const w = String(v ?? 1440).trim();
+  if (!DEVICES[w]) {
+    throw new Error(`--width ${w} 는 없습니다. 쓸 수 있는 값: ` +
+      Object.keys(DEVICES).map((k) => `${k} (${DEVICES[k].label})`).join(', '));
   }
-  return out;
+  return DEVICES[w];
 }
 
 function loadUrls(args) {
@@ -192,43 +187,6 @@ ${meta.codecs ? '' : '<p class="warn">이 컴퓨터에 크롬이 없어 번들 �
 <div class="grid">${rows.map(card).join('\n')}</div>`;
 }
 
-/** 폭을 여러 개 찍었을 때, 어느 폭으로 들어갈지 고르는 표지 페이지. */
-function renderRootIndex(runs, meta) {
-  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-  const card = (run) => {
-    const ok = run.rows.filter((r) => r.status === '확인됨').length;
-    const review = run.rows.filter((r) => r.status === '검수 필요').length;
-    const fail = run.rows.filter((r) => r.status === '실패').length;
-    const first = run.rows.find((r) => r.files && r.files.length);
-    const thumb = first ? `<img src="${esc(run.device.width)}/${esc(encodeURIComponent(first.files[0]))}" alt="">` : '';
-    return `<a class="c" href="${esc(run.device.width)}/목록.html">
-      <div class="t">${thumb}</div>
-      <h2>${esc(run.device.label)}</h2>
-      <p>가로 ${run.device.width}px · ${run.meta.scale}배율</p>
-      <p><b class="ok">확인됨 ${ok}</b>${review ? ` · <b class="warn">검수 ${review}</b>` : ''}${fail ? ` · <b class="bad">실패 ${fail}</b>` : ''}</p>
-    </a>`;
-  };
-  return `<!doctype html><meta charset=utf-8><title>스크린샷 — 화면 크기별</title>
-<style>
-:root{color-scheme:light dark}
-body{margin:0;padding:32px;font:15px/1.6 -apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo',sans-serif;background:#f6f6f7;color:#111}
-h1{font-size:22px;margin:0 0 4px}
-.sub{color:#666;margin:0 0 28px}
-.g{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:20px}
-.c{display:block;background:#fff;border:1px solid #e3e3e6;border-radius:12px;padding:16px;text-decoration:none;color:inherit}
-.c:hover{border-color:#999}
-.t{height:180px;overflow:hidden;border-radius:8px;background:#eee;margin-bottom:12px}
-.t img{width:100%;display:block}
-h2{font-size:16px;margin:0 0 2px}
-.c p{margin:0;color:#666;font-size:13px}
-b{font-weight:600}.ok{color:#0a7d3c}.warn{color:#a06000}.bad{color:#b3261e}
-@media (prefers-color-scheme:dark){body{background:#161617;color:#eee}.c{background:#1f1f21;border-color:#333}.sub,.c p{color:#999}}
-</style>
-<h1>화면 크기별 스크린샷</h1>
-<p class="sub">${esc(meta.browser)} · ${esc(meta.when)} — 크기를 골라 들어가세요</p>
-<div class="g">${runs.map(card).join('')}</div>`;
-}
-
 const CSV_COLS = ['이름', 'URL', '상태', '덜뜬것', '파일', '문서높이', '분할수', '차이비율', '차이구간', '시도횟수', '메모', '오류'];
 
 async function main() {
@@ -239,13 +197,13 @@ async function main() {
 
   node shoot.mjs --file <urls.txt> --out <폴더>
   node shoot.mjs --urls <url1,url2> --out <폴더>
+  node shoot.mjs --urls <url> --width 375 --out <폴더>     ← 한 곳만, 모바일로
 
 옵션
   --out <폴더>        저장 위치 (기본 ./결과)
   --width <px>        화면 크기. 1440(기본) | 1920 | 375
-                      쉼표로 여러 개: --width 1440,1920,375
-                      375 는 모바일로 찍습니다 (아이폰 UA·터치·기본 2배율).
-                      여러 개면 폭마다 하위 폴더가 생깁니다
+                      375 는 모바일로 찍습니다 — 아이폰 UA·터치·<meta viewport>
+                      존중·기본 2배율. 사이트가 모바일 페이지를 내줍니다
   --scale <n>         배율 (기본: 데스크탑 1, 모바일 2)
   --retry <n>         두 번이 다를 때 다시 찍는 횟수 (기본 2)
   --concurrency <n>   동시 실행 (기본 2)
@@ -268,14 +226,15 @@ async function main() {
   const urls = loadUrls(args);
   if (!urls.length) { console.error('URL 이 없습니다.'); process.exitCode = 1; return; }
 
-  let widths;
-  try { widths = parseWidths(args.width); }
+  let device;
+  try { device = pickDevice(args.width); }
   catch (e) { console.error(e.message); process.exitCode = 1; return; }
+  const scale = args.scale || device.scale;
 
   const retry = args.retry ?? 2;
   const check = !args['no-check'];
-  const outRoot = resolve(HERE, args.out || './결과');
-  mkdirSync(outRoot, { recursive: true });
+  const outDir = resolve(HERE, args.out || './결과');
+  mkdirSync(outDir, { recursive: true });
 
   const pick = await pickBrowser(args.browser);
   const host = createBrowserHost({ prefer: args.browser });
@@ -293,31 +252,16 @@ async function main() {
     console.error('');
   }
 
-  // 폭이 여러 개면 폭마다 하위 폴더를 만든다. 하나면 예전처럼 평평하게 둔다.
-  const many = widths.length > 1;
-  const runs = [];
   try {
-    for (const w of widths) {
-      const device = DEVICES[w];
-      const scale = args.scale || device.scale;
-      const dir = many ? join(outRoot, String(w)) : outRoot;
-      mkdirSync(dir, { recursive: true });
-      runs.push(await runWidth({ args, urls, host, pick, device, scale, outDir: dir, check, retry, shutdown }));
-    }
+    await shootAll({ args, urls, host, pick, device, scale, outDir, check, retry });
   } finally {
     await shutdown();
-  }
-
-  if (many) {
-    const rootIndex = join(outRoot, '목록.html');
-    writeFileSync(rootIndex, renderRootIndex(runs, { browser: pick.name, when: new Date().toLocaleString('ko-KR') }));
-    console.error(`\n폭 ${widths.join('·')} 전체를 한눈에 → open "${rootIndex}"`);
   }
   if (host.restarts) console.error(`브라우저가 ${host.restarts}번 죽어서 다시 띄웠습니다.`);
 }
 
-/** 화면 크기 하나로 전부 찍는다. 브라우저는 밖에서 받아 폭이 바뀌어도 다시 안 띄운다. */
-async function runWidth({ args, urls, host, pick, device, scale, outDir, check, retry, shutdown }) {
+/** 고른 화면 크기로 전부 찍고 결과 파일을 쓴다. */
+async function shootAll({ args, urls, host, pick, device, scale, outDir, check, retry }) {
   const ctxOpts = contextOptionsFor(device, scale);
   let diffPage = null;
   async function getDiffPage() {
@@ -348,92 +292,85 @@ async function runWidth({ args, urls, host, pick, device, scale, outDir, check, 
     }
   };
 
-  console.error(`\n${device.label} — ${urls.length}곳 · ${pick.name} · ${scale}배율${check ? ' · 찍고 나서 스스로 검사합니다' : ' · 검사 없음'}`);
+  console.error(`${urls.length}곳 캡처 시작 — ${device.label} · ${pick.name} · ${scale}배율${check ? ' · 찍고 나서 스스로 검사합니다' : ' · 검사 없음'}`);
   const used = new Set();
   let done = 0;
-  let rows;
+  const rows = await mapLimit(urls, args.concurrency || 2, async (url) => {
+    let last = null, prev = null, cmp = null, tries = 0;
+    let err = null;
 
-  try {
-    rows = await mapLimit(urls, args.concurrency || 2, async (url) => {
-      let last = null, prev = null, cmp = null, tries = 0;
-      let err = null;
-
-      for (let attempt = 0; attempt <= (check ? retry : 0); attempt++) {
-        let shot;
-        try {
-          shot = await shootOnce(url);
-        } catch (e) {
-          const msg = e.message.split('\n')[0];
-          if (isBrowserDeath(msg) && attempt === 0) continue;   // 브라우저가 죽었으면 다시 띄우고 재시도
-          shot = { ok: false, error: msg };
-        }
-        if (!shot.ok) { err = shot.error; break; }
-        tries++;
-        if (!check) { last = shot; break; }
-        if (last) {
-          cmp = await compareCaptures(await getDiffPage(), last.slices, shot.slices);
-          prev = last;   // 달랐을 때 무엇이 달랐는지 보여주려면 직전 것도 들고 있어야 한다
-          if (cmp.verdict === VERDICT.SAME || cmp.verdict === VERDICT.SAME_PIXELS) { last = shot; break; }
-        }
-        last = shot;
+    for (let attempt = 0; attempt <= (check ? retry : 0); attempt++) {
+      let shot;
+      try {
+        shot = await shootOnce(url);
+      } catch (e) {
+        const msg = e.message.split('\n')[0];
+        if (isBrowserDeath(msg) && attempt === 0) continue;   // 브라우저가 죽었으면 다시 띄우고 재시도
+        shot = { ok: false, error: msg };
       }
-
-      const name = fileNameFor(url, last && last.title, used);
-      if (err || !last) {
-        console.error(`  [${++done}/${urls.length}] ✗ ${name} — ${err}`);
-        return { name, url, status: '실패', error: err || '알 수 없는 오류', files: [], tries };
+      if (!shot.ok) { err = shot.error; break; }
+      tries++;
+      if (!check) { last = shot; break; }
+      if (last) {
+        cmp = await compareCaptures(await getDiffPage(), last.slices, shot.slices);
+        prev = last;   // 달랐을 때 무엇이 달랐는지 보여주려면 직전 것도 들고 있어야 한다
+        if (cmp.verdict === VERDICT.SAME || cmp.verdict === VERDICT.SAME_PIXELS) { last = shot; break; }
       }
+      last = shot;
+    }
 
-      const stable = !check || !cmp || cmp.verdict === VERDICT.SAME || cmp.verdict === VERDICT.SAME_PIXELS;
+    const name = fileNameFor(url, last && last.title, used);
+    if (err || !last) {
+      console.error(`  [${++done}/${urls.length}] ✗ ${name} — ${err}`);
+      return { name, url, status: '실패', error: err || '알 수 없는 오류', files: [], tries };
+    }
 
-      // 두 번이 같다고 제대로 찍힌 건 아니다. 두 번 다 똑같이 비어 있을 수 있다 —
-      // 아임웹에서 실제로 그 일이 났다. 화면에 있어야 할 것이 없는지 따로 본다.
-      const rd = last.ready || {};
-      const gaps = [];
-      if (rd.loading) gaps.push(`안 뜬 이미지 ${rd.loading}개`);
-      if (rd.broken) gaps.push(`깨진 이미지 ${rd.broken}개`);
-      // 투명한 요소는 이어붙이기에서는 정상이다. 마지막 스크롤 위치 기준으로
-      // 화면 밖이라 숨은 것뿐이고, 그 칸은 화면에 있었을 때 이미 찍었다.
-      // 한 방 캡처(fullpage)에서만 진짜 문제다.
-      if (rd.invisible && last.mode !== 'stitch') gaps.push(`투명한 요소 ${rd.invisible}개`);
-      if (rd.blankVideos) gaps.push(`빈 비디오 ${rd.blankVideos}개`);
-      // 스크롤이 도중에 멈췄으면 그 아래는 아예 안 찍힌 것이다. 가장 심각하다.
-      if (last.stalled) {
-        gaps.unshift(`스크롤이 ${last.stalled.at.toLocaleString('en-US')}px 에서 멈춤 ` +
-          `(문서 ${last.stalled.of.toLocaleString('en-US')}px)`);
-      }
-      const complete = gaps.length === 0;
-      const files = last.slices.map((buf, i) => {
-        const f = last.slices.length === 1 ? `${name}.png` : `${name} (${i + 1}).png`;
-        writeFileSync(join(outDir, f), buf);
-        return f;
-      });
+    const stable = !check || !cmp || cmp.verdict === VERDICT.SAME || cmp.verdict === VERDICT.SAME_PIXELS;
 
-      let diffFile = null;
-      if (!stable && cmp.region && prev) {
-        const i = cmp.sliceIndex || 0;
-        const strip = await renderDiffStrip(await getDiffPage(), prev.slices[i], last.slices[i], cmp.region)
-          .catch(() => null);
-        if (strip) { diffFile = `${name}__차이.png`; writeFileSync(join(outDir, diffFile), strip); }
-      }
-
-      const mark = stable && complete ? '✓' : '△';
-      const why = !stable ? `두 번이 ${(cmp.ratio * 100).toFixed(2)}% 다름` : gaps.join(' · ');
-      console.error(`  [${++done}/${urls.length}] ${mark} ${name} — ${last.docHeight.toLocaleString('en-US')}px${why ? ' · ' + why : ''}`);
-
-      return {
-        name, url, status: stable && complete ? '확인됨' : '검수 필요',
-        gaps, files, diffFile, tries,
-        docHeight: last.docHeight, sliceCount: last.sliceCount,
-        ratio: cmp ? cmp.ratio : 0,
-        where: cmp && cmp.region ? `y ${cmp.region.y}~${cmp.region.y + cmp.region.h}` : '',
-        notes: last.notes,
-      };
+    // 두 번이 같다고 제대로 찍힌 건 아니다. 두 번 다 똑같이 비어 있을 수 있다 —
+    // 아임웹에서 실제로 그 일이 났다. 화면에 있어야 할 것이 없는지 따로 본다.
+    const rd = last.ready || {};
+    const gaps = [];
+    if (rd.loading) gaps.push(`안 뜬 이미지 ${rd.loading}개`);
+    if (rd.broken) gaps.push(`깨진 이미지 ${rd.broken}개`);
+    // 투명한 요소는 이어붙이기에서는 정상이다. 마지막 스크롤 위치 기준으로
+    // 화면 밖이라 숨은 것뿐이고, 그 칸은 화면에 있었을 때 이미 찍었다.
+    // 한 방 캡처(fullpage)에서만 진짜 문제다.
+    if (rd.invisible && last.mode !== 'stitch') gaps.push(`투명한 요소 ${rd.invisible}개`);
+    if (rd.blankVideos) gaps.push(`빈 비디오 ${rd.blankVideos}개`);
+    // 스크롤이 도중에 멈췄으면 그 아래는 아예 안 찍힌 것이다. 가장 심각하다.
+    if (last.stalled) {
+      gaps.unshift(`스크롤이 ${last.stalled.at.toLocaleString('en-US')}px 에서 멈춤 ` +
+        `(문서 ${last.stalled.of.toLocaleString('en-US')}px)`);
+    }
+    const complete = gaps.length === 0;
+    const files = last.slices.map((buf, i) => {
+      const f = last.slices.length === 1 ? `${name}.png` : `${name} (${i + 1}).png`;
+      writeFileSync(join(outDir, f), buf);
+      return f;
     });
-  } catch (e) {
-    await shutdown();   // 폭이 여러 개라도 여기서 끝난다
-    throw e;
-  }
+
+    let diffFile = null;
+    if (!stable && cmp.region && prev) {
+      const i = cmp.sliceIndex || 0;
+      const strip = await renderDiffStrip(await getDiffPage(), prev.slices[i], last.slices[i], cmp.region)
+        .catch(() => null);
+      if (strip) { diffFile = `${name}__차이.png`; writeFileSync(join(outDir, diffFile), strip); }
+    }
+
+    const mark = stable && complete ? '✓' : '△';
+    const why = !stable ? `두 번이 ${(cmp.ratio * 100).toFixed(2)}% 다름` : gaps.join(' · ');
+    console.error(`  [${++done}/${urls.length}] ${mark} ${name} — ${last.docHeight.toLocaleString('en-US')}px${why ? ' · ' + why : ''}`);
+
+    return {
+      name, url, status: stable && complete ? '확인됨' : '검수 필요',
+      gaps, files, diffFile, tries,
+      docHeight: last.docHeight, sliceCount: last.sliceCount,
+      ratio: cmp ? cmp.ratio : 0,
+      where: cmp && cmp.region ? `y ${cmp.region.y}~${cmp.region.y + cmp.region.h}` : '',
+      notes: last.notes,
+    };
+  });
 
   const meta = {
     scale, out: outDir, when: new Date().toLocaleString('ko-KR'),
@@ -454,10 +391,8 @@ async function runWidth({ args, urls, host, pick, device, scale, outDir, check, 
     '메모': (r.notes || []).join(' / '), '오류': r.error || '',
   }))));
 
-  console.error(`저장: ${outDir}`);
+  console.error(`\n저장: ${outDir}`);
   console.error(`목록을 한눈에 보시려면 → open "${join(outDir, '목록.html')}"`);
-
-  return { rows, meta, outDir, device };
 }
 
 main().catch((e) => { console.error(e); process.exitCode = 1; });

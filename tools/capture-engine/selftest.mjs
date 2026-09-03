@@ -12,7 +12,7 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { join, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { captureSite, VIEWPORT, SAFE_PIXELS } from './capture.mjs';
+import { captureSite, VIEWPORT, SAFE_PIXELS, DEVICES, contextOptionsFor } from './capture.mjs';
 import { compareCaptures, renderDiffStrip, VERDICT } from './diff.mjs';
 import { createBrowserHost, isBrowserDeath } from './browser.mjs';
 
@@ -218,6 +218,18 @@ const CASES = [
     },
   },
   {
+    // 375 는 폭만 줄이는 게 아니다. 사이트는 UA·폭·터치·해상도 중 한두 개로
+    // 모바일을 판정하는데, 넷이 다 모바일이어야 어떤 사이트든 모바일 페이지를 준다.
+    name: '375 로 찍으면 사이트가 방문자를 모바일로 본다',
+    file: 'mobile.html', mode: 'stitch', steps: [], device: 375,
+    check: (r) => (r.title === '모바일 레이아웃' ? null : `사이트 판정: "${r.title}"`),
+  },
+  {
+    name: '1440 으로 찍으면 사이트가 방문자를 PC 로 본다',
+    file: 'mobile.html', mode: 'stitch', steps: [], device: 1440,
+    check: (r) => (r.title === 'PC 레이아웃' ? null : `사이트 판정: "${r.title}"`),
+  },
+  {
     name: '매번 다르게 그리는 페이지는 모든 단계를 켜도 다르다 (T4 대조군)',
     file: 'random.html', mode: 'fullpage', steps: ['sticky', 'motion', 'anim', 'slice'], twice: true,
     check: (r, cmp) => (same(cmp.verdict) ? '같게 나왔다 — 채점기가 T4 를 통과시키고 있다' : null),
@@ -304,9 +316,12 @@ async function main() {
     const shots = [];
     for (let i = 0; i < (c.twice ? 2 : 1); i++) {
       const browser = await host.get();
-      const ctx = await browser.newContext({ viewport: VIEWPORT, locale: 'ko-KR' });
+      const ctx = await browser.newContext(c.device
+        ? contextOptionsFor(DEVICES[c.device], DEVICES[c.device].scale)
+        : { viewport: VIEWPORT, locale: 'ko-KR' });
       const r = await captureSite(ctx, BASE + c.file, {
         steps: c.steps, mode: c.mode, stitchPage: await getStitchPage(),
+        scale: c.device ? DEVICES[c.device].scale : 1,   // 컨텍스트 배율과 맞아야 이어붙이기가 맞는다
       });
       await ctx.close().catch(() => {});
       if (!r.ok) return { err: r.error, died: isBrowserDeath(r.error) };
