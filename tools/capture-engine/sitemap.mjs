@@ -354,6 +354,12 @@ async function inPageQuickScroll() {
   await sleep(300);
 }
 
+/* ── 언어 선택은 정보구조가 아니다. 어디서 나오든 뺀다. ── */
+const LANG = /^(en|eng|english|kr|ko|kor|korean|한국어|한글|jp|ja|jpn|japanese|日本語|cn|zh|chinese|中文|简体中文|繁體中文|中文\s*\((简体|繁體|繁体)\)|de|deutsch|german|fr|français|french|es|español|spanish|vi|tiếng việt|th|ไทย|language|languages|lang|언어|global)$/i;
+// "KOR / EN", "KR | JP" 처럼 언어를 나란히 적은 것도 언어 선택이다
+const langLabel = (t) => { const parts = String(t || '').split(/[\/|·,]/).map((x) => x.trim()).filter(Boolean); return parts.length > 0 && parts.every((x) => LANG.test(x)); };
+const isLang = (x) => langLabel(x.label) || (x.children && x.children.length >= 2 && x.children.every((c) => langLabel(c.label)));
+
 /* ──────────────────── 마우스를 올려 GNB 를 찾는다 ──────────────────── */
 
 const kindOfHref = (href, origin) => {
@@ -462,20 +468,15 @@ async function discoverByHover(page, origin, progress) {
   strip(menu);
   // 주소 없는 항목도 남긴다 — 눌러야 팝업이 열리는 "Contact" 같은 메뉴가 있다.
   // 알림·마이페이지 같은 버튼은 보통 다른 줄(유틸리티 바)에 있어 여기 안 섞인다.
-  // 언어 선택은 같은 줄에 앉아 있어도 GNB 가 아니다 — 유틸리티로 넘긴다.
-  const LANG = /^(en|eng|english|kr|ko|kor|korean|한국어|한글|jp|ja|jpn|japanese|日本語|cn|zh|chinese|中文|简体中文|繁體中文|中文\s*\((简体|繁體|繁体)\)|de|deutsch|german|fr|français|french|es|español|spanish|vi|tiếng việt|th|ไทย|language|languages|lang|언어|global)$/i;
-  // "KOR / EN", "KR | JP" 처럼 언어를 나란히 적은 것도 언어 선택이다
-  const langLabel = (t) => { const parts = t.split(/[\/|·,]/).map((x) => x.trim()).filter(Boolean); return parts.length > 0 && parts.every((x) => LANG.test(x)); };
-  const isLang = (x) => langLabel(x.label) || (x.children.length >= 2 && x.children.every((c) => langLabel(c.label)));
-  const utility = [];
+  // 언어 선택은 같은 줄에 앉아 있어도 GNB 가 아니다. 정보구조 항목으로도 안 적는다 —
+  // 무엇을 뺐는지만 한 줄로 남긴다.
+  const languages = [];
   const gnb = [];
   for (const m of menu) {
-    if (isLang(m)) {
-      const flat = m.children.length ? m.children : [m];
-      for (const c of flat) utility.push({ ...c, depth: 0, children: [], group: '언어' });
-    } else gnb.push(m);
+    if (isLang(m)) languages.push(m.label);
+    else gnb.push(m);
   }
-  return { menu: gnb, utility };
+  return { menu: gnb, languages };
 }
 
 /* ──────────────────────────────── 조립 ──────────────────────────────── */
@@ -516,11 +517,21 @@ export async function extractSitemap(context, url, opts = {}) {
       const leftovers = flat.filter((x) => x.kind !== '없음' && !inHover.has(`${x.href}|${x.label}`))
         .map((x) => ({ ...x, depth: 0, children: [] }));
       // 유틸리티는 주소가 같으면 하나다 (EN 과 English 가 같은 곳으로 간다)
-      home.utility = [...found.utility, ...(home.utility || []), ...leftovers]
+      home.utility = [...(home.utility || []), ...leftovers]
         .filter((x, i, arr) => arr.findIndex((o) => (x.href ? o.href === x.href : o.label === x.label)) === i);
       home.menu = hovered;
+      home.languages = found.languages;
       method = 'hover';
     }
+
+    // 언어 선택은 어디서 나오든 정보구조에서 뺀다 (GNB·유틸리티·헤더·푸터 전부)
+    const languages = new Set(home.languages || []);
+    const dropLang = (items) => items.filter((x) => { if (isLang(x)) { languages.add(x.label); return false; } x.children = dropLang(x.children || []); return true; });
+    home.menu = dropLang(home.menu);
+    home.utility = dropLang(home.utility || []);
+    home.loose = dropLang(home.loose);
+    home.footer = dropLang(home.footer);
+    home.languages = [...languages];
 
     progress('메인페이지 구성 읽는 중');
     await page.evaluate(inPageQuickScroll);
@@ -573,6 +584,7 @@ export async function extractSitemap(context, url, opts = {}) {
     return {
       ok: true, url, finalUrl: page.url(), title: home.title, description: home.description,
       menu: home.menu, utility: home.utility || [], loose: home.loose, footer: home.footer, main, pages,
+      languages: home.languages || [],
       headerHtml: home.headerHtml,
       menuCount: count(home.menu), inspected, method, ms: Date.now() - started,
     };
@@ -616,9 +628,12 @@ export function renderTree(r) {
   };
   walk(r.menu, '  ');
 
+  if (r.languages && r.languages.length) {
+    L.push(`  언어 선택(${r.languages.join(', ')})은 정보구조에서 뺐습니다`);
+  }
   if (r.utility && r.utility.length) {
     L.push('');
-    L.push('  유틸리티 메뉴 (알림·마이페이지·언어 등)');
+    L.push('  유틸리티 메뉴 (알림·마이페이지 등)');
     for (const l of r.utility) L.push(`    · ${l.label}  ${short(l.href, origin)}${l.kind === '외부' ? '  (외부)' : ''}`);
   }
   if (r.loose.length) {

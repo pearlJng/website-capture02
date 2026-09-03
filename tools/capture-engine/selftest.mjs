@@ -258,7 +258,8 @@ const CASES = [
       if (!r.loose.some((x) => x.label === '로그인')) return '헤더의 로그인 링크를 놓쳤다';
       if (r.loose.some((x) => x.href.includes('/news/'))) return '본문 뉴스 링크가 헤더 링크로 딸려 왔다 (포장 클래스에 nav 가 있어서)';
       const util = r.utility.map((x) => x.label);
-      if (util.join('|') !== 'EN|日本語|마이페이지') return `유틸리티 메뉴가 ${util.join(' / ')} (기대 EN / 日本語 / 마이페이지 — 언어 선택은 GNB 가 아니고, English 는 EN 과 같은 곳이라 접는다)`;
+      if (util.join('|') !== '마이페이지') return `유틸리티 메뉴가 ${util.join(' / ')} (기대 마이페이지 — 언어 선택은 정보구조에 안 적는다)`;
+      if (!(r.languages || []).includes('KOR / EN')) return `뺀 언어 선택을 기록하지 않았다 (${(r.languages || []).join(', ')})`;
       if (r.footer.length !== 3) return `푸터 링크 ${r.footer.length}개 (기대 3)`;
       // 메인페이지 구성
       const sec = (r.main && r.main.sections) || [];
