@@ -9,6 +9,8 @@ body{margin:0;font:16px/1.6 system-ui;position:relative}
 main{padding-top:80px}
 section{height:900px}
 section:nth-child(odd){background:#eef}section:nth-child(even){background:#efe}
+/* 첫 화면은 사진처럼 어지러운 바탕 — 첫 조각과 둘째 조각만 견주면 온 픽셀이 '내용'이라 못 잡는다 (테라클) */
+section:first-child{background:repeating-linear-gradient(45deg,#345 0 3px,#9ab 3px 6px,#c96 6px 9px)}
 </style>
 <div class="hd" style="top:0"><a href="/a">About</a><a href="/b">Product</a><a href="/c">Service</a><a href="/d">Contact</a></div>
 <main><section>1</section><section>2</section><section>3</section><section>4</section></main>

@@ -23,6 +23,17 @@ import { extractSitemap, renderTree } from './sitemap.mjs';
 import { shootAll, writeOutputs } from './shoot.mjs';
 import { writeFileSync, copyFileSync, readFileSync as readBytes } from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
+import AdmZip from 'adm-zip';
+
+/* 브라우저로 내려받기 — 서버에 올렸을 때(맥 저장 창을 못 띄울 때) 쓰는 길.
+ * 만든 파일을 잠깐 들고 있다가 한 번 내려주고 지운다. */
+const downloads = new Map();
+function offerDownload(filePath, name, mime) {
+  const token = Math.random().toString(36).slice(2) + Date.now().toString(36);
+  downloads.set(token, { filePath, name, mime, at: Date.now() });
+  for (const [k, v] of downloads) if (Date.now() - v.at > 30 * 60 * 1000) downloads.delete(k);
+  return `/download/${token}`;
+}
 
 /* ───────────── 내보내기: 이미지 폴더 또는 PDF 한 권 ───────────── */
 
@@ -76,7 +87,7 @@ const reveal = (path) => { if (process.platform === 'darwin') spawn('open', ['-R
  * 취소하면 { cancelled: true }. 맥이 아니면 { native: false } — 화면이 기본 위치를 쓴다.
  */
 function pickSavePath({ defaultName, format }) {
-  if (process.platform !== 'darwin') return Promise.resolve({ ok: true, native: false });
+  if (process.platform !== 'darwin' || PUBLIC) return Promise.resolve({ ok: true, native: false });
   const name = safeName(defaultName) + (format === 'pdf' ? '.pdf' : '');
   const prompt = format === 'pdf' ? 'PDF 로 저장' : '이미지 폴더로 저장';
   const script = [
@@ -172,7 +183,12 @@ function retake(job, row, { tweaks, applied, ignored, request }) {
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const args = parseArgs(process.argv.slice(2));
-const PORT = Number(args.port || 8890);
+const PORT = Number(args.port || process.env.PORT || 8890);
+// 기본은 내 컴퓨터 안(127.0.0.1). 서버에 올려 밖에서 쓰려면 --host 0.0.0.0 (Dockerfile 이 그렇게 띄운다).
+const HOST = args.host || process.env.HOST || '127.0.0.1';
+const PUBLIC = HOST !== '127.0.0.1' && HOST !== 'localhost';
+// 밖으로 열 때는 비밀번호를 건다. 아무나 남의 사이트를 캡처하게 두면 안 된다.
+const PASSWORD = process.env.APP_PASSWORD || args.password || '';
 const OUT_ROOT = resolve(HERE, args.out || './결과/앱');
 
 const MIME = {
@@ -299,6 +315,21 @@ const json = (res, code, obj) => { res.writeHead(code, { 'content-type': 'applic
 const server = createServer(async (req, res) => {
   const u = new URL(req.url, 'http://127.0.0.1');
   try {
+    // 비밀번호가 걸려 있으면 ?key= 로 한 번 들어온 뒤 쿠키로 통과한다.
+    if (PASSWORD) {
+      const cookie = (req.headers.cookie || '').split(';').map((c) => c.trim()).find((c) => c.startsWith('key='));
+      const given = u.searchParams.get('key') || (cookie ? decodeURIComponent(cookie.slice(4)) : '');
+      if (given !== PASSWORD) {
+        res.writeHead(401, { 'content-type': 'text/html; charset=utf-8' }).end(
+          `<meta charset="utf-8"><body style="font:16px/1.6 -apple-system,sans-serif;padding:40px"><h2>웹사이트 스냅샷</h2>
+           <form><p>비밀번호 <input name="key" type="password" autofocus> <button>들어가기</button></p></form></body>`);
+        return;
+      }
+      if (u.searchParams.get('key')) {
+        res.setHeader('set-cookie', `key=${encodeURIComponent(PASSWORD)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`);
+        if (u.pathname === '/') { res.writeHead(302, { location: '/' }).end(); return; }
+      }
+    }
     if (req.method === 'GET' && u.pathname === '/') {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(readFileSync(join(HERE, 'app.html')));
       return;
@@ -336,6 +367,17 @@ const server = createServer(async (req, res) => {
       retake(job, row, { tweaks, applied, ignored, request: request || '' });
       return json(res, 200, { ok: true, applied, ignored });
     }
+    if (req.method === 'GET' && u.pathname.startsWith('/download/')) {
+      const d = downloads.get(u.pathname.slice('/download/'.length));
+      if (!d || !existsSync(d.filePath)) { res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }).end('없거나 만료된 파일'); return; }
+      res.writeHead(200, {
+        'content-type': d.mime, 'cache-control': 'no-store',
+        'content-disposition': `attachment; filename*=UTF-8''${encodeURIComponent(d.name)}`,
+        'content-length': statSync(d.filePath).size,
+      });
+      createReadStream(d.filePath).pipe(res);
+      return;
+    }
     if (req.method === 'POST' && u.pathname === '/api/pickSave') {
       const { id, format } = await readBody(req);
       const job = jobs.get(id);
@@ -361,12 +403,22 @@ const server = createServer(async (req, res) => {
         .filter((r) => r.files && r.files.length && (!want || want.has(normUrl(r.url))))
         .sort((a, b) => (order.get(normUrl(a.url)) ?? 999) - (order.get(normUrl(b.url)) ?? 999));
       if (!rows.length) return json(res, 400, { ok: false, error: '내보낼 그림이 없습니다' });
+      const viaBrowser = PUBLIC || process.platform !== 'darwin';
       if (format === 'pdf') {
         const r = await exportPdf(job, rows, { baseDir, name: outName });
+        if (viaBrowser) return json(res, 200, { ok: true, format, pages: r.pages, count: rows.length, download: offerDownload(r.file, `${outName}.pdf`, 'application/pdf') });
         reveal(r.file);
         return json(res, 200, { ok: true, format, path: r.file, pages: r.pages, count: rows.length });
       }
       const r = exportImages(job, rows, { baseDir, name: outName });
+      if (viaBrowser) {
+        // 폴더는 브라우저로 못 내려준다. zip 으로 묶어 준다 — 풀면 같은 폴더가 된다.
+        const zip = new AdmZip();
+        zip.addLocalFolder(r.dir, outName);
+        const zipPath = join(baseDir, `${outName}.zip`);
+        zip.writeZip(zipPath);
+        return json(res, 200, { ok: true, format: 'img', files: r.files, count: rows.length, download: offerDownload(zipPath, `${outName}.zip`, 'application/zip') });
+      }
       reveal(join(r.dir, r.files[0]));
       return json(res, 200, { ok: true, format: 'img', path: r.dir, files: r.files, count: rows.length });
     }
@@ -395,12 +447,14 @@ const server = createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, '127.0.0.1', () => {
-  const url = `http://127.0.0.1:${PORT}/`;
+server.listen(PORT, HOST, () => {
+  const url = `http://${HOST === '0.0.0.0' ? '<서버 주소>' : HOST}:${PORT}/`;
   console.log(`\n  열렸습니다 → ${url}`);
   console.log(`  결과 저장 위치: ${OUT_ROOT}`);
+  if (PUBLIC && !PASSWORD) console.log('  ⚠ 밖으로 열었는데 비밀번호가 없습니다. APP_PASSWORD 를 거세요.');
+  if (PASSWORD) console.log('  비밀번호가 걸려 있습니다 (APP_PASSWORD)');
   console.log('  끝내려면 Ctrl+C\n');
-  if (process.platform === 'darwin') spawn('open', [url], { stdio: 'ignore', detached: true }).unref();
+  if (process.platform === 'darwin' && !PUBLIC) spawn('open', [url], { stdio: 'ignore', detached: true }).unref();
 });
 
 process.on('SIGINT', async () => {

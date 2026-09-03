@@ -686,7 +686,8 @@ export async function captureSite(context, url, opts = {}) {
       // GoFullPage 가 "고정 헤더" 옵션으로 하는 일이 이것이다. 그림을 보고 판단하므로
       // 헤더가 어떻게 만들어졌든 상관없다.
       let reserve = 0;
-      let bandChecked = false;
+      let restarts = 0;
+      const bandCheckedAt = new Set();
       for (let i = 0; i < MAX_SCROLL_STEPS && y < height; i++) {
         progress(`찍는 중 ${i + 1}/${Math.ceil(height / VIEWPORT_H(page))}칸`);
         await page.evaluate(inPageScrollTo, y);
@@ -725,21 +726,26 @@ export async function captureSite(context, url, opts = {}) {
 
         const buf = await page.screenshot({ animations, timeout: SHOT_TIMEOUT });
 
-        if (i === 1 && !bandChecked && opts.stitchPage) {
-          bandChecked = true;
-          const px = await repeatedTopBand(opts.stitchPage, shots[0].buf, buf, Math.round(320 * scale)).catch(() => 0);
+        shots.push({ y: at.y, height: at.innerHeight, buf, crop: i === 0 ? 0 : reserve });
+
+        // 조각이 넷 모이면(또는 바닥에 닿았는데 둘 이상이면) 위쪽 띠를 견준다.
+        // 셋 이상의 조각이 같은 자리에 같은 픽셀을 갖는 건 우연이 아니다.
+        const atBottom = at.y + at.innerHeight >= at.height - 2;
+        if (opts.stitchPage && restarts < 2 && (shots.length === 4 || (atBottom && shots.length >= 2)) && !bandCheckedAt.has(shots.length)) {
+          bandCheckedAt.add(shots.length);
+          const sample = shots.length >= 4 ? shots.slice(1, 4) : shots.slice(0, 2);
+          const px = await repeatedTopBand(opts.stitchPage, sample.map((s) => s.buf), Math.round(320 * scale), Math.round(reserve * scale)).catch(() => 0);
           const band = Math.ceil(px / scale);
-          if (band >= 24) {
-            reserve = band + 4;
-            notes.push(`따라붙는 헤더 ${band}px 가 그림에 남아 있어, 겹치게 찍고 조각마다 위를 잘라냈습니다`);
+          if (band >= 16) {
+            reserve += band + 4;
+            restarts++;
+            notes.push(`따라붙는 헤더 ${band}px 가 그림에 남아 있어, 겹치게 찍고 조각마다 위 ${reserve}px 를 잘라냈습니다${restarts > 1 ? ' (검수에서 한 번 더 발견)' : ''}`);
             progress(`따라붙는 헤더 ${band}px 발견 — 겹치게 다시 찍습니다`);
-            shots.length = 0; y = 0; lastY = -1; pinned = null; i = -1;
+            shots.length = 0; y = 0; lastY = -1; pinned = null; i = -1; bandCheckedAt.clear();
             await page.evaluate(inPageScrollTo, 0);
             continue;
           }
         }
-
-        shots.push({ y: at.y, height: at.innerHeight, buf, crop: i === 0 ? 0 : reserve });
 
         height = at.height;                              // 지연 로딩으로 늘어날 수 있다
         if (at.y + at.innerHeight >= height - 2) break;  // 바닥에 닿았다

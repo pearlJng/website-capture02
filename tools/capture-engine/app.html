@@ -309,6 +309,12 @@
     $('#exportMsg').textContent = format === 'pdf' ? 'PDF 한 권으로 묶고 있어요…' : '폴더에 담고 있어요…';
     const r = await api('/api/export', { id: currentJob, urls, format, dir, name });
     if (!r.ok) { $('#exportMsg').innerHTML = `<span class="err">${esc(r.error)}</span>`; return; }
+    if (r.download) {
+      // 서버에 올려 쓰는 경우: 브라우저 내려받기 — 브라우저의 저장 창이 뜬다
+      $('#exportMsg').textContent = format === 'pdf' ? `PDF ${r.pages}쪽을 내려받아요` : `${r.count}장을 zip 으로 내려받아요 (풀면 폴더가 돼요)`;
+      window.location.href = r.download;
+      return;
+    }
     $('#exportMsg').innerHTML = format === 'pdf'
       ? `PDF ${r.pages}쪽으로 묶었어요 → <code>${esc(r.path)}</code>`
       : `${r.count}장을 폴더에 담았어요 → <code>${esc(r.path)}</code>`;
