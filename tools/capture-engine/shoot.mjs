@@ -13,10 +13,9 @@
  *   node shoot.mjs --file ../gdweb-scan/urls.imweb10.txt --out ./결과
  *   node shoot.mjs --urls https://example.com --out ./결과 --scale 2
  */
-import { writeFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readFileSync } from 'node:fs';
 import { captureSite, STEPS, VIEWPORT } from './capture.mjs';
 import { compareCaptures, renderDiffStrip, VERDICT } from './diff.mjs';
 import { createBrowserHost, isBrowserDeath, pickBrowser } from './browser.mjs';
@@ -41,9 +40,18 @@ function parseArgs(argv) {
   return out;
 }
 
+// 주소 목록은 tools/gdweb-scan/ 에 모여 있고 실행은 여기서 한다.
+// 파일 이름만 적어도 찾아 주지 않으면 매번 경로를 틀린다 — 실제로 틀렸다.
+function findUrlFile(name) {
+  const tried = [resolve(process.cwd(), name), resolve(HERE, name),
+    resolve(HERE, '..', 'gdweb-scan', name)];
+  for (const p of tried) if (existsSync(p)) return p;
+  throw new Error(`주소 목록을 못 찾았습니다: ${name}\n찾아본 곳:\n  ` + tried.join('\n  '));
+}
+
 function loadUrls(args) {
   if (args.urls) return args.urls.split(',').map((s) => s.trim()).filter(Boolean);
-  return readFileSync(resolve(HERE, args.file), 'utf8')
+  return readFileSync(findUrlFile(args.file), 'utf8')
     .split('\n').map((l) => l.trim())
     .filter((l) => l && !l.startsWith('#'));
 }
