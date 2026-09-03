@@ -1,0 +1,16 @@
+# 아임웹(imweb.me)으로 만든 사이트 10곳
+#
+# GDWEB 수상작 49곳은 49개의 서로 다른 손이 만든 것이라 결과를 일반화할 수
+# 없었다. 이 10곳은 다르다 — 회사는 제각각이지만 HTML 을 찍어내는 엔진은
+# 하나다. 그래서 이건 "10건짜리 표본"이 아니라 사실상
+# "아임웹 플랫폼 한 건"을 재는 일에 가깝다.
+https://uniict.imweb.me/
+https://i9i9jy40355.imweb.me/
+https://yookang.imweb.me/
+https://rooted2.imweb.me/
+https://hdp59267.imweb.me/
+https://moonandchang2025.imweb.me/
+https://terracle-kr.imweb.me/
+https://chusungju2025.imweb.me/
+https://inssaphotore.imweb.me/
+https://labtobottle1.imweb.me/
