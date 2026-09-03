@@ -289,6 +289,25 @@ const CASES = [
     },
   },
   {
+    // K'sox 에서 2차 메뉴를 하나도 못 잡았다. 로고가 위, 메뉴가 두 번째 줄(y≈230)
+    // 이라 220px 안에서 찾는 GNB 줄에 안 걸렸고, 드롭다운이 0.6초에 걸쳐
+    // 서서히 나타나 350ms 뒤에 보면 비어 있었다. 3차는 화면엔 안 보이고 DOM 에만 있다.
+    name: '로고 아래 두 번째 줄 메뉴, 서서히 열리는 드롭다운, DOM 에만 있는 3차를 다 잡는다',
+    file: 'shopnav.html', sitemap: true,
+    check: (r) => {
+      if (!r.ok) return `실패: ${r.error}`;
+      if (r.method !== 'hover') return `${r.method} 로 읽었다 — 두 번째 줄 메뉴를 GNB 줄로 못 찾았다`;
+      const top = r.menu.map((x) => x.label);
+      if (top.join('|') !== 'ABOUT|LOOKBOOK|QUOTATION|SHOP') return `최상위가 ${top.join(' / ')}`;
+      const shop = r.menu[3];
+      const kids = shop.children.map((x) => x.label);
+      if (kids.join('|') !== 'NEW ARRIVAL|WOMEN|MEN|KID|GIFT|COMMUNITY') return `SHOP 하위가 ${kids.join(' / ') || '(없음)'} — 서서히 열리는 드롭다운을 못 봤다`;
+      const women = shop.children[1];
+      if (women.children.map((x) => x.label).join('|') !== 'SOCKS|STOCKINGS') return `WOMEN 하위가 ${women.children.map((x) => x.label).join(' / ') || '(없음)'} — DOM 에만 있는 3차를 못 채웠다`;
+      return null;
+    },
+  },
+  {
     name: '매번 다르게 그리는 페이지는 모든 단계를 켜도 다르다 (T4 대조군)',
     file: 'random.html', mode: 'fullpage', steps: ['sticky', 'motion', 'anim', 'slice'], twice: true,
     check: (r, cmp) => (same(cmp.verdict) ? '같게 나왔다 — 채점기가 T4 를 통과시키고 있다' : null),

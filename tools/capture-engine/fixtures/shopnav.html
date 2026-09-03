@@ -1,0 +1,37 @@
+<!doctype html><meta charset=utf-8><title>쇼핑몰 내비 픽스처</title>
+<style>
+body{margin:0;font:16px/1.6 system-ui}
+/* 로고가 위, 메뉴가 그 아래 두 번째 줄(y≈230). 드롭다운은 0.6초에 걸쳐 서서히 나타난다. */
+header{position:relative;height:300px;background:#9bb;text-align:center}
+.logo{display:block;padding-top:40px;font-size:40px;font-weight:700;color:#fff;text-decoration:none}
+nav>ul{list-style:none;margin:80px 0 0;padding:0;display:inline-flex;gap:48px}
+nav li{position:relative}
+nav>ul>li>a{color:#fff;font-size:22px;text-decoration:none}
+nav li ul{list-style:none;margin:0;padding:8px 0;position:absolute;left:0;top:100%;background:#fff;min-width:220px;text-align:left;
+  opacity:0;visibility:hidden;transition:opacity .6s,visibility 0s .6s}
+nav li:hover>ul{opacity:1;visibility:visible;transition:opacity .6s}
+nav li ul li a{display:block;padding:10px 20px;color:#222;text-decoration:none}
+/* 3차: 화면에 안 보이고 DOM 에만 있다 (클릭해야 열리는 플라이아웃) */
+nav li ul li ul{display:none}
+section{height:900px;background:#f4f4f4}
+</style>
+<header>
+  <a class="logo" href="/">K'sox</a>
+  <nav><ul>
+    <li><a href="/about">ABOUT</a></li>
+    <li><a href="/lookbook">LOOKBOOK</a></li>
+    <li><a href="/quotation">QUOTATION</a></li>
+    <li><a href="/shop">SHOP</a>
+      <ul>
+        <li><a href="/shop/new">NEW ARRIVAL</a></li>
+        <li><a href="/shop/women">WOMEN</a>
+          <ul><li><a href="/shop/women/socks">SOCKS</a></li><li><a href="/shop/women/stockings">STOCKINGS</a></li></ul></li>
+        <li><a href="/shop/men">MEN</a></li>
+        <li><a href="/shop/kid">KID</a></li>
+        <li><a href="/shop/gift">GIFT</a></li>
+        <li><a href="/community">COMMUNITY</a></li>
+      </ul>
+    </li>
+  </ul></nav>
+</header>
+<section></section>

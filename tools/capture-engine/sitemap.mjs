@@ -394,8 +394,11 @@ async function discoverByHover(page, origin, progress) {
   const base = await page.evaluate(inPageVisibleItems);
   const vw = (page.viewportSize() || { width: 1440 }).width;
 
-  // 맨 위 220px 안에서 같은 높이에 나란히 선 항목이 가장 많은 줄이 GNB 다.
-  const top = base.filter((it) => it.y < 220 && it.h <= 120 && it.label.length <= 30);
+  // 화면 위쪽(35%, 최소 320px) 안에서 같은 높이에 나란히 선 항목이 가장 많은 줄이 GNB 다.
+  // 220px 로 잡았더니 로고 아래 두 번째 줄에 메뉴가 있는 쇼핑몰(K'sox)을 놓쳤다.
+  const vh = (page.viewportSize() || { height: 900 }).height;
+  const band = Math.max(320, Math.round(vh * 0.35));
+  const top = base.filter((it) => it.y < band && it.h <= 120 && it.label.length <= 30);
   const rows = new Map();
   for (const it of top) {
     const key = Math.round((it.y + it.h / 2) / 8);
@@ -417,13 +420,24 @@ async function discoverByHover(page, origin, progress) {
       await page.hover(`[data-ia="${it.id}"]`, { timeout: 2500, force: true }).catch(() => {});
       await page.waitForTimeout(120);
     }
-    await page.waitForTimeout(350);
+    await page.waitForTimeout(250);
+  };
+  /** 드롭다운은 서서히 나타나기도 한다. 보이는 항목 수가 두 번 연속 같을 때까지 기다린다 (최대 1.5초). */
+  const settled = async () => {
+    let prev = -1, same = 0, now = [];
+    for (let k = 0; k < 8; k++) {
+      now = await page.evaluate(inPageVisibleItems);
+      if (now.length === prev) { if (++same >= 1) break; } else same = 0;
+      prev = now.length;
+      await page.waitForTimeout(180);
+    }
+    return now;
   };
 
   const children = async (path, depth, known) => {
     const it = path[path.length - 1];
     await hoverPath(path);
-    let now = await page.evaluate(inPageVisibleItems);
+    let now = await settled();
     let fresh = now.filter((n) => !known.has(n.id) && n.y >= it.y - 4 && n.id !== it.id);
     // 마우스로 안 열리고 눌러야 열리는 것(주소 없는 항목)은 한 번 눌러 본다
     if (!fresh.length && !it.href && depth === 1) {
@@ -507,6 +521,26 @@ export async function extractSitemap(context, url, opts = {}) {
     const found = await discoverByHover(page, origin, progress).catch(() => null);
     const hovered = found && found.menu;
     if (hovered && hovered.length >= 3) {
+      // hover 로 하위가 안 보인 항목은 DOM 목록 구조에서 채운다. 서서히 열리거나
+      // 클릭으로만 열리는 드롭다운은 hover 로 못 보지만 DOM 에는 있다. 반대로
+      // DOM 에 없고 hover 로만 보이는 것(아임웹)은 이미 hover 결과에 있다.
+      const byKey = new Map();
+      const index = (items) => { for (const x of items) { if (x.href) byKey.set(normUrl(x.href), x); byKey.set('label:' + x.label.toLowerCase(), x); index(x.children); } };
+      index(home.menu);
+      const fill = (items) => {
+        for (const x of items) {
+          if (!x.children.length) {
+            const d = (x.href && byKey.get(normUrl(x.href))) || byKey.get('label:' + x.label.toLowerCase());
+            if (d && d.children.length) {
+              const clone = (c, depth) => ({ label: c.label, href: c.href, kind: c.kind, depth, children: c.children.map((g) => clone(g, depth + 1)) });
+              x.children = d.children.map((c) => clone(c, x.depth + 1));
+              x.fromDom = true;
+            }
+          }
+          fill(x.children);
+        }
+      };
+      fill(hovered);
       // DOM 으로 읽은 것 중 hover 로 못 본 항목(드롭다운이 hover 로 안 열리는 경우)은 유틸리티로 넘긴다
       const inHover = new Set();
       const collect = (items) => { for (const x of items) { inHover.add(`${x.href}|${x.label}`); collect(x.children); } };
