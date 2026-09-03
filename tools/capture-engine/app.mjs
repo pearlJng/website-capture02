@@ -21,7 +21,56 @@ import { DEVICES, contextOptionsFor } from './capture.mjs';
 import { createBrowserHost, pickBrowser } from './browser.mjs';
 import { extractSitemap, renderTree } from './sitemap.mjs';
 import { shootAll, writeOutputs } from './shoot.mjs';
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, copyFileSync, readFileSync as readBytes } from 'node:fs';
+import { PDFDocument } from 'pdf-lib';
+
+/* ───────────── 내보내기: 이미지 폴더 또는 PDF 한 권 ───────────── */
+
+const safeName = (t) => String(t || 'page').replace(/[\\/:*?"<>|\n\r\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60) || 'page';
+const stampNow = () => new Date().toISOString().slice(0, 16).replace('T', ' ').replace(':', '');
+
+/** 고른 결과를 정보구조 순서대로 번호를 붙여 폴더에 복사한다. */
+function exportImages(job, rows) {
+  const dir = join(job.outDir, '내보내기', `이미지 ${stampNow()}`);
+  mkdirSync(dir, { recursive: true });
+  const pad = String(rows.length).length;
+  const files = [];
+  rows.forEach((row, i) => {
+    (row.files || []).forEach((f, k) => {
+      const name = `${String(i + 1).padStart(pad, '0')} ${safeName(row.path || row.name)}${row.files.length > 1 ? ` (${k + 1})` : ''}.png`;
+      copyFileSync(join(job.outDir, f), join(dir, name));
+      files.push(name);
+    });
+  });
+  return { dir, files };
+}
+
+/** 고른 결과를 PDF 한 권으로 묶는다. 쪽마다 그림 크기 그대로 — 긴 페이지는 긴 쪽이 된다. */
+async function exportPdf(job, rows) {
+  const dir = join(job.outDir, '내보내기');
+  mkdirSync(dir, { recursive: true });
+  const pdf = await PDFDocument.create();
+  pdf.setTitle(`${rows[0] && rows[0].url ? new URL(rows[0].url).hostname : 'site'} ${job.device}`);
+  let pages = 0;
+  for (const row of rows) {
+    for (const f of row.files || []) {
+      const png = await pdf.embedPng(readBytes(join(job.outDir, f)));
+      // 화면 픽셀을 그대로 pt 로 쓴다 (1px = 1pt). 배율 2 면 절반으로 줄여 실제 크기를 맞춘다.
+      const k = 1 / (job.meta && job.meta.scale ? job.meta.scale : 1);
+      const w = png.width * k, h = png.height * k;
+      const page = pdf.addPage([w, h]);
+      page.drawImage(png, { x: 0, y: 0, width: w, height: h });
+      pages++;
+    }
+  }
+  let hostName = 'site';
+  try { hostName = new URL(rows[0].url).hostname; } catch { /* 무시 */ }
+  const file = join(dir, `${hostName} ${job.width} ${stampNow()}${rows.length < job.rows.length ? ' (선택)' : ''}.pdf`);
+  writeFileSync(file, await pdf.save());
+  return { file, pages };
+}
+
+const reveal = (path) => { if (process.platform === 'darwin') spawn('open', ['-R', path], { stdio: 'ignore', detached: true }).unref(); };
 
 /* ───────────── 수정 요청 → 캡처 옵션 ─────────────
  * 사람 말을 정해진 조정으로 옮긴다. AI 가 아니라 낱말 맞추기다 — 알아들은
@@ -255,6 +304,26 @@ const server = createServer(async (req, res) => {
       const { tweaks, applied, ignored } = parseRequest(request || '');
       retake(job, row, { tweaks, applied, ignored, request: request || '' });
       return json(res, 200, { ok: true, applied, ignored });
+    }
+    if (req.method === 'POST' && u.pathname === '/api/export') {
+      const { id, urls, format } = await readBody(req);
+      const job = jobs.get(id);
+      if (!job) return json(res, 404, { ok: false, error: '없는 작업' });
+      const want = Array.isArray(urls) && urls.length ? new Set(urls.map(normUrl)) : null;
+      // 정보구조 순서(요청 순서)대로
+      const order = new Map(job.requested.map((p, i) => [normUrl(p.url), i]));
+      const rows = job.rows
+        .filter((r) => r.files && r.files.length && (!want || want.has(normUrl(r.url))))
+        .sort((a, b) => (order.get(normUrl(a.url)) ?? 999) - (order.get(normUrl(b.url)) ?? 999));
+      if (!rows.length) return json(res, 400, { ok: false, error: '내보낼 그림이 없습니다' });
+      if (format === 'pdf') {
+        const r = await exportPdf(job, rows);
+        reveal(r.file);
+        return json(res, 200, { ok: true, format, path: r.file, pages: r.pages, count: rows.length });
+      }
+      const r = exportImages(job, rows);
+      reveal(join(r.dir, r.files[0]));
+      return json(res, 200, { ok: true, format: 'img', path: r.dir, files: r.files, count: rows.length });
     }
     if (req.method === 'GET' && u.pathname === '/api/job') {
       const job = jobs.get(u.searchParams.get('id'));

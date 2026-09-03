@@ -54,7 +54,17 @@
   .card .retake { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 8px; }
   .card .retake textarea { width: 100%; font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; resize: vertical; min-height: 52px; }
   .card .retake .r { display: flex; gap: 6px; margin-top: 6px; align-items: center; }
-  .card .retake button { padding: 6px 10px; font-size: 13px; }
+  .card .retake .rt { width: 34px; height: 34px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; }
+  .card .retake .rt svg { width: 18px; height: 18px; }
+  .card .retake .rt:hover svg { transform: rotate(-60deg); transition: transform .3s; }
+  .card .sel { position: absolute; left: 10px; top: 10px; width: 20px; height: 20px; accent-color: var(--accent); }
+  .card { position: relative; }
+  .export { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 14px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: #fafafa; }
+  .export .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .export .seg label { padding: 7px 12px; cursor: pointer; font-size: 14px; }
+  .export .seg label:has(input:checked) { background: var(--accent); color: #fff; }
+  .export .seg input { display: none; }
+  .export .msg { font-size: 13px; color: var(--mute); }
   .card .applied { font-size: 12px; color: var(--ok); }
   .card .ignored { font-size: 12px; color: var(--warn); }
   .card .prev { font-size: 12px; color: var(--mute); }
@@ -66,7 +76,7 @@
     <h2><span class="n">1</span>주소</h2>
     <form class="row" id="f1">
       <input type="url" id="url" placeholder="https://example.com/" required autofocus>
-      <button class="primary" id="b1" type="submit">정보구조 분석</button>
+      <button class="primary" id="b1" type="submit">분석하기</button>
     </form>
     <div class="busy" id="busy1"></div>
     <p class="mute" id="m1"></p>
@@ -103,6 +113,13 @@
     <p class="mute" id="m4"></p>
     <div class="log" id="log"></div>
     <div class="grid" id="grid"></div>
+    <div class="export" id="export" hidden>
+      <span class="seg"><label><input type="radio" name="fmt" value="img" checked>IMG</label><label><input type="radio" name="fmt" value="pdf">PDF</label></span>
+      <button class="primary" id="exportAll">일괄 출력</button>
+      <button id="exportSel">선택 출력</button>
+      <span class="mute" id="selCount"></span>
+      <span class="msg" id="exportMsg"></span>
+    </div>
     <div class="done-links" id="links"></div>
   </section>
 </main>
@@ -118,22 +135,29 @@
 
   /* ── 기다리는 동안: 서버가 지금 무엇을 하는지 + 그 사이를 채우는 문구 ── */
   const FILLERS = [
-    '페이지를 여는 중', '등장 애니메이션이 끝나기를 기다리는 중', '맨 위 한 줄에 나란히 선 메뉴를 찾는 중',
-    '메뉴에 마우스를 올려 보는 중', '드롭다운이 열리는지 보는 중', '마우스를 치우면 사라지는지 확인하는 중',
-    '언어 선택은 따로 빼는 중', '위에서 아래로 훑으며 구간을 나누는 중', '구간마다 무엇으로 짜였는지 보는 중',
-    '히어로·카드·갤러리·폼을 가르는 중', '헤더 링크와 푸터 링크를 정리하는 중', '거의 다 됐습니다',
+    '페이지를 열어 보고 있어요 ☕', '움직이는 게 멈추길 잠깐 기다리는 중이에요', '맨 위 메뉴 줄을 찾고 있어요',
+    '메뉴에 하나씩 마우스를 올려 보는 중이에요', '드롭다운이 열리나 살펴보고 있어요', '진짜 메뉴인지 한 번 더 확인하고 있어요',
+    '언어 선택 버튼은 따로 빼 둘게요', '페이지를 위에서 아래로 쭉 훑어보는 중이에요', '어떤 구간이 어떻게 짜였는지 보고 있어요',
+    '히어로, 카드, 갤러리, 폼을 나누고 있어요', '헤더와 푸터 링크를 정리하고 있어요', '거의 다 됐어요, 조금만요!',
   ];
+  // 서버 문구도 같은 말투로
+  const friendly = (t) => t
+    .replace(/^여는 중$/, '페이지를 열어 보고 있어요')
+    .replace(/^메뉴에 마우스 올려 확인 — (.+)$/, '"$1" 메뉴에 마우스를 올려 보는 중이에요')
+    .replace(/^메인페이지 구성 읽는 중$/, '메인페이지가 어떻게 짜였는지 보고 있어요')
+    .replace(/^브라우저를 띄우는 중$/, '브라우저를 켜고 있어요');
   let busyTimer = null;
   function startBusy(el, statusUrl) {
     const t0 = Date.now(); let i = 0; let last = '';
-    el.innerHTML = `<span class="dot"></span><span class="txt"></span><span class="t"></span>`;
-    const txt = el.querySelector('.txt'), tt = el.querySelector('.t');
+    el.innerHTML = `<span class="dot"></span><span class="txt"></span>`;
+    const txt = el.querySelector('.txt');
+    let sinceLive = 0;
     const tick = async () => {
       let live = '';
       if (statusUrl) { try { const s = await api(statusUrl); live = s.text || ''; } catch { /* 무시 */ } }
-      if (live && live !== last) { last = live; txt.textContent = live; }
-      else if (!live) { txt.textContent = FILLERS[i++ % FILLERS.length]; }
-      tt.textContent = `${Math.round((Date.now() - t0) / 1000)}초`;
+      // 서버가 새 말을 하면 그대로, 같은 말이 4번 넘게 이어지면 사이를 채우는 문구로
+      if (live && live !== last) { last = live; sinceLive = 0; txt.textContent = friendly(live); }
+      else if (!live || ++sinceLive > 4) { txt.textContent = FILLERS[i++ % FILLERS.length]; sinceLive = 0; }
     };
     tick();
     busyTimer = setInterval(tick, 900);
@@ -222,7 +246,7 @@
   function renderCard(card, row, id) {
     const cls = row.status === '확인됨' ? 'ok' : row.status === '검수 필요' ? 'warn' : 'bad';
     const file = row.files && row.files[0] ? fileUrl(id, row.files[0]) : null;
-    card.innerHTML = `<div class="t">${file ? `<a href="${file}" target="_blank"><img src="${file}" alt=""></a>` : `<div class="err" style="padding:12px">${esc(row.error || '이미지 없음')}</div>`}</div>
+    card.innerHTML = `${file ? `<input type="checkbox" class="sel" title="선택 출력에 넣기">` : ''}<div class="t">${file ? `<a href="${file}" target="_blank"><img src="${file}" alt=""></a>` : `<div class="err" style="padding:12px">${esc(row.error || '이미지 없음')}</div>`}</div>
       <div class="b"><b>${esc(row.path || row.name)}</b><span class="badge ${cls}">${esc(row.status)}</span>
       ${row.docHeight ? ` <span class="mute">${row.docHeight.toLocaleString('en-US')}px</span>` : ''}
       ${row.retakes ? ` <span class="mute">· ${row.retakes}번째 다시 찍음</span>` : ''}
@@ -233,7 +257,7 @@
       ${row.previous && row.previous.length ? `<div class="prev">이전: ${row.previous.map((f) => `<a href="${fileUrl(id, f)}" target="_blank">${esc(f)}</a>`).join(', ')}</div>` : ''}
       <div class="retake">
         <textarea placeholder="하자가 있으면 적어 주세요. 예) GNB 빼줘 / 팝업 닫고 찍어 / 이미지가 덜 떠서 천천히 / 2배로 선명하게 / 모바일로"></textarea>
-        <div class="r"><button class="rt">다시 찍기</button><span class="mute">요청은 그대로 저장되고, 알아들은 것만 반영됩니다</span></div>
+        <div class="r"><button class="rt" title="다시 찍기" aria-label="다시 찍기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 3 3 9 9 9"/></svg></button><span class="mute">요청을 적고 다시 찍기 — 알아들은 것만 반영돼요</span></div>
       </div></div>`;
     card.querySelector('.rt').onclick = async () => {
       const request = card.querySelector('textarea').value.trim();
@@ -245,6 +269,24 @@
       if (!timer) timer = setInterval(() => poll(id), 1500);
     };
   }
+
+  /* ── 내보내기 ── */
+  let currentJob = null;
+  const selCards = () => [...document.querySelectorAll('.card .sel:checked')].map((c) => c.closest('.card').dataset.url);
+  document.addEventListener('change', (e) => { if (e.target.classList.contains('sel')) $('#selCount').textContent = `${selCards().length}개 선택`; });
+  async function doExport(all) {
+    const format = document.querySelector('input[name=fmt]:checked').value;
+    const urls = all ? [] : selCards();
+    if (!all && !urls.length) { $('#exportMsg').textContent = '카드 왼쪽 위 체크박스로 먼저 골라 주세요'; return; }
+    $('#exportMsg').textContent = format === 'pdf' ? 'PDF 한 권으로 묶고 있어요…' : '폴더에 담고 있어요…';
+    const r = await api('/api/export', { id: currentJob, urls, format });
+    if (!r.ok) { $('#exportMsg').innerHTML = `<span class="err">${esc(r.error)}</span>`; return; }
+    $('#exportMsg').innerHTML = format === 'pdf'
+      ? `PDF ${r.pages}쪽으로 묶었어요 → <code>${esc(r.path)}</code>`
+      : `${r.count}장을 폴더에 담았어요 → <code>${esc(r.path)}</code>`;
+  }
+  $('#exportAll').onclick = () => doExport(true);
+  $('#exportSel').onclick = () => doExport(false);
 
   async function poll(id) {
     const j = await api(`/api/job?id=${encodeURIComponent(id)}`);
@@ -275,6 +317,8 @@
     if (j.status === '완료' || j.status === '실패') {
       clearInterval(timer); timer = null;
       $('#b3').disabled = false;
+      currentJob = id;
+      $('#export').hidden = !j.rows.some((r) => r.files && r.files.length);
       const ok = j.rows.filter((r) => r.status === '확인됨').length;
       const warn = j.rows.filter((r) => r.status === '검수 필요').length;
       const bad = j.rows.filter((r) => r.status === '실패').length;
