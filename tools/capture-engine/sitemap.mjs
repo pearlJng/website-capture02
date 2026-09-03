@@ -376,8 +376,15 @@ const kindOfHref = (href, origin) => {
  */
 async function discoverByHover(page, origin, progress) {
   await page.evaluate(inPageTagItems);
-  await page.mouse.move(2, Math.max(2, (page.viewportSize() || { height: 900 }).height - 2));
-  await page.waitForTimeout(200);
+  const away = async () => {
+    await page.mouse.move(2, Math.max(2, (page.viewportSize() || { height: 900 }).height - 2));
+  };
+  await away();
+  // 등장 애니메이션이 덜 끝난 채로 기준을 잡으면, 나중에 서서히 나타난 본문
+  // 링크("더 알아보기")가 하위 메뉴로 잡힌다 — 유닉트에서 실제로 그랬다.
+  // 애니메이션을 끝까지 돌리고 잠시 기다린 뒤에 기준을 잡는다.
+  await page.evaluate(() => { for (const a of document.getAnimations()) { try { a.finish(); } catch { /* 무한 반복 */ } } });
+  await page.waitForTimeout(800);
   const base = await page.evaluate(inPageVisibleItems);
   const vw = (page.viewportSize() || { width: 1440 }).width;
 
@@ -419,6 +426,15 @@ async function discoverByHover(page, origin, progress) {
       now = await page.evaluate(inPageVisibleItems);
       fresh = now.filter((n) => !known.has(n.id) && n.id !== it.id);
     }
+    // 결정적인 검사: 진짜 하위 메뉴는 마우스를 치우면 사라진다. 그대로 남아
+    // 있는 건 그 사이에 나타난 본문 링크다.
+    if (fresh.length) {
+      if (path.length > 1) await hoverPath(path.slice(0, -1)); else await away();
+      await page.waitForTimeout(500);
+      const after = new Set((await page.evaluate(inPageVisibleItems)).map((n) => n.id));
+      fresh = fresh.filter((f) => !after.has(f.id));
+      await hoverPath(path);    // 다시 열어 둔다 — 하위의 하위를 보려면 열려 있어야 한다
+    }
     fresh.sort((a, b) => (a.y - b.y) || (a.x - b.x));
     const out = [];
     const nextKnown = new Set([...known, ...fresh.map((f) => f.id)]);
@@ -448,7 +464,9 @@ async function discoverByHover(page, origin, progress) {
   // 알림·마이페이지 같은 버튼은 보통 다른 줄(유틸리티 바)에 있어 여기 안 섞인다.
   // 언어 선택은 같은 줄에 앉아 있어도 GNB 가 아니다 — 유틸리티로 넘긴다.
   const LANG = /^(en|eng|english|kr|ko|kor|korean|한국어|한글|jp|ja|jpn|japanese|日本語|cn|zh|chinese|中文|简体中文|繁體中文|中文\s*\((简体|繁體|繁体)\)|de|deutsch|german|fr|français|french|es|español|spanish|vi|tiếng việt|th|ไทย|language|languages|lang|언어|global)$/i;
-  const isLang = (x) => LANG.test(x.label) || (x.children.length >= 2 && x.children.every((c) => LANG.test(c.label)));
+  // "KOR / EN", "KR | JP" 처럼 언어를 나란히 적은 것도 언어 선택이다
+  const langLabel = (t) => { const parts = t.split(/[\/|·,]/).map((x) => x.trim()).filter(Boolean); return parts.length > 0 && parts.every((x) => LANG.test(x)); };
+  const isLang = (x) => langLabel(x.label) || (x.children.length >= 2 && x.children.every((c) => langLabel(c.label)));
   const utility = [];
   const gnb = [];
   for (const m of menu) {

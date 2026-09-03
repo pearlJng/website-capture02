@@ -29,7 +29,7 @@ footer{padding:24px;background:#eee}
       <li><a href="/products.html">Products</a></li>
       <li><a href="https://blog.example.com/">Blog</a></li>
       <li><a href="javascript:void(0)">Contact</a></li>
-      <li><a href="javascript:void(0)">한국어</a>
+      <li><a href="javascript:void(0)">KOR / EN</a>
         <ul>
           <li><a href="https://en.example.com/">EN</a></li>
           <li><a href="https://jp.example.com/">日本語</a></li>
@@ -74,6 +74,9 @@ footer{padding:24px;background:#eee}
     <video muted playsinline style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover"></video>
     <h1 style="position:relative;color:#fff;padding:200px 40px 0">혁신적인 기술로 내일을 만듭니다</h1>
     <a href="/about.html" style="position:relative;display:inline-block;margin:24px 40px;padding:14px 32px;background:#fff">더 알아보기</a>
+    <!-- 늦게 서서히 나타나는 본문 링크. 메뉴에 마우스를 올리는 사이에 떠서 하위 메뉴로 오인되기 쉽다. -->
+    <a id="late" href="/product.html" style="position:relative;display:inline-block;margin:24px 8px;padding:14px 32px;background:#fff;opacity:0;transition:opacity 1.5s">제품 보기 -</a>
+    <script>setTimeout(() => { document.getElementById('late').style.opacity = '1'; }, 1200);</script>
   </section>
   <section id="about" style="padding:80px 40px">
     <h2>About us</h2>

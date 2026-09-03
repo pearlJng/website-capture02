@@ -242,6 +242,10 @@ const CASES = [
       const want = ['홈', 'About us', 'Technology', 'Products', 'Blog', 'Contact'];
       if (top.join('|') !== want.join('|')) return `최상위가 ${top.join(' / ')} (기대 ${want.join(' / ')})`;
       if (!r.menu[0].home) return '홈을 홈으로 표시하지 않았다';
+      const phantom = [];
+      const scan = (items) => { for (const x of items) { if (x.label.startsWith('제품 보기')) phantom.push(x); scan(x.children); } };
+      scan(r.menu);
+      if (phantom.length) return `서서히 나타난 본문 링크가 하위 메뉴로 ${phantom.length}번 들어갔다`;
       const about = r.menu[1];
       if (about.children.map((x) => x.label).join('|') !== '연혁|팀') return `About us 하위가 ${about.children.map((x) => x.label).join(' / ')}`;
       if (about.children[0].kind !== '앵커') return `연혁이 ${about.children[0].kind} (기대 앵커)`;
