@@ -301,6 +301,11 @@ async function main() {
       // 한 방 캡처(fullpage)에서만 진짜 문제다.
       if (rd.invisible && last.mode !== 'stitch') gaps.push(`투명한 요소 ${rd.invisible}개`);
       if (rd.blankVideos) gaps.push(`빈 비디오 ${rd.blankVideos}개`);
+      // 스크롤이 도중에 멈췄으면 그 아래는 아예 안 찍힌 것이다. 가장 심각하다.
+      if (last.stalled) {
+        gaps.unshift(`스크롤이 ${last.stalled.at.toLocaleString('en-US')}px 에서 멈춤 ` +
+          `(문서 ${last.stalled.of.toLocaleString('en-US')}px)`);
+      }
       const complete = gaps.length === 0;
       const files = last.slices.map((buf, i) => {
         const f = last.slices.length === 1 ? `${name}.png` : `${name} (${i + 1}).png`;

@@ -191,6 +191,33 @@ const CASES = [
     check: (r) => (r.docHeight > 1000 ? null : `문서가 ${r.docHeight}px — 캡처가 제대로 안 됐다`),
   },
   {
+    // 동화목립산업이 "결과물이 안 나온" 이유.
+    // 문서는 5,400px 인데 스크롤이 0 에 붙박여 있으면, 방어가 없는 루프는
+    // 같은 첫 화면을 120번 찍어 전부 겹쳐 붙인다 — 맨 위 한 칸만 있는
+    // 빈 그림이 나온다. 조용히 나쁜 그림을 내놓느니 여기까지 갔다고 말해야 한다.
+    name: '스크롤이 안 먹는 페이지는 헛돌지 않고 멈춘 자리를 기록한다',
+    file: 'scrollrevert.html', steps: ['sticky', 'motion', 'anim'], mode: 'stitch',
+    check: (r) => {
+      if (r.docHeight < 4000) return `문서가 ${r.docHeight}px — 픽스처가 짧아 시험이 안 된다`;
+      if (!r.stalled) return `${r.shotCount}칸을 찍고 멈춘 걸 기록하지 않았다 — 헛돌고 있다`;
+      if (r.shotCount > 2) return `멈춘 걸 알면서 ${r.shotCount}칸이나 찍었다`;
+      if (r.stalled.at > 200) return `${r.stalled.at}px 에서 멈췄다고 한다 — 0 근처여야 한다`;
+      if (!(r.notes || []).some((n) => n.includes('멈췄습니다'))) return '메모에 남기지 않았다';
+      return null;
+    },
+  },
+  {
+    // 같은 페이지에서 되돌리기만 꺼보면 끝까지 내려가야 한다.
+    // 이게 실패하면 위 시험은 캡처기가 고장 난 걸 본 것일 수도 있다.
+    name: '되돌리기를 끄면 같은 페이지가 끝까지 내려간다 (대조군)',
+    file: 'scrollrevert.html?free=1', steps: ['sticky', 'motion', 'anim'], mode: 'stitch',
+    check: (r) => {
+      if (r.stalled) return `멈췄다고 한다 (${r.stalled.at}px) — 막은 게 없는데 못 내려갔다`;
+      if (r.shotCount < 5) return `화면 ${r.shotCount}칸만 찍었다 (문서 ${r.docHeight}px)`;
+      return null;
+    },
+  },
+  {
     name: '매번 다르게 그리는 페이지는 모든 단계를 켜도 다르다 (T4 대조군)',
     file: 'random.html', mode: 'fullpage', steps: ['sticky', 'motion', 'anim', 'slice'], twice: true,
     check: (r, cmp) => (same(cmp.verdict) ? '같게 나왔다 — 채점기가 T4 를 통과시키고 있다' : null),

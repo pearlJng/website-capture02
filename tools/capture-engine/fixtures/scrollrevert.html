@@ -1,0 +1,33 @@
+<!doctype html><meta charset=utf-8><title>스크롤을 되돌리는 페이지</title>
+<style>
+body{margin:0;font:16px/1.6 system-ui}
+section{height:900px;display:flex;align-items:center;justify-content:center;font-size:48px}
+section:nth-child(odd){background:#eef}
+section:nth-child(even){background:#fee}
+</style>
+<section>1</section><section>2</section><section>3</section>
+<section>4</section><section>5</section><section>6</section>
+<script>
+/*
+ * 동화목립산업이 빈 그림으로 나온 상황을 재현한다.
+ *
+ * 문서는 5,400px 인데 스크롤이 실제로는 한 칸도 안 내려간다.
+ * 스무스 스크롤 라이브러리가 자기 내부 위치를 진짜 위치로 여기고
+ * 매 프레임 되돌리면 이렇게 된다.
+ *
+ * 이 방어가 없으면 캡처기는 같은 첫 화면을 120번 찍어 전부 y=0 에
+ * 겹쳐 붙이고, 맨 위 한 화면만 있는 5,400px 짜리 그림을 내놓는다.
+ *
+ * ?free=1 로 열면 되돌리지 않는다 — 이 픽스처가 진짜로 스크롤을
+ * 막고 있는지(대조군) 확인하는 용도다.
+ */
+if (!location.search.includes('free')) {
+  const pin = () => {
+    const se = document.scrollingElement || document.documentElement;
+    if (se.scrollTop !== 0) se.scrollTop = 0;
+    if (document.body.scrollTop !== 0) document.body.scrollTop = 0;
+    requestAnimationFrame(pin);
+  };
+  requestAnimationFrame(pin);
+}
+</script>

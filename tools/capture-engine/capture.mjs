@@ -311,11 +311,36 @@ function inPageWhere() {
   };
 }
 
-/** 지정한 곳으로 옮긴다. 스무스 스크롤이 가로채면 원래 방법으로 되돌린다. */
+/**
+ * 지정한 곳으로 옮기고, 실제로 간 자리를 돌려준다.
+ *
+ * 스무스 스크롤 라이브러리는 scrollTop 을 매 프레임 자기 값으로 되돌리기도
+ * 한다. 그러면 아무리 넣어도 제자리다. 그래서 여러 방법을 차례로 시도하고,
+ * 마지막에는 그 자리에 있는 요소를 화면으로 데려오는 방법까지 써 본다.
+ */
 function inPageScrollTo(y) {
   const se = document.scrollingElement || document.documentElement;
+  const at = () => Math.round(Math.max(
+    window.scrollY, se.scrollTop, document.body ? document.body.scrollTop : 0));
+  const off = () => Math.abs(at() - y);
+
   se.scrollTop = y;
-  if (Math.abs(se.scrollTop - y) > 2) window.scrollTo(0, y);
+  if (off() > 2) window.scrollTo(0, y);
+  if (off() > 2 && document.body) document.body.scrollTop = y;
+
+  if (off() > 2) {
+    // 스크롤을 가로채는 페이지에서는 "이 요소를 보여 달라"가 먹기도 한다
+    let best = null, bestDiff = Infinity;
+    const base = at();
+    for (const el of document.querySelectorAll('body *')) {
+      const r = el.getBoundingClientRect();
+      if (r.height < 20) continue;
+      const d = Math.abs(r.top + base - y);
+      if (d < bestDiff) { bestDiff = d; best = el; }
+    }
+    if (best) { try { best.scrollIntoView({ block: 'start' }); } catch { /* 구형 */ } }
+  }
+  return at();
 }
 
 /**
@@ -430,6 +455,7 @@ export async function captureSite(context, url, opts = {}) {
 
     let slices;
     let shotCount = 0;
+    let stalled = null;
 
     if (mode === 'stitch') {
       // ── 화면 단위로 찍어 이어 붙인다 ──
@@ -441,6 +467,7 @@ export async function captureSite(context, url, opts = {}) {
       const shots = [];
       let y = 0;
       let height = docHeight;
+      let lastY = -1;      // 직전에 실제로 도달한 자리
       for (let i = 0; i < MAX_SCROLL_STEPS && y < height; i++) {
         await page.evaluate(inPageScrollTo, y);
         await page.waitForTimeout(i === 0 ? SHOT_SETTLE_FIRST_MS : SHOT_SETTLE_MS);
@@ -453,6 +480,21 @@ export async function captureSite(context, url, opts = {}) {
         }
 
         const at = await page.evaluate(inPageWhere);
+
+        // 제자리걸음이면 멈춘다.
+        //
+        // 이 방어가 없어서 동화목립이 빈 이미지로 나왔다. lenis 가 scrollTop 을
+        // 되돌려 위치가 0 에 머물렀는데, 루프는 같은 첫 화면을 120번 찍고
+        // 전부 y=0 에 겹쳐 붙였다. 맨 위 한 화면만 있고 나머지는 백지였다.
+        // 조용히 나쁜 그림을 내놓느니 "여기까지밖에 못 갔다"고 말해야 한다.
+        if (i > 0 && at.y <= lastY) {
+          stalled = { at: at.y, of: height };
+          notes.push(`스크롤이 ${at.y.toLocaleString('en-US')}px 에서 멈췄습니다 ` +
+            `(문서 ${height.toLocaleString('en-US')}px) — 아래쪽은 찍지 못했습니다`);
+          break;
+        }
+        lastY = at.y;
+
         const buf = await page.screenshot({ animations, timeout: SHOT_TIMEOUT });
         shots.push({ y: at.y, height: at.innerHeight, buf });
 
@@ -462,7 +504,13 @@ export async function captureSite(context, url, opts = {}) {
       }
       shotCount = shots.length;
 
-      const finalHeight = (await page.evaluate(inPageWhere)).height;
+      let finalHeight = (await page.evaluate(inPageWhere)).height;
+      if (stalled && shots.length) {
+        // 못 간 만큼을 빈 배경으로 채워 내보내면 "빈 그림"이 된다.
+        // 찍은 데까지만 내보내고, 어디서 멈췄는지는 위 메모에 남아 있다.
+        const last = shots[shots.length - 1];
+        finalHeight = Math.min(finalHeight, last.y + last.height);
+      }
       if (!opts.stitchPage) throw new Error('이어붙일 페이지가 필요합니다 (stitchPage)');
       slices = await stitchShots(opts.stitchPage, shots, {
         width: VIEWPORT.width, height: finalHeight, scale,
@@ -500,7 +548,7 @@ export async function captureSite(context, url, opts = {}) {
 
     return {
       ok: true, url, title: m.title, docHeight, scale, slices,
-      sliceCount: slices.length, notes, docWidth: m.docWidth, ready, mode, shotCount,
+      sliceCount: slices.length, notes, docWidth: m.docWidth, ready, mode, shotCount, stalled,
       motionLibs: motion.found,
       motionHandled: steps.has('motion'), reachedBottom: scrolled.reachedBottom,
       finalUrl: page.url() !== url ? page.url() : undefined,
