@@ -70,6 +70,39 @@ async function exportPdf(job, rows, { baseDir, name }) {
 
 const reveal = (path) => { if (process.platform === 'darwin') spawn('open', ['-R', path], { stdio: 'ignore', detached: true }).unref(); };
 
+/**
+ * macOS 의 "별도 저장" 창을 띄워 이름과 위치를 받는다. 앱이 이 컴퓨터에서 돌기
+ * 때문에 가능하다 — 브라우저 화면 안에서 이름·위치를 적게 하는 것보다 익숙하다.
+ * 취소하면 { cancelled: true }. 맥이 아니면 { native: false } — 화면이 기본 위치를 쓴다.
+ */
+function pickSavePath({ defaultName, format }) {
+  if (process.platform !== 'darwin') return Promise.resolve({ ok: true, native: false });
+  const name = safeName(defaultName) + (format === 'pdf' ? '.pdf' : '');
+  const prompt = format === 'pdf' ? 'PDF 로 저장' : '이미지 폴더로 저장';
+  const script = [
+    'tell application "System Events" to activate',
+    `set f to choose file name with prompt "${prompt}" default name "${name.replace(/"/g, '\\"')}" default location (path to downloads folder)`,
+    'POSIX path of f',
+  ];
+  return new Promise((res) => {
+    const args = script.flatMap((l) => ['-e', l]);
+    const p = spawn('osascript', args);
+    let out = '', err = '';
+    p.stdout.on('data', (d) => { out += d; });
+    p.stderr.on('data', (d) => { err += d; });
+    p.on('close', (code) => {
+      if (code !== 0 || !out.trim()) {
+        if (/cancel/i.test(err) || /-128/.test(err)) return res({ ok: true, cancelled: true });
+        return res({ ok: false, error: err.trim() || '저장 창을 띄우지 못했습니다' });
+      }
+      let path = out.trim();
+      if (format === 'pdf' && !/\.pdf$/i.test(path)) path += '.pdf';
+      res({ ok: true, native: true, path });
+    });
+    p.on('error', (e) => res({ ok: false, error: e.message }));
+  });
+}
+
 /* ───────────── 수정 요청 → 캡처 옵션 ─────────────
  * 사람 말을 정해진 조정으로 옮긴다. AI 가 아니라 낱말 맞추기다 — 알아들은
  * 것과 못 알아들은 것을 그대로 돌려준다. */
@@ -302,6 +335,14 @@ const server = createServer(async (req, res) => {
       const { tweaks, applied, ignored } = parseRequest(request || '');
       retake(job, row, { tweaks, applied, ignored, request: request || '' });
       return json(res, 200, { ok: true, applied, ignored });
+    }
+    if (req.method === 'POST' && u.pathname === '/api/pickSave') {
+      const { id, format } = await readBody(req);
+      const job = jobs.get(id);
+      if (!job) return json(res, 404, { ok: false, error: '없는 작업' });
+      let hostName = 'site';
+      try { hostName = new URL(job.requested[0].url).hostname; } catch { /* 무시 */ }
+      return json(res, 200, await pickSavePath({ defaultName: `${hostName} ${job.width}`, format }));
     }
     if (req.method === 'POST' && u.pathname === '/api/export') {
       const { id, urls, format, dir, name } = await readBody(req);

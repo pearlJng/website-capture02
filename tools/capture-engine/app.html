@@ -121,8 +121,6 @@
     <div class="grid" id="grid"></div>
     <div class="export" id="export" hidden>
       <span class="seg"><label><input type="radio" name="fmt" value="img" checked>IMG</label><label><input type="radio" name="fmt" value="pdf">PDF</label></span>
-      <label class="f"><span id="nameLabel">폴더 이름</span><input class="nm" id="exportName" placeholder="사이트 1920"></label>
-      <label class="f">저장 위치<input class="dir" id="exportDir" placeholder="비우면 결과 폴더 안 내보내기/"></label>
       <span class="right">
         <button id="selToggle">전체 해제</button>
         <span class="mute" id="selCount"></span>
@@ -290,13 +288,26 @@
   }
   document.addEventListener('change', (e) => { if (e.target.classList.contains('sel')) updateSel(); });
   $('#selToggle').onclick = () => { const on = $('#selToggle').textContent === '전체 선택'; allSel().forEach((c) => { c.checked = on; }); updateSel(); };
-  document.querySelectorAll('input[name=fmt]').forEach((r) => { r.onchange = () => { $('#nameLabel').textContent = r.value === 'pdf' && r.checked ? '파일 이름' : '폴더 이름'; }; });
   async function doExport() {
     const format = document.querySelector('input[name=fmt]:checked').value;
     const urls = selCards();
     if (!urls.length) { $('#exportMsg').textContent = '카드 왼쪽 위 체크박스로 먼저 골라 주세요'; return; }
+    // 맥의 "별도 저장" 창으로 이름과 위치를 받는다. 창은 앱을 띄운 터미널 쪽에 뜬다.
+    $('#exportMsg').textContent = '저장 창에서 이름과 위치를 정해 주세요…';
+    $('#exportBtn').disabled = true;
+    let dir = '', name = '';
+    try {
+      const pick = await api('/api/pickSave', { id: currentJob, format });
+      if (!pick.ok) { $('#exportMsg').innerHTML = `<span class="err">${esc(pick.error)}</span>`; return; }
+      if (pick.cancelled) { $('#exportMsg').textContent = '취소했어요'; return; }
+      if (pick.native) {
+        const path = pick.path.replace(/\/$/, '');
+        const i = path.lastIndexOf('/');
+        dir = path.slice(0, i); name = path.slice(i + 1).replace(/\.pdf$/i, '');
+      }
+    } finally { $('#exportBtn').disabled = false; }
     $('#exportMsg').textContent = format === 'pdf' ? 'PDF 한 권으로 묶고 있어요…' : '폴더에 담고 있어요…';
-    const r = await api('/api/export', { id: currentJob, urls, format, dir: $('#exportDir').value, name: $('#exportName').value });
+    const r = await api('/api/export', { id: currentJob, urls, format, dir, name });
     if (!r.ok) { $('#exportMsg').innerHTML = `<span class="err">${esc(r.error)}</span>`; return; }
     $('#exportMsg').innerHTML = format === 'pdf'
       ? `PDF ${r.pages}쪽으로 묶었어요 → <code>${esc(r.path)}</code>`
@@ -335,10 +346,6 @@
       $('#b3').disabled = false;
       currentJob = id;
       $('#export').hidden = !j.rows.some((r) => r.files && r.files.length);
-      if (j.exportDefaults) {
-        $('#exportName').placeholder = j.exportDefaults.name;
-        $('#exportDir').placeholder = j.exportDefaults.dir;
-      }
       updateSel();
       const ok = j.rows.filter((r) => r.status === '확인됨').length;
       const warn = j.rows.filter((r) => r.status === '검수 필요').length;
