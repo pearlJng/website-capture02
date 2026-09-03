@@ -260,16 +260,12 @@
       ${row.diffFile ? `<div><a href="${fileUrl(id, row.diffFile)}" target="_blank">무엇이 달랐는지 보기</a></div>` : ''}
       ${(row.notes || []).filter((n) => /헤더|잘라/.test(n)).map((n) => `<div class="mute">${esc(n)}</div>`).join('')}
       ${row.pieceFiles && row.pieceFiles.length ? `<div class="mute">조각: ${row.pieceFiles.map((f, i) => `<a href="${fileUrl(id, f)}" target="_blank">${i + 1}</a>`).join(' · ')}</div>` : ''}
-      ${row.applied && row.applied.length ? `<div class="applied">적용: ${esc(row.applied.join(', '))}</div>` : ''}
-      ${row.ignored ? `<div class="ignored">못 알아들은 요청: "${esc(row.ignored)}" — 메모로만 남겼습니다</div>` : ''}
       ${row.previous && row.previous.length ? `<div class="prev">이전: ${row.previous.map((f) => `<a href="${fileUrl(id, f)}" target="_blank">${esc(f)}</a>`).join(', ')}</div>` : ''}
       <div class="retake">
-        <textarea placeholder="하자가 있으면 적어 주세요. 예) GNB 빼줘 / 팝업 닫고 찍어 / 이미지가 덜 떠서 천천히 / 2배로 선명하게 / 모바일로"></textarea>
-        <div class="r"><button class="rt" title="다시 찍기" aria-label="다시 찍기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 3 3 9 9 9"/></svg></button><span class="mute">요청을 적고 다시 찍기 — 알아들은 것만 반영돼요</span></div>
+        <div class="r"><button class="rt" title="다시 찍기" aria-label="다시 찍기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 3 3 9 9 9"/></svg></button><span class="mute">다시 찍기</span></div>
       </div></div>`;
     card.querySelector('.rt').onclick = async () => {
-      const request = card.querySelector('textarea').value.trim();
-      const r = await api('/api/retake', { id, url: row.url, request });
+      const r = await api('/api/retake', { id, url: row.url, request: '' });
       if (!r.ok) { alert(r.error); return; }
       card.classList.add('pending');
       card.dataset.stamp = '';
