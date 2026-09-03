@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { captureSite, VIEWPORT, SAFE_PIXELS, DEVICES, contextOptionsFor } from './capture.mjs';
 import { compareCaptures, renderDiffStrip, VERDICT } from './diff.mjs';
 import { createBrowserHost, isBrowserDeath } from './browser.mjs';
+import { extractSitemap } from './sitemap.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PORT = 8825;
@@ -230,6 +231,30 @@ const CASES = [
     check: (r) => (r.title === 'PC 레이아웃' ? null : `사이트 판정: "${r.title}"`),
   },
   {
+    // 정보구조는 헤더 목록의 중첩을 그대로 읽는다. 숨긴 드롭다운도 읽고,
+    // 모바일 메뉴에 반복된 링크는 한 번만 세고, 외부·앵커·파일은 표시한다.
+    name: '정보구조: 메뉴 트리를 읽고 중복·외부·앵커를 가른다',
+    file: 'nav.html', sitemap: true,
+    check: (r) => {
+      if (!r.ok) return `실패: ${r.error}`;
+      const top = r.menu.map((x) => x.label);
+      const want = ['홈', 'About us', 'Technology', 'Products', 'Blog', 'Contact'];
+      if (top.join('|') !== want.join('|')) return `최상위가 ${top.join(' / ')} (기대 ${want.join(' / ')})`;
+      if (!r.menu[0].home) return '홈을 홈으로 표시하지 않았다';
+      const about = r.menu[1];
+      if (about.children.map((x) => x.label).join('|') !== '연혁|팀') return `About us 하위가 ${about.children.map((x) => x.label).join(' / ')}`;
+      if (about.children[0].kind !== '앵커') return `연혁이 ${about.children[0].kind} (기대 앵커)`;
+      const tech = r.menu[2];
+      if (!tech.children.some((x) => x.label === '특허 자료' && x.kind === '파일')) return '특허 자료를 파일로 가르지 못했다';
+      if (r.menu[4].kind !== '외부') return `Blog 가 ${r.menu[4].kind} (기대 외부)`;
+      if (r.menu[5].kind !== '없음') return `Contact 가 ${r.menu[5].kind} (기대 없음)`;
+      if (r.menuCount !== 10) return `메뉴를 ${r.menuCount}개로 셌다 (기대 10 — 모바일 메뉴 중복이 섞였나)`;
+      if (!r.loose.some((x) => x.label === '로그인')) return '헤더의 로그인 링크를 놓쳤다';
+      if (r.footer.length !== 3) return `푸터 링크 ${r.footer.length}개 (기대 3)`;
+      return null;
+    },
+  },
+  {
     name: '매번 다르게 그리는 페이지는 모든 단계를 켜도 다르다 (T4 대조군)',
     file: 'random.html', mode: 'fullpage', steps: ['sticky', 'motion', 'anim', 'slice'], twice: true,
     check: (r, cmp) => (same(cmp.verdict) ? '같게 나왔다 — 채점기가 T4 를 통과시키고 있다' : null),
@@ -313,6 +338,13 @@ async function main() {
 
   /** 한 항목을 한 번 돌린다. 브라우저가 죽었으면 그 사실을 알려준다. */
   async function attempt(c) {
+    if (c.sitemap) {
+      const browser = await host.get();
+      const ctx = await browser.newContext({ viewport: VIEWPORT, locale: 'ko-KR' });
+      const r = await extractSitemap(ctx, BASE + c.file, { depth: 0 });
+      await ctx.close().catch(() => {});
+      return { shots: [r], cmp: null };
+    }
     const shots = [];
     for (let i = 0; i < (c.twice ? 2 : 1); i++) {
       const browser = await host.get();

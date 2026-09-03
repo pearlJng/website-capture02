@@ -1,0 +1,49 @@
+<!doctype html><meta charset=utf-8><title>내비 픽스처 — 회사 홈</title>
+<meta name="description" content="정보구조 추출 시험용 페이지">
+<style>
+body{margin:0;font:16px/1.6 system-ui}
+header{display:flex;gap:24px;padding:16px 24px;border-bottom:1px solid #ddd}
+nav ul{list-style:none;margin:0;padding:0;display:flex;gap:16px}
+nav li ul{display:none;position:absolute;background:#fff}   /* 드롭다운은 숨겨져 있다 */
+.mobile-menu{display:none}
+footer{padding:24px;background:#eee;margin-top:600px}
+</style>
+<header>
+  <a href="/" class="logo"><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="회사 로고"></a>
+  <nav>
+    <ul>
+      <li><a href="/">홈</a></li>
+      <li><a href="/about.html">About us</a>
+        <ul>
+          <li><a href="/about.html#history">연혁</a></li>
+          <li><a href="/about.html#team">팀</a></li>
+        </ul>
+      </li>
+      <li><a href="/technology.html">Technology</a>
+        <ul>
+          <li><a href="/technology.html">핵심 기술</a></li>
+          <li><a href="/patents.pdf">특허 자료</a></li>
+        </ul>
+      </li>
+      <li><a href="/products.html">Products</a></li>
+      <li><a href="https://blog.example.com/">Blog</a></li>
+      <li><a href="javascript:void(0)">Contact</a></li>
+    </ul>
+  </nav>
+  <a href="/login.html">로그인</a>
+</header>
+<!-- 모바일 메뉴: 같은 링크가 한 번 더 있다. 결과에 두 번 나오면 안 된다. -->
+<div class="mobile-menu">
+  <ul>
+    <li><a href="/">홈</a></li>
+    <li><a href="/about.html">About us</a></li>
+    <li><a href="/technology.html">Technology</a></li>
+    <li><a href="/products.html">Products</a></li>
+  </ul>
+</div>
+<h1>회사 홈</h1>
+<footer>
+  <a href="/privacy.html">개인정보처리방침</a>
+  <a href="/terms.html">이용약관</a>
+  <a href="https://instagram.com/example">인스타그램</a>
+</footer>
