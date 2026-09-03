@@ -2,16 +2,20 @@
 /**
  * sitemap.mjs — 사이트의 정보구조(메뉴 트리)를 뽑는다.
  *
- * 주소 하나를 넣으면 "홈 / About us / Technology / …" 처럼 사이트가 스스로
- * 내세운 메뉴 구조가 나온다. 페이지를 전부 기어다니며 링크 그래프를 그리는
- * 게 아니다 — 그건 사이트가 방문자에게 보여 주는 구조와 다르다. 헤더·내비의
- * 목록(ul/li) 중첩을 그대로 읽어 트리로 만든다. 그게 기획자가 "정보구조"라
- * 부르는 것이다.
+ * 주소 하나를 넣으면 두 가지가 나온다.
+ *
+ *   1. GNB 1차~n차 메뉴 트리 — "홈 / About us / Technology / …"
+ *   2. 메인페이지 구성 — 위에서 아래로 어떤 구간이 무엇으로 짜여 있는지
+ *      (히어로·카드 3열·갤러리·문의 폼·지도 …)
+ *
+ * 페이지를 전부 기어다니며 링크 그래프를 그리는 게 아니다 — 그건 사이트가
+ * 방문자에게 보여 주는 구조와 다르다. 헤더·내비의 목록(ul/li) 중첩을 그대로
+ * 읽어 트리로 만든다. 그게 기획자가 "정보구조"라 부르는 것이다.
  *
  *   node sitemap.mjs --urls https://example.com --out ./결과
- *   node sitemap.mjs --urls https://example.com --depth 0      메뉴만, 하위 페이지 안 들어감
+ *   node sitemap.mjs --urls https://example.com --depth 1     최상위 메뉴 페이지에도 들어가 하위 메뉴를 더 찾는다
  *
- * 결과: 정보구조.txt (트리) · 정보구조.json · 정보구조.csv
+ * 결과: 정보구조.txt (트리+메인 구성) · 정보구조.json · 정보구조.csv · 메인페이지.csv
  */
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -145,6 +149,113 @@ function inPageReadNav() {
   };
 }
 
+/**
+ * 메인페이지를 위에서 아래로 구간별로 읽는다. 브라우저 안에서 돈다.
+ *
+ * "구간"은 문서를 세로로 나누는 큼직한 덩어리다. body 에서 시작해 자식이 하나뿐인
+ * 포장 요소를 벗겨 내려가다가, 문서를 여럿으로 나누는 자리에서 멈춘다.
+ * 아임웹은 섹션마다 .doz_section / section 을 쓰므로 그게 있으면 우선 쓴다.
+ */
+function inPageReadSections() {
+  const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
+  const vh = window.innerHeight;
+  const docH = Math.max(document.documentElement.scrollHeight, document.body.scrollHeight);
+  const rect = (el) => { const r = el.getBoundingClientRect(); return { top: Math.round(r.top + window.scrollY), h: Math.round(r.height) }; };
+  const isChrome = (el) => !!el.closest('header, footer, nav, [class*="header"], [class*="footer"], [id*="header"], [id*="footer"]')
+    || getComputedStyle(el).position === 'fixed';
+
+  // 1) 사이트가 스스로 구간을 표시한 경우
+  let blocks = [...document.querySelectorAll('.doz_section, main > section, body section')]
+    .filter((el) => !isChrome(el) && !el.parentElement.closest('section') && rect(el).h >= 80);
+  // 2) 아니면 포장을 벗겨 내려가며 문서를 여럿으로 나누는 자리를 찾는다
+  if (blocks.length < 3) {
+    let node = document.querySelector('main') || document.body;
+    for (let guard = 0; guard < 12; guard++) {
+      const kids = [...node.children].filter((el) => !isChrome(el) && !/^(SCRIPT|STYLE|LINK|NOSCRIPT|TEMPLATE)$/.test(el.tagName) && rect(el).h >= 80);
+      if (kids.length >= 3) { blocks = kids; break; }
+      if (kids.length === 0) break;
+      // 자식이 하나둘이면 그중 가장 큰 것으로 내려간다
+      node = kids.sort((a, b) => rect(b).h - rect(a).h)[0];
+    }
+  }
+  blocks.sort((a, b) => rect(a).top - rect(b).top);
+
+  const menuLabels = new Set([...document.querySelectorAll('header a, nav a')].map((a) => clean(a.textContent).toLowerCase()).filter(Boolean));
+
+  const describe = (el, i) => {
+    const { top, h } = rect(el);
+    const heading = el.querySelector('h1, h2, h3, h4, [class*="title"], [class*="heading"]');
+    const headText = clean(heading && heading.textContent).slice(0, 60);
+    const text = clean(el.innerText).slice(0, 90);
+    const imgs = [...el.querySelectorAll('img')].filter((im) => im.getBoundingClientRect().width >= 40);
+    const bgImg = [el, ...el.querySelectorAll('*')].slice(0, 60).some((x) => /url\(/.test(getComputedStyle(x).backgroundImage));
+    const video = el.querySelector('video, iframe[src*="youtube"], iframe[src*="youtu.be"], iframe[src*="vimeo"]');
+    const map = el.querySelector('iframe[src*="google.com/maps"], iframe[src*="maps.google"], [class*="map"], iframe[src*="kakao"], iframe[src*="naver"]');
+    const form = el.querySelector('form, input:not([type=hidden]), textarea');
+    const slider = el.querySelector('.swiper, .slick, [class*="slider"], [class*="carousel"], [class*="swiper"]');
+    const buttons = [...el.querySelectorAll('a, button')].filter((b) => {
+      const t = clean(b.textContent); const r = b.getBoundingClientRect();
+      return t && t.length <= 24 && r.height >= 32 && r.width >= 80 && r.width <= 420;
+    });
+    // 카드 N열: 같은 줄에 나란히 선 비슷한 크기의 형제들
+    let columns = 0;
+    for (const parent of [el, ...el.querySelectorAll('*')].slice(0, 200)) {
+      const kids = [...parent.children].filter((k) => k.getBoundingClientRect().height >= 120);
+      if (kids.length < 3) continue;
+      const tops = kids.map((k) => Math.round(k.getBoundingClientRect().top));
+      const row = kids.filter((k, j) => Math.abs(tops[j] - tops[0]) < 8);
+      if (row.length >= 3 && row.length <= 6) { columns = row.length; break; }
+    }
+    const logos = imgs.length >= 5 && imgs.every((im) => im.getBoundingClientRect().height <= 90);
+
+    let type;
+    if (i === 0 && (video || bgImg || imgs.length || slider) && h >= vh * 0.5) type = video ? '히어로 (동영상)' : slider ? '히어로 (슬라이더)' : '히어로';
+    else if (form) type = '문의 · 폼';
+    else if (map) type = '지도 · 위치';
+    else if (logos) type = '로고 띠';
+    else if (slider) type = '슬라이더';
+    else if (columns) type = `카드 ${columns}열`;
+    else if (imgs.length >= 6) type = '갤러리';
+    else if (video) type = '동영상';
+    else if (imgs.length && text.length > 40) type = '이미지 + 텍스트';
+    else if (imgs.length) type = '이미지';
+    else if (buttons.length && text.length < 120) type = 'CTA 배너';
+    else type = '텍스트';
+
+    const parts = [];
+    if (video) parts.push('동영상');
+    if (imgs.length) parts.push(`이미지 ${imgs.length}`);
+    if (bgImg && !imgs.length) parts.push('배경 이미지');
+    if (slider) parts.push('슬라이더');
+    if (columns) parts.push(`${columns}열`);
+    if (form) parts.push('폼');
+    if (map) parts.push('지도');
+    if (buttons.length) parts.push(`버튼 ${buttons.length}`);
+
+    const id = el.id || (heading && heading.id) || '';
+    const gnb = (headText && menuLabels.has(headText.toLowerCase())) || (id && [...document.querySelectorAll('header a[href*="#"], nav a[href*="#"]')].some((a) => a.hash === '#' + id));
+    return { order: i + 1, top, height: h, type, heading: headText, text, parts, gnb: !!gnb, id };
+  };
+
+  return { docHeight: docH, viewport: vh, sections: blocks.map(describe) };
+}
+
+/** 지연 로딩이 자리를 잡게 한 번 빠르게 내려갔다 올라온다. 구간 높이를 재기 전에 한다. */
+async function inPageQuickScroll() {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const se = document.scrollingElement || document.documentElement;
+  const step = window.innerHeight * 0.8;
+  let last = -1;
+  for (let i = 0; i < 80; i++) {
+    se.scrollTop += step;
+    await sleep(120);
+    if (se.scrollTop === last) break;
+    last = se.scrollTop;
+  }
+  se.scrollTop = 0;
+  await sleep(300);
+}
+
 /* ──────────────────────────────── 조립 ──────────────────────────────── */
 
 const normUrl = (href) => {
@@ -156,7 +267,7 @@ const normUrl = (href) => {
  * 하위 메뉴를 붙인다. 아임웹 템플릿 일부는 하위 메뉴를 해당 페이지에서만 보여 준다.
  */
 export async function extractSitemap(context, url, opts = {}) {
-  const depth = opts.depth ?? 1;
+  const depth = opts.depth ?? 0;    // 기본은 GNB 와 메인페이지까지. 하위 페이지는 시키면 들어간다
   const progress = typeof opts.onProgress === 'function' ? opts.onProgress : () => {};
   const started = Date.now();
   const page = await context.newPage();
@@ -167,6 +278,10 @@ export async function extractSitemap(context, url, opts = {}) {
     await page.waitForTimeout(500);
     const home = await page.evaluate(inPageReadNav);
     const origin = new URL(page.url()).origin;
+
+    progress('메인페이지 구성 읽는 중');
+    await page.evaluate(inPageQuickScroll);
+    const main = await page.evaluate(inPageReadSections);
 
     // 홈 링크 표시: 사이트 루트로 가는 항목
     const isHome = (l) => l.kind === '페이지' && normUrl(l.href) === normUrl(origin + '/');
@@ -211,26 +326,10 @@ export async function extractSitemap(context, url, opts = {}) {
       }
     }
 
-    // sitemap.xml 에는 있는데 메뉴에 없는 페이지 — 숨은 페이지(이벤트·약관 등)
-    let hidden = [];
-    try {
-      const res = await page.request.get(origin + '/sitemap.xml', { timeout: 8000 });
-      if (res.ok()) {
-        const xml = await res.text();
-        const inMenu = new Set();
-        const collect = (items) => { for (const x of items) { inMenu.add(normUrl(x.href)); collect(x.children); } };
-        collect(home.menu);
-        for (const l of [...home.loose, ...home.footer]) inMenu.add(normUrl(l.href));
-        hidden = [...xml.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/g)].map((m) => m[1])
-          .filter((u) => u.startsWith(origin) && !inMenu.has(normUrl(u)))
-          .slice(0, 100);
-      }
-    } catch { /* 없으면 없는 것 */ }
-
     const count = (items) => items.reduce((n, x) => n + 1 + count(x.children), 0);
     return {
       ok: true, url, finalUrl: page.url(), title: home.title, description: home.description,
-      menu: home.menu, loose: home.loose, footer: home.footer, hidden, pages,
+      menu: home.menu, loose: home.loose, footer: home.footer, main, pages,
       menuCount: count(home.menu), inspected, ms: Date.now() - started,
     };
   } catch (e) {
@@ -283,11 +382,16 @@ export function renderTree(r) {
     L.push('  푸터');
     for (const l of r.footer) L.push(`    · ${l.label}  ${short(l.href, origin)}${l.kind === '외부' ? '  (외부)' : ''}`);
   }
-  if (r.hidden.length) {
+  if (r.main && r.main.sections.length) {
     L.push('');
-    L.push(`  메뉴에는 없는 페이지 (sitemap.xml) ${r.hidden.length}개`);
-    for (const u of r.hidden.slice(0, 30)) L.push(`    · ${short(u, origin)}`);
-    if (r.hidden.length > 30) L.push(`    … ${r.hidden.length - 30}개 더`);
+    L.push(`  메인페이지 구성 — 문서 ${r.main.docHeight.toLocaleString('en-US')}px, ${r.main.sections.length}개 구간`);
+    L.push('');
+    for (const sct of r.main.sections) {
+      const name = sct.heading || sct.text.slice(0, 40) || '(글 없음)';
+      const pos = `${sct.top.toLocaleString('en-US')}~${(sct.top + sct.height).toLocaleString('en-US')}px`;
+      L.push(`   ${String(sct.order).padStart(2)}. ${sct.type.padEnd(14)} ${pos.padEnd(18)} ${name}${sct.gnb ? '  ← GNB 항목' : ''}`);
+      if (sct.parts.length) L.push(`       ${sct.parts.join(' · ')}`);
+    }
   }
   L.push('');
   return L.join('\n');
@@ -305,8 +409,14 @@ export function flattenRows(r) {
   walk(r.menu, []);
   for (const l of r.loose) rows.push({ '깊이': 0, '경로': l.label, '이름': l.label, 'URL': l.href, '종류': l.kind, '출처': '헤더' });
   for (const l of r.footer) rows.push({ '깊이': 0, '경로': l.label, '이름': l.label, 'URL': l.href, '종류': l.kind, '출처': '푸터' });
-  for (const u of r.hidden) rows.push({ '깊이': '', '경로': '', '이름': '', 'URL': u, '종류': '페이지', '출처': 'sitemap.xml' });
   return rows;
+}
+
+export function sectionRows(r) {
+  return ((r.main && r.main.sections) || []).map((s) => ({
+    '순서': s.order, '유형': s.type, '제목': s.heading, '시작px': s.top, '높이px': s.height,
+    '구성요소': s.parts.join(' · '), 'GNB항목': s.gnb ? 'Y' : '', '텍스트': s.text,
+  }));
 }
 
 /* ──────────────────────────────── CLI ──────────────────────────────── */
@@ -335,11 +445,11 @@ async function main() {
 
 옵션
   --out <폴더>     저장 위치 (기본 ./결과)
-  --depth <n>      1(기본) 최상위 메뉴 페이지에 들어가 거기서만 보이는 하위 메뉴를 붙인다
-                   0       첫 페이지 메뉴만 읽는다 (빠름)
+  --depth <n>      0(기본) 메인페이지에서 GNB 1차~n차 메뉴와 메인 구성을 읽는다
+                   1       최상위 메뉴 페이지에도 들어가 거기서만 보이는 하위 메뉴를 붙인다
   --browser <이름>  auto(기본) | chrome | msedge | chromium
 
-결과: 정보구조.txt (트리) · 정보구조.json · 정보구조.csv
+결과: 정보구조.txt (트리 + 메인 구성) · 정보구조.json · 정보구조.csv · 메인페이지.csv
 `);
     return;
   }
@@ -355,7 +465,7 @@ async function main() {
       const browser = await host.get();
       const ctx = await browser.newContext(contextOptionsFor(DEVICES[1440], 1));
       const r = await extractSitemap(ctx, url, {
-        depth: args.depth ?? 1,
+        depth: args.depth ?? 0,
         onProgress: (m) => console.error(`      ${m}`),
       });
       await ctx.close().catch(() => {});
@@ -367,6 +477,8 @@ async function main() {
       writeFileSync(join(outDir, `${base}.txt`), tree + '\n');
       writeFileSync(join(outDir, `${base}.json`), JSON.stringify(r, null, 2));
       writeFileSync(join(outDir, `${base}.csv`), writeTable(['깊이', '경로', '이름', 'URL', '종류', '출처'], flattenRows(r)));
+      writeFileSync(join(outDir, `${base.replace('정보구조', '메인페이지')}.csv`),
+        writeTable(['순서', '유형', '제목', '시작px', '높이px', '구성요소', 'GNB항목', '텍스트'], sectionRows(r)));
       console.error(`저장: ${join(outDir, base + '.txt')}  (${(r.ms / 1000).toFixed(1)}초)`);
     }
   } finally {

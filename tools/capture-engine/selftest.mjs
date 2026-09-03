@@ -251,6 +251,15 @@ const CASES = [
       if (r.menuCount !== 10) return `메뉴를 ${r.menuCount}개로 셌다 (기대 10 — 모바일 메뉴 중복이 섞였나)`;
       if (!r.loose.some((x) => x.label === '로그인')) return '헤더의 로그인 링크를 놓쳤다';
       if (r.footer.length !== 3) return `푸터 링크 ${r.footer.length}개 (기대 3)`;
+      // 메인페이지 구성
+      const sec = (r.main && r.main.sections) || [];
+      const types = sec.map((x) => x.type);
+      if (sec.length !== 4) return `메인 구간을 ${sec.length}개로 셌다 (기대 4): ${types.join(' / ')}`;
+      if (!types[0].startsWith('히어로 (동영상)')) return `1구간이 ${types[0]} (기대 히어로 (동영상))`;
+      if (types[1] !== '이미지 + 텍스트') return `2구간이 ${types[1]} (기대 이미지 + 텍스트)`;
+      if (types[2] !== '카드 3열') return `3구간이 ${types[2]} (기대 카드 3열)`;
+      if (types[3] !== '문의 · 폼') return `4구간이 ${types[3]} (기대 문의 · 폼)`;
+      if (!sec[1].gnb || !sec[2].gnb) return 'About us / Technology 구간을 GNB 항목과 연결하지 못했다';
       return null;
     },
   },
