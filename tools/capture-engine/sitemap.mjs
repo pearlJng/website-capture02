@@ -168,6 +168,55 @@ function inPageReadNav() {
   };
 }
 
+/* ── 마우스를 올려 찾는 방식에 쓰는 페이지 안 도우미들 ── */
+
+/** 모든 링크·버튼에 번호표를 붙인다. 밖에서 hover 할 때 이 번호로 집는다. */
+function inPageTagItems() {
+  let n = 0;
+  for (const el of document.querySelectorAll('a, button, [role="menuitem"], li > span, li > div')) {
+    if (!el.hasAttribute('data-ia')) el.setAttribute('data-ia', String(n++));
+  }
+  return n;
+}
+
+/**
+ * 화면에 실제로 보이는 항목들. 위치·크기·글자를 같이 준다.
+ * 드롭다운은 헤더 밖(body 끝)에 그려지기도 하므로 헤더 안만 보지 않고 화면 전체를 본다.
+ */
+function inPageVisibleItems() {
+  const clean = (t) => (t || '').replace(/\s+/g, ' ').trim();
+  const out = [];
+  for (const el of document.querySelectorAll('[data-ia]')) {
+    const r = el.getBoundingClientRect();
+    if (r.width < 8 || r.height < 8) continue;
+    if (r.bottom < 0 || r.top > window.innerHeight || r.right < 0 || r.left > window.innerWidth) continue;
+    const cs = getComputedStyle(el);
+    if (cs.visibility === 'hidden' || cs.display === 'none' || Number(cs.opacity) < 0.05) continue;
+    // 조상 중 하나라도 투명·숨김이면 안 보이는 것이다
+    let hidden = false;
+    for (let n = el.parentElement; n && n !== document.body; n = n.parentElement) {
+      const c = getComputedStyle(n);
+      if (c.visibility === 'hidden' || c.display === 'none' || Number(c.opacity) < 0.05) { hidden = true; break; }
+    }
+    if (hidden) continue;
+    // 그 자리를 실제로 이 요소가 차지하는지 (다른 것에 덮여 있으면 안 보이는 것)
+    const cx = Math.min(window.innerWidth - 1, Math.max(0, r.left + r.width / 2));
+    const cy = Math.min(window.innerHeight - 1, Math.max(0, r.top + r.height / 2));
+    const hit = document.elementFromPoint(cx, cy);
+    if (!hit || !(el === hit || el.contains(hit) || hit.contains(el))) continue;
+    const label = clean(el.innerText || el.textContent) || clean(el.getAttribute('aria-label') || el.getAttribute('title'))
+      || clean([...el.querySelectorAll('img[alt]')].map((i) => i.alt).join(' '));
+    if (!label) continue;
+    let href = '';
+    const a = el.tagName === 'A' ? el : el.querySelector('a');
+    const raw = a && a.getAttribute('href');
+    if (raw && !/^javascript:/i.test(raw) && raw !== '#') { try { href = new URL(raw, location.href).href; } catch { /* 무시 */ } }
+    out.push({ id: el.getAttribute('data-ia'), label: label.length > 50 ? label.slice(0, 47) + '…' : label, href,
+      x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) });
+  }
+  return out;
+}
+
 /**
  * 메인페이지를 위에서 아래로 구간별로 읽는다. 브라우저 안에서 돈다.
  *
@@ -282,6 +331,101 @@ async function inPageQuickScroll() {
   await sleep(300);
 }
 
+/* ──────────────────── 마우스를 올려 GNB 를 찾는다 ──────────────────── */
+
+const kindOfHref = (href, origin) => {
+  if (!href) return '없음';
+  let u; try { u = new URL(href); } catch { return '없음'; }
+  if (/^(mailto|tel|sms):/.test(u.protocol)) return '연락';
+  if (u.origin !== origin) return '외부';
+  if (/\.(pdf|zip|docx?|xlsx?|pptx?|hwp)$/i.test(u.pathname)) return '파일';
+  if (u.hash) return '앵커';
+  return '페이지';
+};
+
+/**
+ * 사람이 하는 대로 한다 — 맨 위 한 줄에 나란히 선 항목마다 마우스를 올려 보고,
+ * 그때 새로 나타나는 링크를 그 항목의 하위 메뉴로 적는다.
+ *
+ * DOM 구조(ul/li 중첩)를 믿는 방식은 사이트마다 다르게 짜서 자주 틀린다.
+ * 테라클(아임웹)은 드롭다운이 li 안에 있지 않아 Product·Contact 의 하위가
+ * 1차로 흩어져 나왔다. 화면에 무엇이 나타나는지는 구조와 무관하다.
+ */
+async function discoverByHover(page, origin, progress) {
+  await page.evaluate(inPageTagItems);
+  await page.mouse.move(2, Math.max(2, (page.viewportSize() || { height: 900 }).height - 2));
+  await page.waitForTimeout(200);
+  const base = await page.evaluate(inPageVisibleItems);
+  const vw = (page.viewportSize() || { width: 1440 }).width;
+
+  // 맨 위 220px 안에서 같은 높이에 나란히 선 항목이 가장 많은 줄이 GNB 다.
+  const top = base.filter((it) => it.y < 220 && it.h <= 120 && it.label.length <= 30);
+  const rows = new Map();
+  for (const it of top) {
+    const key = Math.round((it.y + it.h / 2) / 8);
+    if (!rows.has(key)) rows.set(key, []);
+    rows.get(key).push(it);
+  }
+  let row = null;
+  for (const items of rows.values()) {
+    const distinct = items.filter((it, i) => items.findIndex((o) => o.label === it.label) === i);
+    if (distinct.length >= 3 && (!row || distinct.length > row.length)) row = distinct;
+  }
+  if (!row) return null;
+  row.sort((a, b) => a.x - b.x);
+  // 한 줄에 로고나 유틸리티가 섞이면 폭이 튄다. 가운데 무리(서로 400px 안)만 남긴다.
+  const seenId = new Set(base.map((b) => b.id));
+
+  const hoverPath = async (path) => {
+    for (const it of path) {
+      await page.hover(`[data-ia="${it.id}"]`, { timeout: 2500, force: true }).catch(() => {});
+      await page.waitForTimeout(120);
+    }
+    await page.waitForTimeout(350);
+  };
+
+  const children = async (path, depth, known) => {
+    const it = path[path.length - 1];
+    await hoverPath(path);
+    let now = await page.evaluate(inPageVisibleItems);
+    let fresh = now.filter((n) => !known.has(n.id) && n.y >= it.y - 4 && n.id !== it.id);
+    // 마우스로 안 열리고 눌러야 열리는 것(주소 없는 항목)은 한 번 눌러 본다
+    if (!fresh.length && !it.href && depth === 1) {
+      await page.click(`[data-ia="${it.id}"]`, { timeout: 2500, force: true }).catch(() => {});
+      await page.waitForTimeout(400);
+      now = await page.evaluate(inPageVisibleItems);
+      fresh = now.filter((n) => !known.has(n.id) && n.id !== it.id);
+    }
+    fresh.sort((a, b) => (a.y - b.y) || (a.x - b.x));
+    const out = [];
+    const nextKnown = new Set([...known, ...fresh.map((f) => f.id)]);
+    for (const f of fresh) {
+      if (f.label === it.label && f.href === it.href) continue;    // 자기 자신의 복사본
+      const node = { label: f.label, href: f.href, kind: kindOfHref(f.href, origin), depth, children: [], id: f.id };
+      if (depth < 3) node.children = await children([...path, f], depth + 1, nextKnown);
+      out.push(node);
+    }
+    return out;
+  };
+
+  const menu = [];
+  for (const it of row) {
+    progress(`메뉴에 마우스 올려 확인 — ${it.label}`);
+    const node = { label: it.label, href: it.href, kind: kindOfHref(it.href, origin), depth: 0, children: [], id: it.id };
+    node.children = await children([it], 1, seenId);
+    // 마우스를 치우고 열린 것이 닫히게 한다
+    await page.mouse.move(2, Math.max(2, (page.viewportSize() || { height: 900 }).height - 2));
+    await page.keyboard.press('Escape').catch(() => {});
+    await page.waitForTimeout(250);
+    menu.push(node);
+  }
+  const strip = (items) => { for (const x of items) { delete x.id; strip(x.children); } };
+  strip(menu);
+  // 주소 없는 항목도 남긴다 — 눌러야 팝업이 열리는 "Contact" 같은 메뉴가 있다.
+  // 알림·마이페이지 같은 버튼은 보통 다른 줄(유틸리티 바)에 있어 여기 안 섞인다.
+  return menu;
+}
+
 /* ──────────────────────────────── 조립 ──────────────────────────────── */
 
 const normUrl = (href) => {
@@ -304,6 +448,24 @@ export async function extractSitemap(context, url, opts = {}) {
     await page.waitForTimeout(500);
     const home = await page.evaluate(inPageReadNav);
     const origin = new URL(page.url()).origin;
+
+    // 1순위: 마우스를 올려 찾은 것. 2순위: DOM 구조로 읽은 것.
+    let method = 'dom';
+    const hovered = await discoverByHover(page, origin, progress).catch(() => null);
+    if (hovered && hovered.length >= 3) {
+      // DOM 으로 읽은 것 중 hover 로 못 본 항목(드롭다운이 hover 로 안 열리는 경우)은 유틸리티로 넘긴다
+      const inHover = new Set();
+      const collect = (items) => { for (const x of items) { inHover.add(`${x.href}|${x.label}`); collect(x.children); } };
+      collect(hovered);
+      const flat = [];
+      const flatten = (items) => { for (const x of items) { flat.push(x); flatten(x.children); } };
+      flatten(home.menu);
+      const leftovers = flat.filter((x) => x.kind !== '없음' && !inHover.has(`${x.href}|${x.label}`))
+        .map((x) => ({ ...x, depth: 0, children: [] }));
+      home.utility = [...(home.utility || []), ...leftovers].filter((x, i, arr) => arr.findIndex((o) => o.href === x.href && o.label === x.label) === i);
+      home.menu = hovered;
+      method = 'hover';
+    }
 
     progress('메인페이지 구성 읽는 중');
     await page.evaluate(inPageQuickScroll);
@@ -357,7 +519,7 @@ export async function extractSitemap(context, url, opts = {}) {
       ok: true, url, finalUrl: page.url(), title: home.title, description: home.description,
       menu: home.menu, utility: home.utility || [], loose: home.loose, footer: home.footer, main, pages,
       headerHtml: home.headerHtml,
-      menuCount: count(home.menu), inspected, ms: Date.now() - started,
+      menuCount: count(home.menu), inspected, method, ms: Date.now() - started,
     };
   } catch (e) {
     return { ok: false, url, error: e.message.split('\n')[0], ms: Date.now() - started };
@@ -383,7 +545,7 @@ export function renderTree(r) {
   L.push(`${r.title || '(제목 없음)'}  ${r.finalUrl || r.url}`);
   if (r.description) L.push(`  "${r.description}"`);
   L.push('');
-  L.push(`  메뉴 ${r.menuCount}개${r.inspected ? ` · 하위 페이지 ${r.inspected}곳 확인` : ''}`);
+  L.push(`  메뉴 ${r.menuCount}개${r.method === 'hover' ? ' · 항목마다 마우스를 올려 하위 메뉴를 확인했습니다' : ' · 메뉴 구조를 읽었습니다'}${r.inspected ? ` · 하위 페이지 ${r.inspected}곳 확인` : ''}`);
   L.push('');
 
   const walk = (items, prefix) => {

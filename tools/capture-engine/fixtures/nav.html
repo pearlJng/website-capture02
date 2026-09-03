@@ -4,7 +4,13 @@
 body{margin:0;font:16px/1.6 system-ui}
 header{display:flex;gap:24px;padding:16px 24px;border-bottom:1px solid #ddd}
 nav ul{list-style:none;margin:0;padding:0;display:flex;gap:16px}
-nav li ul{display:none;position:absolute;background:#fff}   /* 드롭다운은 숨겨져 있다 */
+nav li{position:relative}
+nav li ul{display:none;position:absolute;left:0;top:100%;background:#fff;padding:8px;min-width:140px}   /* 드롭다운은 숨겨져 있다 */
+nav li:hover > ul{display:block}
+nav li ul li{display:block}
+/* 아임웹처럼 드롭다운이 li 안이 아니라 딴 데 그려지는 경우 */
+#dd-tech{display:none;position:absolute;background:#fff;padding:8px;min-width:140px;z-index:5}
+#dd-tech.open{display:block}
 .mobile-menu{display:none}
 footer{padding:24px;background:#eee}
 </style>
@@ -19,12 +25,7 @@ footer{padding:24px;background:#eee}
           <li><a href="/about.html#team">팀</a></li>
         </ul>
       </li>
-      <li><a href="/technology.html">Technology</a>
-        <ul>
-          <li><a href="/technology.html">핵심 기술</a></li>
-          <li><a href="/patents.pdf">특허 자료</a></li>
-        </ul>
-      </li>
+      <li id="li-tech"><a href="/technology.html">Technology</a></li>
       <li><a href="/products.html">Products</a></li>
       <li><a href="https://blog.example.com/">Blog</a></li>
       <li><a href="javascript:void(0)">Contact</a></li>
@@ -37,6 +38,19 @@ footer{padding:24px;background:#eee}
   </ul>
   <a href="/login.html">로그인</a>
 </header>
+<!-- Technology 의 드롭다운. li 안에 있지 않다 — 아임웹이 이렇다. DOM 중첩만 믿으면 놓친다. -->
+<div id="dd-tech">
+  <a href="/technology.html" style="display:block">핵심 기술</a>
+  <a href="/patents.pdf" style="display:block">특허 자료</a>
+</div>
+<script>
+  const li = document.getElementById('li-tech'), dd = document.getElementById('dd-tech');
+  const open = () => { const r = li.getBoundingClientRect(); dd.style.left = r.left + 'px'; dd.style.top = r.bottom + 'px'; dd.classList.add('open'); };
+  const close = () => dd.classList.remove('open');
+  li.addEventListener('mouseenter', open); dd.addEventListener('mouseenter', open);
+  li.addEventListener('mouseleave', () => setTimeout(() => { if (!dd.matches(':hover')) close(); }, 80));
+  dd.addEventListener('mouseleave', close);
+</script>
 <!-- 모바일 메뉴: 같은 링크가 한 번 더 있다. 결과에 두 번 나오면 안 된다. -->
 <div class="mobile-menu">
   <ul>

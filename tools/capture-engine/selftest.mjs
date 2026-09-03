@@ -237,6 +237,7 @@ const CASES = [
     file: 'nav.html', sitemap: true,
     check: (r) => {
       if (!r.ok) return `실패: ${r.error}`;
+      if (r.method !== 'hover') return `마우스를 올려 찾는 방식이 아니라 ${r.method} 로 읽었다`;
       const top = r.menu.map((x) => x.label);
       const want = ['홈', 'About us', 'Technology', 'Products', 'Blog', 'Contact'];
       if (top.join('|') !== want.join('|')) return `최상위가 ${top.join(' / ')} (기대 ${want.join(' / ')})`;
@@ -245,6 +246,7 @@ const CASES = [
       if (about.children.map((x) => x.label).join('|') !== '연혁|팀') return `About us 하위가 ${about.children.map((x) => x.label).join(' / ')}`;
       if (about.children[0].kind !== '앵커') return `연혁이 ${about.children[0].kind} (기대 앵커)`;
       const tech = r.menu[2];
+      if (tech.children.map((x) => x.label).join('|') !== '핵심 기술|특허 자료') return `Technology 하위가 ${tech.children.map((x) => x.label).join(' / ')} — li 밖에 그려진 드롭다운을 못 봤다`;
       if (!tech.children.some((x) => x.label === '특허 자료' && x.kind === '파일')) return '특허 자료를 파일로 가르지 못했다';
       if (r.menu[4].kind !== '외부') return `Blog 가 ${r.menu[4].kind} (기대 외부)`;
       if (r.menu[5].kind !== '없음') return `Contact 가 ${r.menu[5].kind} (기대 없음)`;
