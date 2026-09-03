@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>웹사이트 캡처</title>
+<style>
+  :root { --ink: #111; --mute: #6b6b70; --line: #e3e3e6; --bg: #f6f6f7; --card: #fff; --ok: #0a7d3c; --warn: #a06000; --bad: #b3261e; --accent: #1a56db; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 32px 24px 80px; }
+  h1 { font-size: 22px; margin: 0 0 24px; }
+  .step { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px 24px; margin-bottom: 16px; }
+  .step[hidden] { display: none; }
+  .step h2 { font-size: 16px; margin: 0 0 12px; display: flex; align-items: center; gap: 10px; }
+  .step h2 .n { display: inline-flex; width: 24px; height: 24px; border-radius: 50%; background: var(--ink); color: #fff; font-size: 13px; align-items: center; justify-content: center; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  input[type=url] { flex: 1; min-width: 320px; font: inherit; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; }
+  button { font: inherit; padding: 10px 16px; border-radius: 8px; border: 1px solid var(--line); background: #fff; cursor: pointer; }
+  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  .mute { color: var(--mute); font-size: 13px; }
+  .tree { font-size: 14px; }
+  .tree label { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+  .tree .d1 { padding-left: 28px; } .tree .d2 { padding-left: 56px; } .tree .d3 { padding-left: 84px; }
+  .tree .path { color: var(--mute); font-size: 12px; margin-left: 4px; }
+  .tree .skip { color: var(--mute); }
+  .tree .skip .why { font-size: 12px; margin-left: 6px; }
+  .sections { margin-top: 12px; font-size: 13px; color: var(--mute); }
+  .sections summary { cursor: pointer; }
+  .sections li { margin: 2px 0; }
+  .opts { display: flex; gap: 24px; flex-wrap: wrap; align-items: center; }
+  .opts label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .opts .w { border: 1px solid var(--line); border-radius: 8px; padding: 8px 14px; }
+  .opts .w:has(input:checked) { border-color: var(--accent); background: #eef3ff; }
+  .log { background: #111; color: #ddd; font: 12px/1.5 ui-monospace, Menlo, monospace; padding: 12px; border-radius: 8px; max-height: 220px; overflow: auto; white-space: pre-wrap; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; margin-top: 16px; }
+  .card { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: #fff; }
+  .card .t { height: 200px; overflow: hidden; background: #eee; }
+  .card .t img { width: 100%; display: block; }
+  .card .b { padding: 10px 12px; font-size: 13px; }
+  .card .b b { display: block; font-weight: 600; margin-bottom: 2px; }
+  .badge { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px; background: #eee; }
+  .badge.ok { background: #e2f5e9; color: var(--ok); } .badge.warn { background: #fff1d6; color: var(--warn); } .badge.bad { background: #fde3e1; color: var(--bad); }
+  .card.pending .t { display: flex; align-items: center; justify-content: center; color: var(--mute); font-size: 13px; }
+  .err { color: var(--bad); }
+  .done-links { margin-top: 12px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+  code { background: #eee; padding: 1px 6px; border-radius: 4px; font-size: 13px; }
+</style>
+<main>
+  <h1>웹사이트 캡처</h1>
+
+  <section class="step" id="s1">
+    <h2><span class="n">1</span>주소</h2>
+    <form class="row" id="f1">
+      <input type="url" id="url" placeholder="https://example.com/" required autofocus>
+      <button class="primary" id="b1" type="submit">정보구조 분석</button>
+    </form>
+    <p class="mute" id="m1"></p>
+  </section>
+
+  <section class="step" id="s2" hidden>
+    <h2><span class="n">2</span>정보구조 — 찍을 페이지 고르기</h2>
+    <p class="mute" id="m2"></p>
+    <div class="row" style="margin-bottom:8px">
+      <button id="all">전체 선택</button>
+      <button id="none">전체 해제</button>
+      <span class="mute" id="count"></span>
+    </div>
+    <div class="tree" id="tree"></div>
+    <details class="sections" id="sections"></details>
+  </section>
+
+  <section class="step" id="s3" hidden>
+    <h2><span class="n">3</span>화면 크기</h2>
+    <div class="opts">
+      <label class="w"><input type="radio" name="w" value="1440"> 데스크탑 1440</label>
+      <label class="w"><input type="radio" name="w" value="1920" checked> 데스크탑 1920</label>
+      <label class="w"><input type="radio" name="w" value="375"> 모바일 375</label>
+      <label><input type="checkbox" id="check" checked> 두 번 찍어 검사 <span class="mute">(느리지만 움직이는 것을 잡아냅니다)</span></label>
+    </div>
+    <div class="row" style="margin-top:14px">
+      <button class="primary" id="b3">캡처 시작</button>
+      <span class="mute" id="m3"></span>
+    </div>
+  </section>
+
+  <section class="step" id="s4" hidden>
+    <h2><span class="n">4</span>스크린샷</h2>
+    <p class="mute" id="m4"></p>
+    <div class="log" id="log"></div>
+    <div class="grid" id="grid"></div>
+    <div class="done-links" id="links"></div>
+  </section>
+</main>
+<script>
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  let analysis = null;
+
+  async function api(path, body) {
+    const r = await fetch(path, body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {});
+    return r.json();
+  }
+
+  /* ── 1. 분석 ── */
+  $('#f1').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const url = $('#url').value.trim();
+    $('#b1').disabled = true;
+    $('#m1').textContent = '메뉴마다 마우스를 올려 하위 메뉴를 확인하는 중입니다 — 10~30초 걸립니다';
+    ['#s2', '#s3', '#s4'].forEach((s) => { $(s).hidden = true; });
+    try {
+      const r = await api('/api/sitemap', { url });
+      if (!r.ok) { $('#m1').innerHTML = `<span class="err">실패: ${esc(r.error)}</span>`; return; }
+      analysis = r;
+      $('#m1').textContent = `${r.title || ''} — 메뉴 ${r.menuCount}개, 찍을 수 있는 페이지 ${r.pages.length}개`;
+      renderTree(r);
+      $('#s2').hidden = false; $('#s3').hidden = false;
+      $('#s2').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } finally { $('#b1').disabled = false; }
+  });
+
+  function renderTree(r) {
+    const pageByUrl = new Map(r.pages.map((p) => [norm(p.url), p]));
+    const rows = [];
+    // 홈은 항상 맨 위
+    rows.push(`<label class="d0"><input type="checkbox" class="pg" data-url="${esc(r.pages[0].url)}" data-label="홈" checked> 홈 <span class="path">${esc(shortUrl(r.pages[0].url))}</span></label>`);
+    const seen = new Set([norm(r.pages[0].url)]);
+    const walk = (items, depth, path) => {
+      for (const it of items) {
+        const p = [...path, it.label];
+        const k = norm(it.href);
+        const capturable = (it.kind === '페이지' || it.home) && it.href;
+        if (capturable && !seen.has(k)) {
+          seen.add(k);
+          rows.push(`<label class="d${Math.min(depth, 3)}"><input type="checkbox" class="pg" data-url="${esc(it.href)}" data-label="${esc(p.join(' > '))}" checked> ${esc(it.label)} <span class="path">${esc(shortUrl(it.href))}</span></label>`);
+        } else {
+          const why = !it.href ? '눌러야 열림' : seen.has(k) ? '위와 같은 페이지' : it.kind === '외부' ? '외부 링크' : it.kind === '앵커' ? '페이지 안 위치' : it.kind === '파일' ? '파일' : it.kind;
+          rows.push(`<div class="d${Math.min(depth, 3)} skip">${esc(it.label)}<span class="why">(${esc(why)} — 캡처 대상 아님)</span></div>`);
+        }
+        walk(it.children || [], depth + 1, p);
+      }
+    };
+    walk(r.menu, 0, []);
+    $('#tree').innerHTML = rows.join('');
+    $('#m2').textContent = (r.languages && r.languages.length ? `언어 선택(${r.languages.join(', ')})은 정보구조에서 뺐습니다. ` : '') + '체크한 페이지만 찍습니다.';
+    const sec = (r.main && r.main.sections) || [];
+    $('#sections').innerHTML = sec.length
+      ? `<summary>메인페이지 구성 — ${sec.length}개 구간 (문서 ${r.main.docHeight.toLocaleString('en-US')}px)</summary><ol>${sec.map((s) => `<li><b>${esc(s.type)}</b> ${esc(s.heading || s.text.slice(0, 40))}${s.gnb ? ' ← GNB 항목' : ''}${s.parts.length ? ` <span>(${esc(s.parts.join(' · '))})</span>` : ''}</li>`).join('')}</ol>`
+      : '<summary>메인페이지 구성 — 구간을 못 나눴습니다</summary>';
+    updateCount();
+    $('#tree').addEventListener('change', updateCount);
+  }
+  const norm = (h) => { try { const u = new URL(h); u.hash = ''; return u.href.replace(/\/$/, ''); } catch { return h || ''; } };
+  const shortUrl = (h) => { try { const u = new URL(h); return (u.pathname + u.search) || '/'; } catch { return h; } };
+  const selected = () => [...document.querySelectorAll('.pg:checked')].map((c) => ({ url: c.dataset.url, path: c.dataset.label.split(' > ') }));
+  function updateCount() { const n = selected().length; $('#count').textContent = `${n}개 선택`; $('#b3').disabled = n === 0; $('#b3').textContent = `${n}개 페이지 캡처 시작`; }
+  $('#all').onclick = () => { document.querySelectorAll('.pg').forEach((c) => { c.checked = true; }); updateCount(); };
+  $('#none').onclick = () => { document.querySelectorAll('.pg').forEach((c) => { c.checked = false; }); updateCount(); };
+
+  /* ── 3·4. 캡처 ── */
+  let timer = null;
+  $('#b3').addEventListener('click', async () => {
+    const pages = selected();
+    const width = Number(document.querySelector('input[name=w]:checked').value);
+    const check = $('#check').checked;
+    $('#b3').disabled = true;
+    $('#m3').textContent = '';
+    const r = await api('/api/capture', { pages, width, check });
+    if (!r.ok) { $('#m3').innerHTML = `<span class="err">${esc(r.error)}</span>`; $('#b3').disabled = false; return; }
+    $('#s4').hidden = false;
+    $('#grid').innerHTML = pages.map((p) => `<div class="card pending" data-url="${esc(norm(p.url))}"><div class="t">기다리는 중</div><div class="b"><b>${esc(p.path.join(' > '))}</b><span class="mute">${esc(shortUrl(p.url))}</span></div></div>`).join('');
+    $('#links').innerHTML = '';
+    $('#m4').textContent = `저장 위치: ${r.outDir}`;
+    $('#s4').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    clearInterval(timer);
+    timer = setInterval(() => poll(r.id), 1500);
+    poll(r.id);
+  });
+
+  async function poll(id) {
+    const j = await api(`/api/job?id=${encodeURIComponent(id)}`);
+    if (!j.ok) return;
+    $('#log').textContent = j.log.slice(-40).join('\n');
+    $('#log').scrollTop = $('#log').scrollHeight;
+    for (const row of j.rows) {
+      const card = document.querySelector(`.card[data-url="${CSS.escape(norm(row.url))}"]`);
+      if (!card || !card.classList.contains('pending')) continue;
+      card.classList.remove('pending');
+      const cls = row.status === '확인됨' ? 'ok' : row.status === '검수 필요' ? 'warn' : 'bad';
+      const file = row.files && row.files[0] ? `/files/${encodeURIComponent(id)}/${encodeURIComponent(row.files[0])}` : null;
+      card.innerHTML = `<div class="t">${file ? `<a href="${file}" target="_blank"><img src="${file}" alt=""></a>` : `<div class="err" style="padding:12px">${esc(row.error || '이미지 없음')}</div>`}</div>
+        <div class="b"><b>${esc(row.path || row.name)}</b><span class="badge ${cls}">${esc(row.status)}</span>
+        ${row.docHeight ? ` <span class="mute">${row.docHeight.toLocaleString('en-US')}px</span>` : ''}
+        ${row.gaps && row.gaps.length ? `<div class="mute">${esc(row.gaps.join(' · '))}</div>` : ''}
+        ${row.diffFile ? `<div><a href="/files/${encodeURIComponent(id)}/${encodeURIComponent(row.diffFile)}" target="_blank">무엇이 달랐는지 보기</a></div>` : ''}</div>`;
+    }
+    if (j.status === '완료' || j.status === '실패') {
+      clearInterval(timer);
+      $('#b3').disabled = false;
+      const ok = j.rows.filter((r) => r.status === '확인됨').length;
+      const warn = j.rows.filter((r) => r.status === '검수 필요').length;
+      const bad = j.rows.filter((r) => r.status === '실패').length;
+      const secs = Math.round(((j.finishedAt || Date.now()) - j.startedAt) / 1000);
+      $('#m4').innerHTML = `${j.status} — 확인됨 ${ok} · 검수 필요 ${warn} · 실패 ${bad} · ${secs}초${j.error ? ` <span class="err">${esc(j.error)}</span>` : ''}<br>저장 위치: <code>${esc(j.outDir)}</code>`;
+      $('#links').innerHTML = `<a href="/files/${encodeURIComponent(id)}/${encodeURIComponent('목록.html')}" target="_blank"><button>목록 페이지 열기</button></a>
+        <a href="/files/${encodeURIComponent(id)}/${encodeURIComponent('목록.csv')}" target="_blank"><button>CSV</button></a>
+        <a href="/files/${encodeURIComponent(id)}/${encodeURIComponent('보고서.txt')}" target="_blank"><button>보고서</button></a>`;
+    }
+  }
+</script>
+</html>

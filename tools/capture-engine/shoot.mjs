@@ -262,7 +262,11 @@ async function main() {
 }
 
 /** 고른 화면 크기로 전부 찍고 결과 파일을 쓴다. */
-async function shootAll({ args, urls, host, pick, device, scale, outDir, check, retry }) {
+/**
+ * 고른 화면 크기로 전부 찍고 결과 파일을 쓴다. CLI 와 앱(app.mjs)이 같이 쓴다.
+ * log 는 진행 문구를, onRow 는 한 곳이 끝날 때마다 그 결과를 받는다.
+ */
+export async function shootAll({ args = {}, urls, host, pick, device, scale, outDir, check, retry, log = console.error, onRow = () => {} }) {
   const ctxOpts = contextOptionsFor(device, scale);
   let diffPage = null;
   async function getDiffPage() {
@@ -296,11 +300,11 @@ async function shootAll({ args, urls, host, pick, device, scale, outDir, check, 
       const work = captureSite(ctx, url, {
         steps: [...STEPS], scale, mode: args.mode || 'stitch',
         stitchPage,
-        onProgress: verbose ? (m) => console.error(`      ${label} · ${m}`) : undefined,
+        onProgress: verbose ? (m) => log(`      ${label} · ${m}`) : undefined,
       }).then((r) => {
         if (verbose && r.ok && r.timing) {
           const parts = Object.entries(r.timing).map(([k, v]) => `${k} ${(v / 1000).toFixed(1)}`).join(' · ');
-          console.error(`      ${label} · 완료 ${(r.ms / 1000).toFixed(1)}초 (${parts})`);
+          log(`      ${label} · 완료 ${(r.ms / 1000).toFixed(1)}초 (${parts})`);
         }
         return r;
       });
@@ -319,10 +323,10 @@ async function shootAll({ args, urls, host, pick, device, scale, outDir, check, 
     }
   };
 
-  console.error(`${urls.length}곳 캡처 시작 — ${device.label} · ${pick.name} · ${scale}배율${check ? ' · 찍고 나서 스스로 검사합니다' : ' · 검사 없음'}`);
+  log(`${urls.length}곳 캡처 시작 — ${device.label} · ${pick.name} · ${scale}배율${check ? ' · 찍고 나서 스스로 검사합니다' : ' · 검사 없음'}`);
   const used = new Set();
   let done = 0;
-  const rows = await mapLimit(urls, args.concurrency || 2, async (url) => {
+  const shootOne = async (url) => {
     let last = null, prev = null, cmp = null, tries = 0;
     let err = null;
 
@@ -361,7 +365,7 @@ async function shootAll({ args, urls, host, pick, device, scale, outDir, check, 
 
     const name = fileNameFor(url, last && last.title, used);
     if (err || !last) {
-      console.error(`  [${++done}/${urls.length}] ✗ ${name} — ${err}`);
+      log(`  [${++done}/${urls.length}] ✗ ${name} — ${err}`);
       return { name, url, status: '실패', error: err || '알 수 없는 오류', files: [], tries };
     }
 
@@ -400,7 +404,7 @@ async function shootAll({ args, urls, host, pick, device, scale, outDir, check, 
 
     const mark = stable && complete ? '✓' : '△';
     const why = !stable ? `두 번이 ${(cmp.ratio * 100).toFixed(2)}% 다름` : gaps.join(' · ');
-    console.error(`  [${++done}/${urls.length}] ${mark} ${name} — ${last.docHeight.toLocaleString('en-US')}px${why ? ' · ' + why : ''}`);
+    log(`  [${++done}/${urls.length}] ${mark} ${name} — ${last.docHeight.toLocaleString('en-US')}px${why ? ' · ' + why : ''}`);
 
     return {
       name, url, status: stable && complete ? '확인됨' : '검수 필요',
@@ -410,6 +414,11 @@ async function shootAll({ args, urls, host, pick, device, scale, outDir, check, 
       where: cmp && cmp.region ? `y ${cmp.region.y}~${cmp.region.y + cmp.region.h}` : '',
       notes: last.notes,
     };
+  };
+  const rows = await mapLimit(urls, args.concurrency || 2, async (url) => {
+    const row = await shootOne(url);
+    onRow(row);
+    return row;
   });
 
   const meta = {
@@ -418,7 +427,7 @@ async function shootAll({ args, urls, host, pick, device, scale, outDir, check, 
     device: device.label, width: device.width,
   };
   const report = renderReport(rows, meta);
-  console.log(report);
+  log(report);
 
   writeFileSync(join(outDir, '보고서.txt'), report + '\n');
   writeFileSync(join(outDir, '목록.html'), renderIndex(rows, meta));
@@ -431,8 +440,10 @@ async function shootAll({ args, urls, host, pick, device, scale, outDir, check, 
     '메모': (r.notes || []).join(' / '), '오류': r.error || '',
   }))));
 
-  console.error(`\n저장: ${outDir}`);
-  console.error(`목록을 한눈에 보시려면 → open "${join(outDir, '목록.html')}"`);
+  log(`\n저장: ${outDir}`);
+  log(`목록을 한눈에 보시려면 → open "${join(outDir, '목록.html')}"`);
 }
 
-main().catch((e) => { console.error(e); process.exitCode = 1; });
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((e) => { console.error(e); process.exitCode = 1; });
+}
