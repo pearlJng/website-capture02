@@ -410,6 +410,13 @@ export async function shootAll({ args = {}, urls, host, pick, device, scale, out
         `(문서 ${last.stalled.of.toLocaleString('en-US')}px)`);
     }
     const complete = gaps.length === 0;
+    // 헤더가 반복되는 원인을 볼 수 있게 앞쪽 조각을 따로 남긴다 (앱에서 켠다)
+    let pieceFiles = [];
+    if (args.keepPieces && last.pieces && last.pieces.length) {
+      const dir = join(outDir, '조각', name);
+      mkdirSync(dir, { recursive: true });
+      pieceFiles = last.pieces.map((buf, i) => { const f = `${i + 1}.png`; writeFileSync(join(dir, f), buf); return `조각/${name}/${f}`; });
+    }
     const files = last.slices.map((buf, i) => {
       const f = last.slices.length === 1 ? `${name}.png` : `${name} (${i + 1}).png`;
       writeFileSync(join(outDir, f), buf);
@@ -430,7 +437,7 @@ export async function shootAll({ args = {}, urls, host, pick, device, scale, out
 
     return {
       name, url, status: stable && complete ? '확인됨' : '검수 필요',
-      gaps, files, diffFile, tries,
+      gaps, files, diffFile, tries, pieceFiles,
       docHeight: last.docHeight, sliceCount: last.sliceCount,
       ratio: cmp ? cmp.ratio : 0,
       where: cmp && cmp.region ? `y ${cmp.region.y}~${cmp.region.y + cmp.region.h}` : '',

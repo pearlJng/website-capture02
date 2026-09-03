@@ -667,6 +667,7 @@ export async function captureSite(context, url, opts = {}) {
     let slices;
     let shotCount = 0;
     let stalled = null;
+    let pieces = [];
 
     if (mode === 'stitch') {
       // ── 화면 단위로 찍어 이어 붙인다 ──
@@ -736,6 +737,7 @@ export async function captureSite(context, url, opts = {}) {
           const sample = shots.length >= 4 ? shots.slice(1, 4) : shots.slice(0, 2);
           const px = await repeatedTopBand(opts.stitchPage, sample.map((s) => s.buf), Math.round(320 * scale), Math.round(reserve * scale)).catch(() => 0);
           const band = Math.ceil(px / scale);
+          notes.push(`헤더 검사(조각 ${sample === shots ? '' : ''}${shots.length >= 4 ? '2·3·4' : '1·2'}): 같은 띠 ${band}px`);
           if (band >= 16) {
             reserve += band + 4;
             restarts++;
@@ -770,7 +772,9 @@ export async function captureSite(context, url, opts = {}) {
         maxHeight: Math.floor(SAFE_PIXELS / scale),
         background: opts.background,
       });
-      notes.push(`화면 ${shotCount}칸을 찍어 이어 붙였습니다`);
+      notes.push(`화면 ${shotCount}칸을 찍어 이어 붙였습니다${reserve ? ` (위 ${reserve}px 씩 잘라냄)` : ''}`);
+      // 원인을 볼 수 있게 앞쪽 조각을 그대로 돌려준다 (호출 쪽이 저장한다)
+      pieces = shots.slice(0, 4).map((s) => s.buf);
       lap('붙이기');
     } else {
       // ── 예전 방식: 한 방에 풀페이지 ── 비교용으로 남겨 둔다
@@ -805,7 +809,7 @@ export async function captureSite(context, url, opts = {}) {
 
     return {
       ok: true, url, title: m.title, docHeight, scale, slices,
-      sliceCount: slices.length, notes, docWidth: m.docWidth, ready, mode, shotCount, stalled,
+      sliceCount: slices.length, notes, docWidth: m.docWidth, ready, mode, shotCount, stalled, pieces,
       motionLibs: motion.found,
       motionHandled: steps.has('motion'), reachedBottom: scrolled.reachedBottom,
       finalUrl: page.url() !== url ? page.url() : undefined,

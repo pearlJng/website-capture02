@@ -258,6 +258,8 @@
       ${row.retakes ? ` <span class="mute">· ${row.retakes}번째 다시 찍음</span>` : ''}
       ${row.gaps && row.gaps.length ? `<div class="mute">${esc(row.gaps.join(' · '))}</div>` : ''}
       ${row.diffFile ? `<div><a href="${fileUrl(id, row.diffFile)}" target="_blank">무엇이 달랐는지 보기</a></div>` : ''}
+      ${(row.notes || []).filter((n) => /헤더|잘라/.test(n)).map((n) => `<div class="mute">${esc(n)}</div>`).join('')}
+      ${row.pieceFiles && row.pieceFiles.length ? `<div class="mute">조각: ${row.pieceFiles.map((f, i) => `<a href="${fileUrl(id, f)}" target="_blank">${i + 1}</a>`).join(' · ')}</div>` : ''}
       ${row.applied && row.applied.length ? `<div class="applied">적용: ${esc(row.applied.join(', '))}</div>` : ''}
       ${row.ignored ? `<div class="ignored">못 알아들은 요청: "${esc(row.ignored)}" — 메모로만 남겼습니다</div>` : ''}
       ${row.previous && row.previous.length ? `<div class="prev">이전: ${row.previous.map((f) => `<a href="${fileUrl(id, f)}" target="_blank">${esc(f)}</a>`).join(', ')}</div>` : ''}

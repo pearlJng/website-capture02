@@ -159,7 +159,7 @@ function retake(job, row, { tweaks, applied, ignored, request }) {
     await ensureBrowser();
     try {
       await shootAll({
-        args: { concurrency: 1, mode: tweaks.fullpage ? 'fullpage' : 'stitch' },
+        args: { concurrency: 1, mode: tweaks.fullpage ? 'fullpage' : 'stitch', keepPieces: true },
         urls: [row.url], host, pick, device, scale, outDir: job.outDir,
         check: job.check && !tweaks.noCheck, retry: 2, fixedName, writeIndex: false,
         tweaks: { hideHeader: !!tweaks.hideHeader, closePopups: !!tweaks.closePopups, slow: !!tweaks.slow },
@@ -278,7 +278,7 @@ function startJob({ pages, width, check }) {
     job.meta = { scale: device.scale, out: outDir, browser: pick.name, codecs: pick.codecs, device: device.label, width: device.width };
     try {
       await shootAll({
-        args: { concurrency: 2 },
+        args: { concurrency: 2, keepPieces: true },
         urls: pages.map((p) => p.url), host, pick, device, scale: device.scale,
         outDir, check, retry: 2,
         log: (m) => { if (m && !/^\s*$/.test(m)) job.log.push(String(m).trimEnd()); if (job.log.length > 400) job.log.shift(); },
