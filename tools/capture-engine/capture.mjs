@@ -333,13 +333,17 @@ function inPageHidePinned(prev) {
   const W = window.innerWidth, H = window.innerHeight;
   const pts = [];
   for (const y of [4, 24, 48, 80, 120, 160, 200, H - 8, H - 40, H - 80]) {
-    for (const x of [0.06, 0.2, 0.35, 0.5, 0.65, 0.8, 0.94]) pts.push([Math.round(W * x), y]);
+    for (const x of [0.04, 0.12, 0.2, 0.28, 0.36, 0.44, 0.5, 0.56, 0.64, 0.72, 0.8, 0.88, 0.96]) pts.push([Math.round(W * x), y]);
   }
+  // 점에 맞은 요소와 그 조상들을 전부 본다. 헤더 포장이 pointer-events:none 이면
+  // 점에는 안 맞지만(테라클이 그렇다) 안의 링크는 맞고, 링크의 조상으로 포장이 잡힌다.
+  // 포장째 숨겨야 점에 안 맞은 옆 메뉴까지 같이 사라진다.
   const seen = new Map();
   for (const [x, y] of pts) {
-    for (const el of document.elementsFromPoint(x, y)) {
-      if (el === document.documentElement || el === document.body) continue;
-      if (!seen.has(el)) seen.set(el, el.getBoundingClientRect());
+    for (const hit of document.elementsFromPoint(x, y)) {
+      for (let el = hit; el && el !== document.body && el !== document.documentElement; el = el.parentElement) {
+        if (!seen.has(el)) seen.set(el, el.getBoundingClientRect());
+      }
     }
   }
   // 요소 정체가 아니라 "생김새+자리"로 견준다. 스크롤마다 헤더를 새로 만드는
@@ -352,12 +356,18 @@ function inPageHidePinned(prev) {
   // 흐름 안의 요소는 스크롤한 만큼 움직이므로 몇십 px 만 달라도 가를 수 있다.
   // 마지막 조각은 바닥에 걸려 조금만 내려가는데, 거기서 헤더가 한 번 더 찍혔었다.
   if (prev && Math.abs(window.scrollY - prev.scrollY) >= 24) {
+    const pinnedEls = [];
     for (const [el, r] of seen) {
       if (!prev.ids[sig(el, r)]) continue;             // 직전 조각에 같은 생김새가 같은 자리에 없었다
-      if (el.hasAttribute('data-cap-hidden')) continue;
       if (r.height > H * 0.6) continue;                 // 화면 대부분을 덮는 건 배경·포장이다
       if (r.height < 8 || r.width < 8) continue;
-      if (el.closest('[data-cap-hidden]')) continue;    // 조상이 이미 숨겨졌다
+      pinnedEls.push(el);
+    }
+    // 가장 바깥 것만 숨긴다 (안쪽은 따라 숨는다). 이미 숨긴 조상이 있으면 넘어간다.
+    for (const el of pinnedEls) {
+      if (el.hasAttribute('data-cap-hidden')) continue;
+      if (pinnedEls.some((o) => o !== el && o.contains(el))) continue;
+      if (el.closest('[data-cap-hidden]')) continue;
       el.setAttribute('data-cap-hidden', '');
       el.style.setProperty('visibility', 'hidden', 'important');
       hidden++;
