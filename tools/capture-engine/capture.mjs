@@ -12,7 +12,10 @@
  *   slice   — 초장문.                 한 장으로 찍으면 오래 걸리거나 실패한다
  */
 
+import { stitchShots } from './stitch.mjs';
+
 export const VIEWPORT = { width: 1440, height: 900 };
+export const MODES = ['stitch', 'fullpage'];
 export const STEPS = ['sticky', 'motion', 'anim', 'slice'];
 
 const SETTLE_MS = 2500;
@@ -29,6 +32,9 @@ const SCROLL_CFG = {
   finalImageWaits: 25,    // 마지막에는 최대 5.5초까지 기다린다
 };
 const SHOT_TIMEOUT = 120000;
+/** 한 칸으로 옮긴 뒤 등장 애니메이션이 끝나기를 기다리는 시간 */
+const SHOT_SETTLE_MS = 700;
+const SHOT_SETTLE_FIRST_MS = 1000;
 
 /**
  * 한 번에 찍을 실픽셀 높이의 상한.
@@ -204,6 +210,23 @@ function inPageTameFixed(viewportWidth) {
   return { hidden, kept: keep ? 1 : 0 };
 }
 
+/** 고정·스티키 요소를 전부 숨긴다. 조각마다 따라 붙는 것을 막는다. */
+function inPageHideAllFixed() {
+  let n = 0;
+  for (const el of document.querySelectorAll('body *')) {
+    if (el.hasAttribute('data-cap-hidden')) continue;
+    const cs = getComputedStyle(el);
+    if (cs.position !== 'fixed' && cs.position !== 'sticky') continue;
+    if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+    const r = el.getBoundingClientRect();
+    if (r.width < 8 || r.height < 8) continue;
+    el.setAttribute('data-cap-hidden', '');
+    el.style.setProperty('visibility', 'hidden', 'important');
+    n++;
+  }
+  return n;
+}
+
 function inPageRestoreFixed() {
   for (const el of document.querySelectorAll('[data-cap-hidden]')) {
     el.style.removeProperty('visibility');
@@ -277,6 +300,24 @@ async function inPageScrollThrough(cfg) {
   return { deepest: last, scrollable, reachedBottom, height, bottomY: Math.round(bottomY) };
 }
 
+/** 지금 화면 위치와 문서 크기. 이어붙일 때 조각의 자리를 정하는 데 쓴다. */
+function inPageWhere() {
+  const se = document.scrollingElement || document.documentElement;
+  return {
+    y: Math.round(Math.max(window.scrollY, se.scrollTop)),
+    height: Math.max(document.documentElement.scrollHeight,
+      document.body ? document.body.scrollHeight : 0),
+    innerHeight: window.innerHeight,
+  };
+}
+
+/** 지정한 곳으로 옮긴다. 스무스 스크롤이 가로채면 원래 방법으로 되돌린다. */
+function inPageScrollTo(y) {
+  const se = document.scrollingElement || document.documentElement;
+  se.scrollTop = y;
+  if (Math.abs(se.scrollTop - y) > 2) window.scrollTo(0, y);
+}
+
 /**
  * 찍기 직전에 "덜 된 것"을 센다.
  *
@@ -326,6 +367,7 @@ function inPageMeasure() {
  */
 export async function captureSite(context, url, opts = {}) {
   const steps = new Set(opts.steps || []);
+  const mode = opts.mode || 'stitch';
   const scale = opts.scale || 1;
   const timeout = opts.timeout || 45000;
   const started = Date.now();
@@ -375,49 +417,91 @@ export async function captureSite(context, url, opts = {}) {
     await page.evaluate(() => document.fonts && document.fonts.ready).catch(() => {});
     await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
 
-    const ready = await page.evaluate(inPageReadiness);
-    if (ready.loading) notes.push(`아직 받아오는 중인 이미지 ${ready.loading}개`);
-    if (ready.broken) notes.push(`깨진 이미지 ${ready.broken}개`);
-    if (ready.invisible) notes.push(`자리는 있는데 투명한 요소 ${ready.invisible}개`);
-    if (ready.blankVideos) notes.push(`첫 프레임도 못 그린 비디오 ${ready.blankVideos}개`);
-
     const m = await page.evaluate(inPageMeasure);
     const docHeight = m.docHeight;
+    const animations = steps.has('anim') ? 'disabled' : 'allow';
 
-    // 가로는 항상 뷰포트 폭으로 고정한다.
-    //
-    // 풀페이지 캡처의 기본 폭은 문서의 scrollWidth 인데, 가로로 삐져나온
-    // 요소가 있으면 그 양만큼 폭이 늘어난다. 마퀴처럼 옆으로 흐르는 것이
-    // 있으면 찍는 순간마다 폭이 달라진다 — 법무법인 유강이 1,642px 대
-    // 1,654px 로 나온 이유다.
-    //
-    // 애초에 방문자가 1440px 창에서 보는 것은 1440px 까지다. 그 바깥은
-    // 화면에 없다. 잘라내는 게 맞고, 덤으로 폭이 고정된다.
+    // 가로는 항상 뷰포트 폭으로 고정한다. 옆으로 흐르는 요소가 있으면 찍는
+    // 순간마다 문서 폭이 달라지는데, 방문자가 1440px 창에서 보는 건 1440px 까지다.
     const overflowX = m.docWidth - VIEWPORT.width;
     if (overflowX > 2) notes.push(`가로로 ${overflowX}px 삐져나온 부분은 잘랐습니다 (뷰포트 폭 기준)`);
-    const animations = steps.has('anim') ? 'disabled' : 'allow';
-    const actualPx = docHeight * scale;
-    const wantSlices = steps.has('slice') && actualPx > SAFE_PIXELS;
-    const sliceCount = wantSlices ? Math.ceil(actualPx / SAFE_PIXELS) : 1;
-    const sliceH = Math.ceil(docHeight / sliceCount);
 
-    const slices = [];
-    for (let i = 0; i < sliceCount; i++) {
-      const y = i * sliceH;
-      const h = Math.min(sliceH, docHeight - y);
-      if (h <= 0) break;
-      slices.push(await page.screenshot({
-        fullPage: true, animations, timeout: SHOT_TIMEOUT,
-        clip: { x: 0, y, width: VIEWPORT.width, height: h },
-      }));
+    const ready = await page.evaluate(inPageReadiness);
+
+    let slices;
+    let shotCount = 0;
+
+    if (mode === 'stitch') {
+      // ── 화면 단위로 찍어 이어 붙인다 ──
+      //
+      // 한 방 캡처는 문서 전체를 한 번에 그리는데, 그때 화면 밖 콘텐츠는
+      // "화면 밖" 상태다. 등장 애니메이션 대부분이 나갈 때 클래스를 떼므로
+      // 아래쪽이 전부 투명해진 채로 찍힌다 — 픽스처에서 6칸 중 5칸이 그랬다.
+      // 그래서 각 칸이 화면에 있는 동안 그 화면을 찍는다.
+      const shots = [];
+      let y = 0;
+      let height = docHeight;
+      for (let i = 0; i < MAX_SCROLL_STEPS && y < height; i++) {
+        await page.evaluate(inPageScrollTo, y);
+        await page.waitForTimeout(i === 0 ? SHOT_SETTLE_FIRST_MS : SHOT_SETTLE_MS);
+
+        // 두 번째 조각부터는 따라붙는 고정 요소를 전부 숨긴다.
+        // 첫 조각에는 남겨야 헤더가 스냅샷에 한 번 들어간다.
+        if (i === 1 && steps.has('sticky')) {
+          const n = await page.evaluate(inPageHideAllFixed);
+          if (n) notes.push(`두 번째 조각부터 고정 요소 ${n}개 숨김`);
+        }
+
+        const at = await page.evaluate(inPageWhere);
+        const buf = await page.screenshot({ animations, timeout: SHOT_TIMEOUT });
+        shots.push({ y: at.y, height: at.innerHeight, buf });
+
+        height = at.height;                              // 지연 로딩으로 늘어날 수 있다
+        if (at.y + at.innerHeight >= height - 2) break;  // 바닥에 닿았다
+        y = at.y + at.innerHeight;                       // 실제 위치 기준으로 다음 칸
+      }
+      shotCount = shots.length;
+
+      const finalHeight = (await page.evaluate(inPageWhere)).height;
+      if (!opts.stitchPage) throw new Error('이어붙일 페이지가 필요합니다 (stitchPage)');
+      slices = await stitchShots(opts.stitchPage, shots, {
+        width: VIEWPORT.width, height: finalHeight, scale,
+        maxHeight: Math.floor(SAFE_PIXELS / scale),
+        background: opts.background,
+      });
+      notes.push(`화면 ${shotCount}칸을 찍어 이어 붙였습니다`);
+    } else {
+      // ── 예전 방식: 한 방에 풀페이지 ── 비교용으로 남겨 둔다
+      const actualPx = docHeight * scale;
+      const wantSlices = steps.has('slice') && actualPx > SAFE_PIXELS;
+      const sliceCount = wantSlices ? Math.ceil(actualPx / SAFE_PIXELS) : 1;
+      const sliceH = Math.ceil(docHeight / sliceCount);
+      slices = [];
+      for (let i = 0; i < sliceCount; i++) {
+        const y = i * sliceH;
+        const h = Math.min(sliceH, docHeight - y);
+        if (h <= 0) break;
+        slices.push(await page.screenshot({
+          fullPage: true, animations, timeout: SHOT_TIMEOUT,
+          clip: { x: 0, y, width: VIEWPORT.width, height: h },
+        }));
+      }
+      if (sliceCount > 1) notes.push(`${sliceCount}장으로 분할 (실픽셀 ${actualPx.toLocaleString('en-US')}px)`);
     }
-    if (sliceCount > 1) notes.push(sliceCount + '장으로 분할 (실픽셀 ' + actualPx.toLocaleString('en-US') + 'px)');
+
+    if (ready.loading) notes.push(`아직 받아오는 중인 이미지 ${ready.loading}개`);
+    if (ready.broken) notes.push(`깨진 이미지 ${ready.broken}개`);
+    if (ready.blankVideos) notes.push(`첫 프레임도 못 그린 비디오 ${ready.blankVideos}개`);
+    // 투명한 요소는 이어붙이기에서는 정상이다 — 화면 밖이라 숨은 것뿐이고
+    // 그 칸은 화면에 있었을 때 이미 찍었다. 한 방 캡처에서만 문제가 된다.
+    if (mode !== 'stitch' && ready.invisible) notes.push(`자리는 있는데 투명한 요소 ${ready.invisible}개`);
 
     if (steps.has('sticky')) await page.evaluate(inPageRestoreFixed);
 
     return {
       ok: true, url, title: m.title, docHeight, scale, slices,
-      sliceCount: slices.length, notes, docWidth: m.docWidth, ready, motionLibs: motion.found,
+      sliceCount: slices.length, notes, docWidth: m.docWidth, ready, mode, shotCount,
+      motionLibs: motion.found,
       motionHandled: steps.has('motion'), reachedBottom: scrolled.reachedBottom,
       finalUrl: page.url() !== url ? page.url() : undefined,
       ms: Date.now() - started,

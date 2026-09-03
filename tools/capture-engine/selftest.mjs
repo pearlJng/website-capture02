@@ -32,22 +32,22 @@ const same = (v) => v === VERDICT.SAME || v === VERDICT.SAME_PIXELS;
 const CASES = [
   {
     name: '정적 페이지는 아무것도 안 켜도 두 번이 같다',
-    file: 'static.html', steps: [], twice: true,
+    file: 'static.html', mode: 'fullpage', steps: [], twice: true,
     check: (r, cmp) => (same(cmp.verdict) ? null : `두 번이 달랐다 (${cmp.verdict} ${(cmp.ratio * 100).toFixed(2)}%)`),
   },
   {
     name: '무한 애니메이션은 baseline 에서 두 번이 다르다',
-    file: 'loop.html', steps: [], twice: true,
+    file: 'loop.html', mode: 'fullpage', steps: [], twice: true,
     check: (r, cmp) => (same(cmp.verdict) ? '달라야 하는데 같게 나왔다 — 채점기가 못 잡고 있다' : null),
   },
   {
     name: 'anim 단계를 켜면 무한 애니메이션도 두 번이 같아진다',
-    file: 'loop.html', steps: ['anim'], twice: true,
+    file: 'loop.html', mode: 'fullpage', steps: ['anim'], twice: true,
     check: (r, cmp) => (same(cmp.verdict) ? null : `여전히 다르다 (${cmp.verdict} ${(cmp.ratio * 100).toFixed(2)}%)`),
   },
   {
     name: 'sticky 단계는 플로팅 3개를 숨기고 헤더 1개는 남긴다',
-    file: 'floating.html', steps: ['sticky'],
+    file: 'floating.html', mode: 'fullpage', steps: ['sticky'],
     check: (r) => {
       const note = (r.notes || []).find((n) => n.startsWith('고정 요소'));
       if (!note) return '고정 요소를 하나도 못 찾았다';
@@ -59,22 +59,22 @@ const CASES = [
   },
   {
     name: 'sticky 를 안 켜면 아무것도 숨기지 않는다',
-    file: 'floating.html', steps: [],
+    file: 'floating.html', mode: 'fullpage', steps: [],
     check: (r) => ((r.notes || []).some((n) => n.startsWith('고정 요소')) ? '안 켰는데 숨겼다' : null),
   },
   {
     name: '스무스 스크롤을 안 풀면 끝까지 못 가서 문서가 짧게 남는다',
-    file: 'smooth.html', steps: [],
+    file: 'smooth.html', mode: 'fullpage', steps: [],
     check: (r) => (r.docHeight > 3000 ? `문서가 ${r.docHeight}px — 스크롤이 성공해버렸다. 픽스처가 무력하다` : null),
   },
   {
     name: 'motion 단계를 켜면 끝까지 스크롤해 숨은 콘텐츠가 붙는다',
-    file: 'smooth.html', steps: ['motion'],
+    file: 'smooth.html', mode: 'fullpage', steps: ['motion'],
     check: (r) => (r.docHeight > 3000 ? null : `문서가 ${r.docHeight}px 그대로 — 모션 해제가 안 먹었다`),
   },
   {
     name: 'slice 단계는 긴 문서를 여러 장으로 나눈다',
-    file: 'tall.html', steps: ['slice'],
+    file: 'tall.html', mode: 'fullpage', steps: ['slice'],
     check: (r) => {
       const want = Math.ceil(r.docHeight / SAFE_PIXELS);
       if (want < 2) return `픽스처가 짧아졌다 (${r.docHeight}px) — 분할을 시험할 수 없다`;
@@ -83,24 +83,24 @@ const CASES = [
   },
   {
     name: 'slice 를 안 켜면 한 장으로 찍는다',
-    file: 'tall.html', steps: [],
+    file: 'tall.html', mode: 'fullpage', steps: [],
     check: (r) => (r.sliceCount === 1 ? null : `${r.sliceCount}장으로 나눴다`),
   },
   {
     name: '모달이 스크롤을 잠갔어도 motion 단계가 풀고 끝까지 간다',
-    file: 'scrolllock.html', steps: ['motion'],
+    file: 'scrolllock.html', mode: 'fullpage', steps: ['motion'],
     check: (r) => (r.docHeight > 4000 ? null : `문서가 ${r.docHeight}px — 잠금을 못 풀었다`),
   },
   {
     name: 'motion 을 안 켜면 잠긴 채로 남는다',
-    file: 'scrolllock.html', steps: [],
+    file: 'scrolllock.html', mode: 'fullpage', steps: [],
     check: (r) => (r.docHeight > 4000 ? `문서가 ${r.docHeight}px — 잠금이 안 걸렸다. 픽스처가 무력하다` : null),
   },
   {
     // 실전에서 코오롱몰이 4픽셀 차이로 100% 실패 처리됐다.
     // 겹치는 영역이 같으면 통과여야 하고, 높이 차이는 따로 적혀야 한다.
     name: '문서 높이가 몇 px 흔들려도 겹치는 부분이 같으면 통과한다',
-    file: 'heightjitter.html', steps: [], twice: true,
+    file: 'heightjitter.html', mode: 'fullpage', steps: [], twice: true,
     check: (r, cmp, shots) => {
       const [a, b] = shots.map((x) => x.docHeight);
       if (a === b) return `두 번의 높이가 같아 시험이 안 됐다 (${a}px) — 픽스처를 고쳐야 한다`;
@@ -110,10 +110,33 @@ const CASES = [
     },
   },
   {
+    // 이 프로젝트에서 가장 크게 틀렸던 지점.
+    //
+    // 등장 애니메이션 대부분은 들어올 때 클래스를 붙이고 **나갈 때 뗀다.**
+    // 맨 아래까지 훑고 맨 위로 돌아와 한 장으로 찍으면 아래쪽이 전부 다시
+    // 투명해진 채로 찍힌다. GoFullPage 같은 확장이 멀쩡한 이유는 각 칸이
+    // 화면에 있는 동안 그 화면을 찍기 때문이다.
+    name: '나가면 다시 숨는 페이지도 화면 단위로 찍으면 온전하다',
+    file: 'revealtoggle.html', steps: ['sticky', 'motion', 'anim'], mode: 'stitch',
+    check: (r) => {
+      if (r.mode !== 'stitch') return `모드가 ${r.mode} 다`;
+      if (!r.shotCount || r.shotCount < 4) return `화면 ${r.shotCount}칸만 찍었다 (문서 ${r.docHeight}px)`;
+      return null;
+    },
+  },
+  {
+    // 같은 페이지를 예전 방식(한 방 캡처)으로 찍으면 아래쪽이 비어야 한다.
+    // 이게 실패하면 위 시험이 아무것도 증명하지 못한다.
+    name: '같은 페이지를 한 방에 찍으면 아래쪽이 투명하게 남는다',
+    file: 'revealtoggle.html', steps: ['sticky', 'motion', 'anim'], mode: 'fullpage',
+    check: (r) => (r.ready && r.ready.invisible >= 3 ? null
+      : `투명한 요소를 ${r.ready && r.ready.invisible}개만 셌다 — 픽스처가 무력하다`),
+  },
+  {
     // 두 번 찍어 같은지만 보면 "두 번 다 똑같이 비어 있는" 페이지가 통과한다.
     // 아임웹에서 실제로 그 일이 났다. 픽셀이 아니라 DOM 을 봐야 잡힌다.
     name: '두 번 다 같더라도 내용이 안 뜬 상태를 잡아낸다',
-    file: 'notready.html', steps: [], twice: true,
+    file: 'notready.html', mode: 'fullpage', steps: [], twice: true,
     check: (r, cmp) => {
       if (!same(cmp.verdict)) return '두 번이 달랐다 — 이 픽스처는 항상 같아야 한다';
       if (!r.ready) return '완성도를 재지 않았다';
@@ -127,7 +150,7 @@ const CASES = [
     // 가르지는 못한다 — 뒤에 붙인 networkidle 대기만으로도 통과하기 때문이다.
     // 스크롤을 느리게 한 것이 실제 사이트에서 효과가 있는지는 라이브에서만 안다.
     name: '늦게 오는 지연 로딩 이미지를 다 받은 뒤에 찍는다',
-    file: 'lazyimg.html', steps: [],
+    file: 'lazyimg.html', mode: 'fullpage', steps: [],
     check: (r) => {
       if (!r.ready) return '완성도를 재지 않았다';
       const { images, loading, broken } = r.ready;
@@ -140,7 +163,7 @@ const CASES = [
     // 법무법인 유강이 가로 폭 1,642 대 1,654 로 실패했다.
     // 뷰포트 폭으로 잘라내면 폭이 고정되고, 방문자가 보는 것과도 일치한다.
     name: '가로로 삐져나온 양이 달라져도 뷰포트 폭으로 잘라 같게 만든다',
-    file: 'widthjitter.html', steps: [], twice: true,
+    file: 'widthjitter.html', mode: 'fullpage', steps: [], twice: true,
     check: (r, cmp) => (same(cmp.verdict) ? null
       : `실패로 나왔다 (${cmp.verdict} — ${cmp.note || ''})`),
   },
@@ -148,7 +171,7 @@ const CASES = [
     // 차이가 어디에 있는지 엔진이 짚어야 한다. 안 그러면 0.01% 짜리 차이를
     // 9,000px 그림 두 장을 눈으로 훑어 찾아야 한다.
     name: '차이 구간의 좌표를 짚고, 잘라낸 그림을 만든다',
-    file: 'spot.html', steps: [], twice: true, strip: true,
+    file: 'spot.html', mode: 'fullpage', steps: [], twice: true, strip: true,
     check: (r, cmp) => {
       if (!cmp.region) return `구간을 못 잡았다 (${cmp.verdict} — ${cmp.note || ''})`;
       const { x, y, w, h, bands } = cmp.region;
@@ -164,12 +187,12 @@ const CASES = [
     // 실전에서 49건 중 14건을 무너뜨린 버그. window[0] 은 iframe 이고,
     // 크로스 오리진이면 속성을 읽는 것만으로 SecurityError 가 난다.
     name: '크로스 오리진 iframe 이 있어도 캡처가 죽지 않는다',
-    file: 'crossorigin.html', steps: ['motion', 'sticky', 'anim'],
+    file: 'crossorigin.html', mode: 'fullpage', steps: ['motion', 'sticky', 'anim'],
     check: (r) => (r.docHeight > 1000 ? null : `문서가 ${r.docHeight}px — 캡처가 제대로 안 됐다`),
   },
   {
     name: '매번 다르게 그리는 페이지는 모든 단계를 켜도 다르다 (T4 대조군)',
-    file: 'random.html', steps: ['sticky', 'motion', 'anim', 'slice'], twice: true,
+    file: 'random.html', mode: 'fullpage', steps: ['sticky', 'motion', 'anim', 'slice'], twice: true,
     check: (r, cmp) => (same(cmp.verdict) ? '같게 나왔다 — 채점기가 T4 를 통과시키고 있다' : null),
   },
 ];
@@ -240,6 +263,14 @@ async function main() {
     diffPage = await (await b.newContext({ viewport: { width: 200, height: 200 } })).newPage();
     return diffPage;
   }
+  // 조각을 이어 붙일 캔버스를 두는 페이지. 대상 사이트와 섞이면 안 되므로 따로 둔다.
+  let stitchPage = null;
+  async function getStitchPage() {
+    if (stitchPage && !stitchPage.isClosed()) return stitchPage;
+    const b = await host.get();
+    stitchPage = await (await b.newContext({ viewport: { width: 200, height: 200 } })).newPage();
+    return stitchPage;
+  }
 
   /** 한 항목을 한 번 돌린다. 브라우저가 죽었으면 그 사실을 알려준다. */
   async function attempt(c) {
@@ -247,7 +278,9 @@ async function main() {
     for (let i = 0; i < (c.twice ? 2 : 1); i++) {
       const browser = await host.get();
       const ctx = await browser.newContext({ viewport: VIEWPORT, locale: 'ko-KR' });
-      const r = await captureSite(ctx, BASE + c.file, { steps: c.steps });
+      const r = await captureSite(ctx, BASE + c.file, {
+        steps: c.steps, mode: c.mode, stitchPage: await getStitchPage(),
+      });
       await ctx.close().catch(() => {});
       if (!r.ok) return { err: r.error, died: isBrowserDeath(r.error) };
       shots.push(r);

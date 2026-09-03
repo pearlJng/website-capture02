@@ -288,6 +288,14 @@ async function main() {
     diffPage = await ctx.newPage();
     return diffPage;
   }
+  // 조각을 이어 붙일 캔버스를 두는 페이지
+  let stitchPage = null;
+  async function getStitchPage() {
+    if (stitchPage && !stitchPage.isClosed()) return stitchPage;
+    const b = await host.get();
+    stitchPage = await (await b.newContext({ viewport: { width: 200, height: 200 } })).newPage();
+    return stitchPage;
+  }
 
   console.error(`캡처 시작 — ${targets.length}건 × 2회, 단계 [${steps.join(', ') || 'none'}], ${scale}배`);
   let done = 0;
@@ -299,7 +307,9 @@ async function main() {
       // 매번 새 컨텍스트 — 캐시가 데워진 상태로 두 번째를 찍으면 시험이 헐거워진다.
       const browser = await host.get();
       const ctx = await browser.newContext(ctxOpts);
-      const r = await captureSite(ctx, t.url, { steps, scale });
+      const r = await captureSite(ctx, t.url, {
+        steps, scale, mode: args.mode || 'stitch', stitchPage: await getStitchPage(),
+      });
       await ctx.close().catch(() => {});
       if (!r.ok) return { ...base, error: r.error, died: isBrowserDeath(r.error) };
       shots.push(r);

@@ -180,6 +180,10 @@ async function main() {
   --retry <n>         두 번이 다를 때 다시 찍는 횟수 (기본 2)
   --concurrency <n>   동시 실행 (기본 2)
   --no-check          검사 없이 한 번만 찍기 (빠르지만 품질 보장 없음)
+  --mode <방식>       stitch(기본) 또는 fullpage
+                      stitch   화면 단위로 찍어 이어 붙입니다. 등장 애니메이션이
+                               화면을 벗어날 때 다시 숨는 사이트도 온전히 나옵니다
+                      fullpage 한 방에 찍습니다. 빠르지만 위 경우 아래쪽이 빕니다
 
 찍은 뒤 같은 페이지를 한 번 더 찍어 비교합니다. 다르면 아직 움직이는
 중이라는 뜻이므로 다시 찍습니다. 그래도 다르면 '검수 필요'로 표시하고
@@ -210,12 +214,23 @@ async function main() {
     diffPage = await (await b.newContext({ viewport: { width: 200, height: 200 } })).newPage();
     return diffPage;
   }
+  // 조각을 이어 붙일 캔버스를 두는 페이지. 대상 사이트와 섞이면 안 되므로 따로 둔다.
+  let stitchPage = null;
+  async function getStitchPage() {
+    if (stitchPage && !stitchPage.isClosed()) return stitchPage;
+    const b = await host.get();
+    stitchPage = await (await b.newContext({ viewport: { width: 200, height: 200 } })).newPage();
+    return stitchPage;
+  }
 
   const shootOnce = async (url) => {
     const browser = await host.get();
     const ctx = await browser.newContext(ctxOpts);
     try {
-      return await captureSite(ctx, url, { steps: [...STEPS], scale });
+      return await captureSite(ctx, url, {
+        steps: [...STEPS], scale, mode: args.mode || 'stitch',
+        stitchPage: await getStitchPage(),
+      });
     } finally {
       await ctx.close().catch(() => {});
     }
@@ -265,7 +280,10 @@ async function main() {
       const gaps = [];
       if (rd.loading) gaps.push(`안 뜬 이미지 ${rd.loading}개`);
       if (rd.broken) gaps.push(`깨진 이미지 ${rd.broken}개`);
-      if (rd.invisible) gaps.push(`투명한 요소 ${rd.invisible}개`);
+      // 투명한 요소는 이어붙이기에서는 정상이다. 마지막 스크롤 위치 기준으로
+      // 화면 밖이라 숨은 것뿐이고, 그 칸은 화면에 있었을 때 이미 찍었다.
+      // 한 방 캡처(fullpage)에서만 진짜 문제다.
+      if (rd.invisible && last.mode !== 'stitch') gaps.push(`투명한 요소 ${rd.invisible}개`);
       if (rd.blankVideos) gaps.push(`빈 비디오 ${rd.blankVideos}개`);
       const complete = gaps.length === 0;
       const files = last.slices.map((buf, i) => {
