@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import { captureSite, STEPS, VIEWPORT } from './capture.mjs';
 import { compareCaptures, renderDiffStrip, VERDICT } from './diff.mjs';
-import { createBrowserHost, isBrowserDeath } from './browser.mjs';
+import { createBrowserHost, isBrowserDeath, pickBrowser } from './browser.mjs';
 import { writeTable } from './csv.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -96,6 +96,7 @@ function renderReport(rows, meta) {
   L.push('  ' + '─'.repeat(70));
   L.push(`  대상        ${rows.length}건`);
   L.push(`  배율        ${meta.scale}배  ·  가로 ${VIEWPORT.width}px 기준`);
+  L.push(`  브라우저     ${meta.browser}${meta.codecs ? '' : '  ← H.264·AAC 코덱 없음. 동영상이 오류 화면으로 찍힙니다'}`);
   L.push(`  저장 위치   ${meta.out}`);
   L.push('');
   L.push(`  확인됨      ${String(ok).padStart(3)}건   두 번 찍어 같았습니다. 그대로 쓰셔도 됩니다`);
@@ -154,12 +155,14 @@ figcaption b{font-size:.95rem;letter-spacing:-.01em}
 .d a{color:inherit}
 .b{align-self:flex-start;font-size:.68rem;font-weight:600;padding:.12rem .45rem;border-radius:2px;font-family:ui-monospace,Menlo,monospace}
 .b.ok{background:var(--okbg);color:var(--ok)} .b.warn{background:var(--warnbg);color:var(--warn)} .b.bad{background:var(--badbg);color:var(--bad)}
+p.warn{background:var(--warnbg);color:var(--warn);border-radius:4px;padding:.8rem 1rem;margin:0 0 1.5rem;max-width:60rem;font-size:.88rem}
 </style>
 <h1>스크린샷 결과 ${rows.length}건</h1>
 <p class="sum">확인됨 ${rows.filter((r) => r.status === '확인됨').length} ·
   검수 필요 ${rows.filter((r) => r.status === '검수 필요').length} ·
   실패 ${rows.filter((r) => r.status === '실패').length}
-  &nbsp;|&nbsp; ${meta.scale}배율 · 가로 ${VIEWPORT.width}px · ${meta.when}</p>
+  &nbsp;|&nbsp; ${meta.scale}배율 · 가로 ${VIEWPORT.width}px · ${esc(meta.browser)} · ${meta.when}</p>
+${meta.codecs ? '' : '<p class="warn">이 컴퓨터에 크롬이 없어 번들 크로미움으로 찍었습니다. H.264·AAC 코덱이 없어 동영상 영역이 플레이어 오류 화면으로 찍힙니다 — 크롬을 설치하면 해결됩니다.</p>'}
 <div class="grid">${rows.map(card).join('\n')}</div>`;
 }
 
@@ -180,6 +183,9 @@ async function main() {
   --retry <n>         두 번이 다를 때 다시 찍는 횟수 (기본 2)
   --concurrency <n>   동시 실행 (기본 2)
   --no-check          검사 없이 한 번만 찍기 (빠르지만 품질 보장 없음)
+  --browser <이름>    auto(기본) | chrome | msedge | chromium
+                      기본은 설치된 크롬을 먼저 찾습니다. 번들 크로미움에는
+                      H.264·AAC 코덱이 없어 동영상이 플레이어 오류로 찍힙니다
   --mode <방식>       stitch(기본) 또는 fullpage
                       stitch   화면 단위로 찍어 이어 붙입니다. 등장 애니메이션이
                                화면을 벗어날 때 다시 숨는 사이트도 온전히 나옵니다
@@ -201,7 +207,8 @@ async function main() {
   const outDir = resolve(HERE, args.out || './결과');
   mkdirSync(outDir, { recursive: true });
 
-  const host = createBrowserHost();
+  const pick = await pickBrowser(args.browser);
+  const host = createBrowserHost({ prefer: args.browser });
   let closed = false;
   const shutdown = async () => { if (!closed) { closed = true; await host.close().catch(() => {}); } };
   process.on('SIGINT', () => { shutdown().finally(() => process.exit(130)); });
@@ -236,7 +243,16 @@ async function main() {
     }
   };
 
-  console.error(`${urls.length}곳 캡처 시작 — ${scale}배율${check ? ' · 찍고 나서 스스로 검사합니다' : ' · 검사 없음'}`);
+  console.error(`${urls.length}곳 캡처 시작 — ${pick.name} · ${scale}배율${check ? ' · 찍고 나서 스스로 검사합니다' : ' · 검사 없음'}`);
+  if (!pick.codecs) {
+    console.error('');
+    console.error('  ⚠ 이 컴퓨터에 크롬이 없어 번들 크로미움으로 찍습니다.');
+    console.error('    크로미움에는 H.264(MP4)·AAC 코덱이 없습니다 — 특허가 걸려 있어');
+    console.error('    브랜드 크롬에만 들어갑니다. 유튜브 임베드나 MP4 비디오가 있는');
+    console.error('    페이지는 플레이어 오류 화면이 그대로 찍힙니다.');
+    console.error('    크롬을 설치하면 자동으로 크롬을 씁니다.');
+    console.error('');
+  }
   const used = new Set();
   let done = 0;
   let rows;
@@ -317,7 +333,10 @@ async function main() {
     await shutdown();
   }
 
-  const meta = { scale, out: outDir, when: new Date().toLocaleString('ko-KR') };
+  const meta = {
+    scale, out: outDir, when: new Date().toLocaleString('ko-KR'),
+    browser: pick.name, codecs: pick.codecs,
+  };
   const report = renderReport(rows, meta);
   console.log(report);
 

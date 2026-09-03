@@ -9,6 +9,7 @@
  */
 import { chromium } from 'playwright';
 import { createRequire } from 'node:module';
+import { pickBrowser } from './browser.mjs';
 
 const require = createRequire(import.meta.url);
 
@@ -45,10 +46,37 @@ async function main() {
   try {
     line(`  Playwright    ${require('playwright/package.json').version}`);
   } catch { line('  Playwright    (버전을 못 읽음)'); }
+  const pick = await pickBrowser();
+  line(`  쓸 브라우저   ${pick.name}`);
   try {
-    line(`  크로미움      ${chromium.executablePath()}`);
-  } catch (e) { line(`  크로미움      경로 없음 — ${e.message.split('\n')[0]}`); }
+    line(`  번들 크로미움 ${chromium.executablePath()}`);
+  } catch (e) { line(`  번들 크로미움 경로 없음 — ${e.message.split('\n')[0]}`); }
   line('');
+
+  // 동영상 코덱 — 번들 크로미움에는 H.264·AAC 가 없다. 특허 때문이다.
+  {
+    const b = await chromium.launch({ args: ['--disable-dev-shm-usage'],
+      ...(pick.channel ? { channel: pick.channel } : {}) });
+    const p2 = await b.newPage();
+    const c = await p2.evaluate(() => {
+      const v = document.createElement('video');
+      return {
+        h264: !!v.canPlayType('video/mp4; codecs="avc1.42E01E"'),
+        aac: !!document.createElement('audio').canPlayType('audio/mp4; codecs="mp4a.40.2"'),
+        vp9: !!v.canPlayType('video/webm; codecs="vp9"'),
+      };
+    });
+    await b.close();
+    line(`  ${c.h264 ? '✓' : '✗'} ${pad('H.264 (MP4 비디오)', 24)}${c.h264 ? '재생 가능' : '없음 — 동영상이 플레이어 오류로 찍힙니다'}`);
+    line(`  ${c.aac ? '✓' : '✗'} ${pad('AAC (오디오)', 24)}${c.aac ? '재생 가능' : '없음'}`);
+    line(`  ${c.vp9 ? '✓' : '✗'} ${pad('VP9 (WebM 비디오)', 24)}${c.vp9 ? '재생 가능' : '없음'}`);
+    if (!c.h264) {
+      line('');
+      line('    H.264 는 특허가 걸려 있어 브랜드 크롬에만 들어갑니다.');
+      line('    크롬을 설치하면 자동으로 크롬을 써서 동영상이 정상으로 나옵니다.');
+    }
+    line('');
+  }
 
   let deaths = 0;
   for (const [name, html, scale] of CASES) {
