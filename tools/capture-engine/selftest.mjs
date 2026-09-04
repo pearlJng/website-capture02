@@ -303,6 +303,19 @@ const CASES = [
     },
   },
   {
+    // 임베드(iframe) 안의 비디오. 바깥 문서만 멈추면 안의 영상은 계속 돌아 조각마다
+    // 다른 프레임이 찍힌다. 모든 프레임에서 붙잡아야 한다.
+    name: 'iframe 임베드 안의 비디오도 첫 프레임에 멈춰 있다',
+    file: 'videoframe.html', mode: 'stitch', steps: ['sticky', 'motion', 'anim'], color: true,
+    check: (r, cmp, shots, extra) => {
+      if (!extra || !extra.rows) return '색을 못 셌다';
+      const { top, below } = extra.rows;
+      if (top + below > 0) return `자홍색 띠가 ${top + below}줄 보인다 — 임베드 안 비디오가 돌았다`;
+      if (!(r.notes || []).some((n) => /임베드/.test(n))) return '임베드 안 비디오를 멈춘 기록이 없다';
+      return null;
+    },
+  },
+  {
     // 정보구조는 헤더 목록의 중첩을 그대로 읽는다. 숨긴 드롭다운도 읽고,
     // 모바일 메뉴에 반복된 링크는 한 번만 세고, 외부·앵커·파일은 표시한다.
     name: '정보구조: 메뉴 트리를 읽고 중복·외부·앵커를 가른다',

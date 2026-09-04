@@ -512,12 +512,32 @@ async function inPageWaitNearImages(cfg) {
   return k;
 }
 
-/** 조각을 찍기 직전, 비디오가 멈춘 채 첫 프레임에 있는지 다시 확인한다. */
+/**
+ * 조각을 찍기 직전, 비디오가 멈춘 채 첫 프레임에 있는지 다시 확인한다.
+ * iframe(유튜브·비메오 임베드) 안에서도 같은 함수를 돌린다 — 바깥에서 아무리 멈춰도
+ * 임베드 안의 영상은 따로 돈다. 테라클 히어로가 그랬다.
+ * 처음 한 번은 play() 를 막고, 새로 생기는 비디오도 감시한다 (스크롤마다 다시 만드는 사이트).
+ */
 async function inPageHoldVideos() {
+  try {
+    if (!window.__capPlayBlocked) {
+      window.__capPlayBlocked = true;
+      HTMLMediaElement.prototype.play = function () { try { this.pause(); } catch { /* 무시 */ } return Promise.resolve(); };
+      const tame = (el) => { try { el.autoplay = false; el.loop = false; el.removeAttribute('autoplay'); el.pause(); } catch { /* 무시 */ } };
+      new MutationObserver((ms) => {
+        for (const m of ms) for (const n of m.addedNodes) {
+          if (n.nodeType !== 1) continue;
+          if (n.tagName === 'VIDEO') tame(n);
+          else if (n.querySelectorAll) n.querySelectorAll('video').forEach(tame);
+        }
+      }).observe(document.documentElement, { childList: true, subtree: true });
+    }
+  } catch { /* 못 바꾸면 그냥 간다 */ }
   let fixed = 0;
   const waits = [];
   for (const el of document.querySelectorAll('video')) {
     try {
+      el.autoplay = false; el.loop = false; el.removeAttribute('autoplay');
       if (!el.paused) { el.pause(); fixed++; }
       if (el.currentTime > 0.05 && el.seekable && el.seekable.length) {
         waits.push(new Promise((r) => { const on = () => { el.removeEventListener('seeked', on); r(); }; el.addEventListener('seeked', on); setTimeout(on, 800); }));
@@ -607,6 +627,19 @@ function inPageMeasure() {
  */
 const VIEWPORT_H = (page) => (page.viewportSize() || VIEWPORT).height;
 
+/** 모든 프레임(바깥 문서 + iframe 들)에서 비디오를 붙잡는다. */
+async function holdVideosEverywhere(page) {
+  let fixed = 0, frames = 0;
+  for (const f of page.frames()) {
+    try {
+      const n = await f.evaluate(inPageHoldVideos);
+      if (f !== page.mainFrame()) frames++;
+      fixed += n || 0;
+    } catch { /* 떨어져 나간 프레임·접근 불가 */ }
+  }
+  return { fixed, frames };
+}
+
 export async function captureSite(context, url, opts = {}) {
   const steps = new Set(opts.steps || []);
   const mode = opts.mode || 'stitch';
@@ -667,6 +700,9 @@ export async function captureSite(context, url, opts = {}) {
     if (steps.has('anim')) {
       const n = await page.evaluate(inPageFreezeAnimations);
       if (n.length) notes.push('정지: ' + n.join(', '));
+      // 임베드(iframe) 안의 비디오까지. 바깥 문서만 멈추면 유튜브·비메오는 계속 돈다.
+      const inFrames = await holdVideosEverywhere(page);
+      if (inFrames.frames) notes.push(`임베드 ${inFrames.frames}개 안의 비디오도 정지`);
       await page.waitForTimeout(150);
     }
 
@@ -733,7 +769,7 @@ export async function captureSite(context, url, opts = {}) {
         // 이 칸(과 다음 칸)의 지연 로딩 이미지가 뜰 때까지. 없으면 바로 지나간다.
         await page.evaluate(inPageWaitNearImages, { rounds: SHOT_IMAGE_WAITS.rounds * slow, ms: SHOT_IMAGE_WAITS.ms });
         // 비디오가 다시 돌고 있으면 붙잡는다 — 조각마다 같은 프레임이어야 이음새가 맞는다
-        if (steps.has('anim')) { const n = await page.evaluate(inPageHoldVideos); if (n) videosHeld += n; }
+        if (steps.has('anim')) { const r = await holdVideosEverywhere(page); if (r.fixed) videosHeld += r.fixed; }
 
         // 두 번째 조각부터는 따라붙는 고정 요소를 전부 숨긴다. 첫 조각에는 남겨야
         // 헤더가 스냅샷에 한 번 들어간다 (수정 요청으로 첫 화면에서도 뺄 수 있다).
