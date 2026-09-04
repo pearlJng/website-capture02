@@ -316,6 +316,20 @@ const CASES = [
     },
   },
   {
+    // 테라클 Contact 페이지가 "여는 중"에서 10분 넘게 멈췄다. 응답이 영영 안 오는
+    // iframe(지도·광고) 안에서 비디오를 붙잡으려다 evaluate 가 안 돌아온 것이다.
+    // 프레임마다 2초 넘으면 건너뛰어야 한다.
+    name: '영영 안 뜨는 iframe 이 있어도 캡처가 멈추지 않는다',
+    file: 'hangframe.html', mode: 'stitch', steps: ['sticky', 'motion', 'anim'],
+    check: (r) => {
+      if (!r.ok) return `실패: ${r.error}`;
+      if (r.ms > 60000) return `${Math.round(r.ms / 1000)}초나 걸렸다 — iframe 을 기다리다 멈췄다`;
+      if (r.shotCount < 3) return `화면 ${r.shotCount}칸만 찍었다`;
+      if (!(r.notes || []).some((n) => n.includes('응답 없는 iframe'))) return '응답 없는 iframe 을 비운 기록이 없다';
+      return null;
+    },
+  },
+  {
     // 정보구조는 헤더 목록의 중첩을 그대로 읽는다. 숨긴 드롭다운도 읽고,
     // 모바일 메뉴에 반복된 링크는 한 번만 세고, 외부·앵커·파일은 표시한다.
     name: '정보구조: 메뉴 트리를 읽고 중복·외부·앵커를 가른다',
@@ -397,6 +411,7 @@ function makeServer() {
     const name = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '') || 'index.html';
     if (name.includes('..')) { res.writeHead(400).end(); return; }
     // 일부러 늦게 주는 그림. 스크롤이 기다려 주는지 시험한다.
+    if (name === '느린무한.html') { return; }   // 일부러 응답하지 않는다 — 영영 안 뜨는 iframe
     if (name === '느린그림.svg') {
       setTimeout(() => {
         res.writeHead(200, { 'content-type': 'image/svg+xml' }).end(
@@ -427,7 +442,8 @@ async function serveFixtures() {
     s.listen(port, host, () => r(s));
   });
   const [main, cross] = await Promise.all([listen(PORT, '127.0.0.1'), listen(CROSS_PORT, 'localhost')]);
-  return { close: (cb) => { cross.close(); main.close(cb); } };
+  // 응답을 일부러 안 준 연결(느린무한.html)이 남아 있으면 close 가 영영 안 끝난다. 끊고 닫는다.
+  return { close: (cb) => { cross.closeAllConnections(); main.closeAllConnections(); cross.close(); main.close(cb); } };
 }
 
 async function main() {

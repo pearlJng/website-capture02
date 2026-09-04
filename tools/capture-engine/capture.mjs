@@ -60,7 +60,7 @@ const SCROLL_CFG = {
   settleMs: 600,
   finalImageWaits: 15,    // 마지막에는 최대 3.3초까지 기다린다
 };
-const SHOT_TIMEOUT = 120000;
+const SHOT_TIMEOUT = 60000;
 /**
  * 한 칸으로 옮긴 뒤 찍기 전에 기다리는 시간.
  * 등장 전환이 끝나기를 기다리는 게 아니다 — 그건 스크린샷의 animations:'disabled'
@@ -627,12 +627,43 @@ function inPageMeasure() {
  */
 const VIEWPORT_H = (page) => (page.viewportSize() || VIEWPORT).height;
 
-/** 모든 프레임(바깥 문서 + iframe 들)에서 비디오를 붙잡는다. */
+/** 기다리다 끝이 없으면 포기한다. iframe 의 evaluate 는 프레임이 영영 안 뜨면 영영 안 돌아온다. */
+const withTimeout = (p, ms, fallback) => Promise.race([p, new Promise((r) => setTimeout(() => r(fallback), ms))]);
+
+/**
+ * 영영 안 뜨는 iframe 을 비운다. 스크린샷은 animations:'disabled' 로 찍을 때 모든
+ * 프레임에 들어가 애니메이션을 멈추는데, 실행 문맥이 안 생긴 프레임에서는 그게
+ * 돌아오지 않아 조각마다 제한 시간을 꽉 채운다. 어차피 아무것도 안 그리는
+ * 프레임이니 about:blank 로 바꿔도 그림은 같다.
+ */
+async function neutralizeStuckFrames(page) {
+  let n = 0;
+  for (const f of page.frames()) {
+    if (f === page.mainFrame() || f.isDetached()) continue;
+    const alive = await withTimeout(f.evaluate(() => 1).then(() => true).catch(() => false), 1500, false);
+    if (alive) continue;
+    try {
+      const el = await withTimeout(f.frameElement().catch(() => null), 1500, null);
+      if (el) { await withTimeout(el.evaluate((e) => { e.src = 'about:blank'; }).catch(() => {}), 1500, null); n++; }
+    } catch { /* 무시 */ }
+  }
+  return n;
+}
+
+/**
+ * 모든 프레임(바깥 문서 + iframe 들)에서 비디오를 붙잡는다.
+ * 프레임마다 2초 넘게 안 돌아오면 건너뛴다 — 지도·광고 iframe 은 실행 문맥이
+ * 영영 안 생기기도 하고, 그러면 evaluate 가 안 돌아온다. 테라클 Contact 페이지가
+ * 그래서 "여는 중"에서 10분 넘게 멈춰 있었다.
+ */
 async function holdVideosEverywhere(page) {
   let fixed = 0, frames = 0;
   for (const f of page.frames()) {
+    if (f.isDetached()) continue;
+    if (f !== page.mainFrame() && (!f.url() || f.url() === 'about:blank')) continue;
     try {
-      const n = await f.evaluate(inPageHoldVideos);
+      const n = await withTimeout(f.evaluate(inPageHoldVideos).catch(() => null), 2000, null);
+      if (n === null) continue;
       if (f !== page.mainFrame()) frames++;
       fixed += n || 0;
     } catch { /* 떨어져 나간 프레임·접근 불가 */ }
@@ -674,6 +705,7 @@ export async function captureSite(context, url, opts = {}) {
     await page.waitForTimeout(SETTLE_MS * slow);
     lap('열기');
 
+    progress('준비 중 — 움직이는 것 멈추기');
     // 찾기는 항상, 걷어내기는 단계를 켰을 때만.
     const motion = await page.evaluate(inPageHandleMotion, steps.has('motion'));
     if (motion.notes.length) notes.push('모션 해제: ' + motion.notes.join(', '));
@@ -722,10 +754,15 @@ export async function captureSite(context, url, opts = {}) {
       await page.waitForTimeout(200);
     }
 
-    // 폰트가 덜 그려진 채로 찍으면 두 번 찍을 때 달라진다.
-    await page.evaluate(() => document.fonts && document.fonts.ready).catch(() => {});
+    // 폰트가 덜 그려진 채로 찍으면 두 번 찍을 때 달라진다. (영영 안 오는 폰트도 있다 — 5초까지만)
+    progress('준비 중 — 폰트·프레임 확인');
+    await withTimeout(page.evaluate(() => document.fonts && document.fonts.ready).catch(() => {}), 5000, null);
     if (mode !== 'stitch') await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     lap('준비');
+
+    // 응답 없는 iframe 은 찍기 전에 비운다 (스크린샷이 그 프레임을 기다리다 멈춘다)
+    const stuck = await neutralizeStuckFrames(page);
+    if (stuck) notes.push(`응답 없는 iframe ${stuck}개를 비웠습니다 (지도·광고 등)`);
 
     const m = await page.evaluate(inPageMeasure);
     const docHeight = m.docHeight;
