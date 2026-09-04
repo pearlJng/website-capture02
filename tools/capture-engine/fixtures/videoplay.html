@@ -1,0 +1,23 @@
+<!doctype html><meta charset=utf-8><title>스크롤하면 다시 재생하는 비디오</title>
+<style>
+body{margin:0;font:16px/1.6 system-ui}
+header{height:80px;background:#222;color:#fff;display:flex;align-items:center;padding:0 24px}
+.hero{height:900px;background:#000;display:flex;align-items:flex-end;justify-content:center}
+video{width:100%;height:auto;display:block}
+section{height:900px}
+section:nth-child(odd){background:#eef}section:nth-child(even){background:#efe}
+</style>
+<header>LOGO · 메뉴</header>
+<div class="hero"><video src="clock.webm" autoplay muted loop playsinline></video></div>
+<main><section>1</section><section>2</section><section>3</section></main>
+<script>
+/*
+ * 테라클 히어로가 이랬다. 캡처기가 비디오를 멈춰도, 사이트가 스크롤할 때마다
+ * play() 를 다시 부른다 (화면에 들어오면 재생하는 위젯). 조각마다 다른 프레임이
+ * 찍혀 이음새에서 영상이 어긋난다. 비디오 아래에 자홍색 진행 막대가 있어
+ * 시간이 흐르면 막대가 길어진다 — 결과에서 막대 길이로 시간이 멈췄는지 본다.
+ */
+const v = document.querySelector('video');
+addEventListener('scroll', () => { v.play().catch(() => {}); });
+setInterval(() => { if (v.paused) v.play().catch(() => {}); }, 300);
+</script>

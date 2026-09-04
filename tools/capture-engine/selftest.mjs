@@ -288,6 +288,21 @@ const CASES = [
     },
   },
   {
+    // 테라클 히어로 이음새에서 영상이 어긋났다. 캡처기가 비디오를 멈춰도 사이트가
+    // 스크롤마다 play() 를 다시 불러, 조각마다 다른 프레임이 찍혔다.
+    // 비디오 아래 자홍색 진행 막대: 첫 프레임이면 길이가 0 이라 자홍색이 거의 없어야 한다.
+    name: '사이트가 다시 재생시켜도 비디오는 첫 프레임에 멈춰 있다',
+    file: 'videoplay.html', mode: 'stitch', steps: ['sticky', 'motion', 'anim'], color: true,
+    check: (r, cmp, shots, extra) => {
+      if (!extra || !extra.rows) return '색을 못 셌다';
+      const { top, below } = extra.rows;
+      // 막대는 비디오 맨 아래 10px(360px 중) — 첫 프레임이면 길이 0. 조금이라도 돌았으면 줄이 생긴다.
+      if (top + below > 0) return `자홍색 진행 막대가 ${top + below}줄 보인다 — 비디오가 첫 프레임에 멈춰 있지 않다`;
+      if (!(r.notes || []).some((n) => /비디오/.test(n))) return '비디오를 멈춘 기록이 없다';
+      return null;
+    },
+  },
+  {
     // 정보구조는 헤더 목록의 중첩을 그대로 읽는다. 숨긴 드롭다운도 읽고,
     // 모바일 메뉴에 반복된 링크는 한 번만 세고, 외부·앵커·파일은 표시한다.
     name: '정보구조: 메뉴 트리를 읽고 중복·외부·앵커를 가른다',
@@ -359,7 +374,7 @@ const CASES = [
   },
 ];
 
-const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': 'text/javascript', '.webm': 'video/webm', '.svg': 'image/svg+xml' };
 
 // 요청할 때마다 다른 높이를 넣어 준다. 난수는 두 번이 같게 나올 수 있어 못 쓴다.
 let jitter = 0;

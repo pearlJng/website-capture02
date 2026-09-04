@@ -181,8 +181,18 @@ async function inPageFreezeAnimations() {
   // 테라클 히어로 영상이 그랬다. seeked 를 기다린 뒤에 넘어간다.
   let videos = 0;
   const seeks = [];
+  // 멈춘 뒤에 사이트 JS 가 다시 play() 를 부르는 일이 흔하다(화면에 들어오면 재생하는
+  // 위젯). 그러면 조각마다 다른 프레임이 찍혀 이음새에서 영상이 어긋난다 — 테라클
+  // 히어로가 그랬다. play() 를 아무 일도 안 하는 함수로 바꿔 둔다.
+  try {
+    if (!window.__capPlayBlocked) {
+      window.__capPlayBlocked = true;
+      HTMLMediaElement.prototype.play = function () { try { this.pause(); } catch { /* 무시 */ } return Promise.resolve(); };
+    }
+  } catch { /* 못 바꾸면 그냥 간다 */ }
   for (const el of document.querySelectorAll('video')) {
     try {
+      el.autoplay = false; el.loop = false; el.removeAttribute('autoplay');
       if (!el.paused) { el.pause(); videos++; }
       if (el.currentTime !== 0 && el.seekable && el.seekable.length) {
         const done = new Promise((r) => {
@@ -502,6 +512,23 @@ async function inPageWaitNearImages(cfg) {
   return k;
 }
 
+/** 조각을 찍기 직전, 비디오가 멈춘 채 첫 프레임에 있는지 다시 확인한다. */
+async function inPageHoldVideos() {
+  let fixed = 0;
+  const waits = [];
+  for (const el of document.querySelectorAll('video')) {
+    try {
+      if (!el.paused) { el.pause(); fixed++; }
+      if (el.currentTime > 0.05 && el.seekable && el.seekable.length) {
+        waits.push(new Promise((r) => { const on = () => { el.removeEventListener('seeked', on); r(); }; el.addEventListener('seeked', on); setTimeout(on, 800); }));
+        el.currentTime = 0; fixed++;
+      }
+    } catch { /* 크로스오리진 */ }
+  }
+  if (waits.length) await Promise.all(waits);
+  return fixed;
+}
+
 function inPageScrollTo(y) {
   const se = document.scrollingElement || document.documentElement;
   const at = () => Math.round(Math.max(
@@ -690,6 +717,7 @@ export async function captureSite(context, url, opts = {}) {
       let height = docHeight;
       let lastY = -1;      // 직전에 실제로 도달한 자리
       let hiddenLater = 0; // 두 번째 조각부터 숨긴 고정 요소 수
+      let videosHeld = 0;  // 다시 돌기 시작한 비디오를 붙잡은 횟수
       let pinned = null;   // 직전 조각에서 화면 위·아래 띠에 있던 요소들의 자리
       // 마지막 안전망. DOM 으로 못 잡은 헤더가 둘째 조각 위쪽에도 찍혀 있으면,
       // 그 띠 높이만큼 겹치게 다시 내려가며 찍고 조각마다 위를 잘라낸다.
@@ -704,6 +732,8 @@ export async function captureSite(context, url, opts = {}) {
         await page.waitForTimeout((i === 0 ? SHOT_SETTLE_FIRST_MS : SHOT_SETTLE_MS) * slow);
         // 이 칸(과 다음 칸)의 지연 로딩 이미지가 뜰 때까지. 없으면 바로 지나간다.
         await page.evaluate(inPageWaitNearImages, { rounds: SHOT_IMAGE_WAITS.rounds * slow, ms: SHOT_IMAGE_WAITS.ms });
+        // 비디오가 다시 돌고 있으면 붙잡는다 — 조각마다 같은 프레임이어야 이음새가 맞는다
+        if (steps.has('anim')) { const n = await page.evaluate(inPageHoldVideos); if (n) videosHeld += n; }
 
         // 두 번째 조각부터는 따라붙는 고정 요소를 전부 숨긴다. 첫 조각에는 남겨야
         // 헤더가 스냅샷에 한 번 들어간다 (수정 요청으로 첫 화면에서도 뺄 수 있다).
@@ -764,6 +794,7 @@ export async function captureSite(context, url, opts = {}) {
       }
       shotCount = shots.length;
       if (hiddenLater) notes.push(`${tweaks.hideHeader ? '첫' : '두 번째'} 조각부터 고정 요소 ${hiddenLater}개 숨김`);
+      if (videosHeld) notes.push(`다시 돌기 시작한 비디오를 ${videosHeld}번 붙잡아 첫 프레임에 뒀습니다`);
       scrolled = { reachedBottom: !stalled, height };
       lap('찍기');
       progress(`${shotCount}칸 이어 붙이는 중`);
