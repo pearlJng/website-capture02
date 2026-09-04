@@ -274,6 +274,20 @@ const CASES = [
     },
   },
   {
+    // 테라클 1440 결과에서 로고·언어 버튼은 사라졌는데 메뉴 글자만 조각마다 도장처럼
+    // 찍혔다. 포장을 visibility:hidden 으로 숨겨도, 자식이 스스로 visibility:visible 로
+    // 정해 두면 그 자식은 보인다. 규칙이 자손까지 !important 로 덮어야 한다.
+    name: '자식이 스스로 visible 로 정한 메뉴도 부모와 함께 숨는다',
+    file: 'headervisible.html', mode: 'stitch', steps: ['sticky', 'motion', 'anim'], color: true,
+    check: (r, cmp, shots, extra) => {
+      if (!extra || !extra.rows) return '색을 못 셌다';
+      const { top, below } = extra.rows;
+      if (top < 30) return `첫 화면에 헤더가 ${top}줄뿐이다`;
+      if (below > 0) return `메뉴 색이 두 번째 화면 아래에 ${below}줄이나 있다 — 자식이 visible 이라 안 숨었다`;
+      return null;
+    },
+  },
+  {
     // 정보구조는 헤더 목록의 중첩을 그대로 읽는다. 숨긴 드롭다운도 읽고,
     // 모바일 메뉴에 반복된 링크는 한 번만 세고, 외부·앵커·파일은 표시한다.
     name: '정보구조: 메뉴 트리를 읽고 중복·외부·앵커를 가른다',

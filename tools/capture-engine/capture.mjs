@@ -218,6 +218,15 @@ async function inPageFreezeAnimations() {
  * 나머지(챗 위젯, 맨 위로 버튼, 쿠키 배너, 하단 고정바)는 콘텐츠를 가리므로 숨긴다.
  */
 function inPageTameFixed(viewportWidth) {
+  // 숨김 규칙. visibility 는 자식이 스스로 visible 로 정해 두면 부모를 숨겨도 그 자식은
+  // 보인다 — 테라클 헤더가 그랬다(포장은 숨었는데 메뉴 글자만 조각마다 남았다).
+  // 그래서 규칙이 자손까지 !important 로 덮는다.
+  if (!document.getElementById('cap-hide-rule')) {
+    const st = document.createElement('style');
+    st.id = 'cap-hide-rule';
+    st.textContent = '[data-cap-hidden],[data-cap-hidden] *{visibility:hidden!important}';
+    (document.head || document.documentElement).appendChild(st);
+  }
   const found = [];
   for (const el of document.querySelectorAll('body *')) {
     const cs = getComputedStyle(el);
@@ -267,7 +276,7 @@ function inPageHideAllFixed() {
   if (!document.getElementById('cap-hide-rule')) {
     const st = document.createElement('style');
     st.id = 'cap-hide-rule';
-    st.textContent = '[data-cap-hidden]{visibility:hidden!important}';
+    st.textContent = '[data-cap-hidden],[data-cap-hidden] *{visibility:hidden!important}';
     (document.head || document.documentElement).appendChild(st);
   }
   let n = 0;
@@ -327,7 +336,7 @@ function inPageHidePinned(prev) {
   if (!document.getElementById('cap-hide-rule')) {
     const st = document.createElement('style');
     st.id = 'cap-hide-rule';
-    st.textContent = '[data-cap-hidden]{visibility:hidden!important}';
+    st.textContent = '[data-cap-hidden],[data-cap-hidden] *{visibility:hidden!important}';
     (document.head || document.documentElement).appendChild(st);
   }
   const W = window.innerWidth, H = window.innerHeight;

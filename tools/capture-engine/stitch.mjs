@@ -76,17 +76,25 @@ export async function repeatedTopBand(page, bufs, maxPx, offset = 0) {
     let band = 0, lastContent = -1, blank = 0;
     for (let y = 0; y < h; y++) {
       let content = 0, matched = 0, n = 0;
+      let byColor = 0, byMask = 0;
       for (let x = 0; x < w; x += step) {
         n++;
         if (!nonbg(R, y, x)) continue;
         content++;
         const i = (y * w + x) * 4;
-        let eq = true;
+        let eqColor = true, eqMask = true;
         for (const O of others) {
-          if (Math.abs(R[i] - O[i]) > 12 || Math.abs(R[i + 1] - O[i + 1]) > 12 || Math.abs(R[i + 2] - O[i + 2]) > 12) { eq = false; break; }
+          if (eqColor && (Math.abs(R[i] - O[i]) > 12 || Math.abs(R[i + 1] - O[i + 1]) > 12 || Math.abs(R[i + 2] - O[i + 2]) > 12)) eqColor = false;
+          if (eqMask && !nonbg(O, y, x)) eqMask = false;
         }
-        if (eq) matched++;
+        if (eqColor) byColor++;
+        if (eqMask) byMask++;
       }
+      // 얇은 글자는 대부분이 테두리 픽셀이라 바탕과 섞인 색이 조각마다 다르다 — 색으로 견주면
+      // 같은 글자도 "다르다"가 된다. 글자처럼 성긴 줄(내용 4할 이하)은 "그 자리에 내용이
+      // 있는가"(자리 겹침)로도 인정한다. 빽빽한 줄(색 띠·사진)은 색이 맞아야 한다 —
+      // 사진은 자리 겹침으로는 못 가른다.
+      matched = content > n * 0.4 ? byColor : Math.max(byColor, byMask);
       if (content >= n * 0.02) {
         if (matched < content * 0.85) break;   // 기준 조각의 내용이 다른 조각엔 없다 — 띠 끝
         lastContent = y; blank = 0;
