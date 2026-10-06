@@ -355,6 +355,19 @@ const CASES = [
     },
   },
   {
+    // 둘째 조각 위에 흰 띠가 남았다. 맨 위에서는 없다가 스크롤하면 그때 생겨 스크롤
+    // 위치를 따라오는 헤더는, 직전 조각과 견주는 방식으로는 처음 나타난 조각에서 못
+    // 잡는다. 목표 자리 조금 위에 먼저 서서 자리를 재고 내려가면 잡힌다.
+    name: '스크롤하면 그때 생기는 헤더도 처음 나타난 조각부터 없다',
+    file: 'lateheader.html', mode: 'stitch', steps: ['sticky', 'motion', 'anim'], color: true,
+    check: (r, cmp, shots, extra) => {
+      if (!extra || !extra.rows) return '색을 못 셌다';
+      const { top, below } = extra.rows;
+      if (top > 0 || below > 0) return `헤더 색이 위 ${top}줄 · 아래 ${below}줄 남았다 — 처음 나타난 조각에서 못 잡았다`;
+      return null;
+    },
+  },
+  {
     // 정보구조는 헤더 목록의 중첩을 그대로 읽는다. 숨긴 드롭다운도 읽고,
     // 모바일 메뉴에 반복된 링크는 한 번만 세고, 외부·앵커·파일은 표시한다.
     name: '정보구조: 메뉴 트리를 읽고 중복·외부·앵커를 가른다',

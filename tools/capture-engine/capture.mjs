@@ -68,6 +68,8 @@ const SHOT_TIMEOUT = 60000;
  * 시간만 주면 된다. 700ms 에서 줄였다.
  */
 const SHOT_SETTLE_MS = 250;
+const PROBE_PX = 160;        // 둘째 조각부터, 목표 자리 조금 위에 먼저 서는 거리
+const PROBE_SETTLE_MS = 120; // 거기서 자리를 재기 전에 기다리는 시간
 const SHOT_SETTLE_FIRST_MS = 600;
 /** 칸을 찍기 전에 그 칸(과 다음 칸) 이미지가 다 뜨기를 기다리는 최대 횟수 × 간격 */
 const SHOT_IMAGE_WAITS = { rounds: 10, ms: 150 };
@@ -311,6 +313,9 @@ function inPageHideAllFixed() {
     // 첫 화면에 남겨 둔 헤더는 CSS 가 뭐라 하든 여기서 숨긴다. 스크롤에 따라
     // 고정으로 바뀌었다 풀렸다 하는 헤더가 화면마다 다시 찍혀 GNB 가 반복됐다.
     if (!el.hasAttribute('data-cap-header') && cs.position !== 'fixed' && cs.position !== 'sticky') continue;
+    // 지금 안 보이는 고정 요소(display:none)도 표를 붙여 둔다 — 스크롤이 멈춘 뒤에야
+    // 나타나는 고정 메뉴가 있다. 표가 있으면 나타나도 안 보인다.
+    if (cs.position === 'fixed' && cs.display === 'none') { el.setAttribute('data-cap-hidden', ''); continue; }
     if (cs.display === 'none' || cs.visibility === 'hidden') continue;
     // 스크롤하다 sticky 로 바뀐 것도 숨기지 않고 흐름 자리로 되돌린다 (첫 화면에 남긴 헤더는 숨긴다)
     if (cs.position === 'sticky' && !el.hasAttribute('data-cap-header')) { el.setAttribute('data-cap-unstuck', ''); continue; }
@@ -819,6 +824,21 @@ export async function captureSite(context, url, opts = {}) {
       const bandCheckedAt = new Set();
       for (let i = 0; i < MAX_SCROLL_STEPS && y < height; i++) {
         progress(`찍는 중 ${i + 1}/${Math.ceil(height / VIEWPORT_H(page))}칸`);
+        // 둘째 조각부터는 목표 자리 조금 위(PROBE_PX)에 먼저 서서 화면 위·아래 띠의 요소
+        // 자리를 재고, 그다음 목표 자리로 내려간다. 스크롤했는데 같은 자리에 남은 것은
+        // 따라붙는 것이다. 직전 조각과만 견주면 **처음 나타난** 헤더는 못 잡는다 —
+        // 링고컴퍼니 둘째 조각 위의 흰 띠가 그것이었다(스크롤하면 그때 생기는 헤더).
+        // 위로는 절대 안 올라간다: "위로 스크롤하면 나타나는 헤더"를 깨우면 안 된다.
+        let probe = null;
+        if (i > 0 && steps.has('sticky')) {
+          // 바닥 근처에서는 목표가 더 못 내려가므로(클램프) 실제 도착 자리 기준으로 잰다
+          const dest = Math.min(y, Math.max(0, height - VIEWPORT_H(page)));
+          if (dest - PROBE_PX > lastY) {
+            await page.evaluate(inPageScrollTo, dest - PROBE_PX);
+            await page.waitForTimeout(PROBE_SETTLE_MS * slow);
+            probe = await page.evaluate(inPageHidePinned, null);
+          }
+        }
         await page.evaluate(inPageScrollTo, y);
         await page.waitForTimeout((i === 0 ? SHOT_SETTLE_FIRST_MS : SHOT_SETTLE_MS) * slow);
         // 이 칸(과 다음 칸)의 지연 로딩 이미지가 뜰 때까지. 없으면 바로 지나간다.
@@ -835,8 +855,16 @@ export async function captureSite(context, url, opts = {}) {
         }
         // 스크롤이 달라도 같은 자리에 남는 요소를 잡는다. 첫 조각은 자리만 재 둔다.
         if (steps.has('sticky')) {
-          pinned = await page.evaluate(inPageHidePinned, pinned);
+          // 직전 조각의 자리와 방금 잰 중간 자리를 합쳐 견준다. 단, 중간 자리에서 실제로
+          // 더 내려오지 못했으면(바닥) 중간 자리는 버린다 — 같은 자리끼리 견주면 흐름 안의
+          // 요소까지 전부 "따라붙는 것"으로 보여 화면 위쪽을 몽땅 숨긴다.
+          const sy = await page.evaluate(() => window.scrollY);
+          const prev = probe && sy - probe.scrollY >= 24
+            ? { ids: { ...((pinned && pinned.ids) || {}), ...probe.ids }, scrollY: probe.scrollY } : pinned;
+          pinned = await page.evaluate(inPageHidePinned, prev);
           if (pinned.hidden) { hiddenLater += pinned.hidden; await page.waitForTimeout(80); }
+          // 숨기는 사이에 고정으로 바뀐 것이 있으면 한 번 더 (값싸다)
+          if (i >= 1 || tweaks.hideHeader) { const n = await page.evaluate(inPageHideAllFixed); if (n) hiddenLater += n; }
         }
 
         const at = await page.evaluate(inPageWhere);

@@ -56,7 +56,7 @@
   .card .retake .r { display: flex; gap: 6px; margin-top: 6px; align-items: center; }
   .card .retake .rt { width: 34px; height: 34px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; }
   .card .retake .rt svg { width: 18px; height: 18px; }
-  .card .retake .rt:hover svg { transform: rotate(-60deg); transition: transform .3s; }
+  .card .retake .rt:hover svg { transform: translate(1px, -1px); transition: transform .2s; }
   .card .retake .rt.up { margin-left: 10px; }
   .card .retake .rt.up:hover svg { transform: translateY(-2px); }
   .card .sel { position: absolute; left: 10px; top: 10px; width: 20px; height: 20px; accent-color: var(--accent); }
@@ -264,7 +264,7 @@
       ${row.pieceFiles && row.pieceFiles.length ? `<div class="mute">조각: ${row.pieceFiles.map((f, i) => `<a href="${fileUrl(id, f)}" target="_blank">${i + 1}</a>`).join(' · ')}</div>` : ''}
       ${row.previous && row.previous.length ? `<div class="prev">이전: ${row.previous.map((f) => `<a href="${fileUrl(id, f)}" target="_blank">${esc(f)}</a>`).join(', ')}</div>` : ''}
       <div class="retake">
-        <div class="r"><button class="rt" title="다시 찍기" aria-label="다시 찍기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 3 3 9 9 9"/></svg></button><span class="mute">다시 찍기</span>
+        <div class="r"><button class="rt go" title="직접 찍기 — 이 페이지를 새 탭에 연다" aria-label="직접 찍기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button><span class="mute">직접 찍기</span>
         <button class="rt up" title="직접 찍은 그림으로 바꾸기" aria-label="직접 찍은 그림으로 바꾸기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><polyline points="6 10 12 4 18 10"/><path d="M4 20h16"/></svg></button><span class="mute">직접 찍은 그림으로 바꾸기</span>
         <input type="file" class="upf" accept="image/png,image/jpeg" hidden></div>
       </div></div>`;
@@ -280,14 +280,10 @@
       card.dataset.stamp = '';
       poll(id);
     };
-    card.querySelector('.rt').onclick = async () => {
-      const r = await api('/api/retake', { id, url: row.url, request: '' });
-      if (!r.ok) { alert(r.error); return; }
-      card.classList.add('pending');
-      card.dataset.stamp = '';
-      card.querySelector('.t').innerHTML = '다시 찍는 중';
-      if (!timer) timer = setInterval(() => poll(id), 1500);
-    };
+    // 직접 찍기: 그 페이지를 새 탭에 연다. 거기서 원하는 상태로 만들고 크롬 전체 페이지 캡처
+    // (개발자 도구 Cmd+Shift+P → "Capture full size screenshot", 또는 GoFullPage)로 찍은 뒤
+    // 옆의 올리기 버튼으로 바꾼다.
+    card.querySelector('.go').onclick = () => { window.open(row.url, '_blank', 'noopener'); };
   }
 
   /* ── 내보내기 ── */
