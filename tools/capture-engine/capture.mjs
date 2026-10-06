@@ -154,6 +154,69 @@ function inPageHandleMotion(destroyThem) {
   return { found, notes };
 }
 
+/**
+ * 페이지 스크립트보다 먼저 심는다. IntersectionObserver 를 감싸 두어, 나중에 "스크롤
+ * 위치 표시(scrollspy)" 용 옵저버만 골라 멈출 수 있게 한다. 감싸기만 하고 동작은 그대로다 —
+ * 지연 로딩 이미지와 등장 효과도 이걸 쓰므로 통째로 끄면 안 된다.
+ */
+function inPageInitObservers() {
+  const Native = window.IntersectionObserver;
+  if (!Native || window.__capIO) return;
+  const list = [];
+  window.__capIO = list;
+  function Wrapped(cb, opts) {
+    const self = this;
+    const state = { cb, opts: Object.assign({}, opts || {}), frozen: false, targets: [], native: null, wrapper: self };
+    state.native = new Native(function (entries) { if (state.frozen) return; cb.call(self, entries, self); }, opts);
+    list.push(state);
+    this.__cap = state;
+  }
+  Wrapped.prototype.observe = function (t) { if (t && !this.__cap.targets.includes(t)) this.__cap.targets.push(t); this.__cap.native.observe(t); };
+  Wrapped.prototype.unobserve = function (t) { this.__cap.targets = this.__cap.targets.filter((x) => x !== t); this.__cap.native.unobserve(t); };
+  Wrapped.prototype.disconnect = function () { this.__cap.targets = []; this.__cap.native.disconnect(); };
+  Wrapped.prototype.takeRecords = function () { return this.__cap.native.takeRecords(); };
+  for (const k of ['root', 'rootMargin', 'thresholds']) {
+    Object.defineProperty(Wrapped.prototype, k, { get() { return this.__cap.native[k]; } });
+  }
+  Wrapped.toString = () => Native.toString();
+  window.IntersectionObserver = Wrapped;
+}
+
+/**
+ * 스크롤 위치 표시(scrollspy)를 첫 항목에 고정한다.
+ *
+ * 연혁 페이지는 화면 가운데 띠에 들어온 연도만 밝히고 나머지는 흐린다. 화면 단위로 찍으면
+ * 조각마다 밝은 연도가 달라 왼쪽 목록(2026)과 오른쪽 본문(2023…)이 어긋난다. 이런 옵저버는
+ * rootMargin 이 위·아래 모두 음수라 화면의 절반 넘게 잘라낸 "가운데 띠"를 본다 — 지연 로딩
+ * (양수 여유)이나 등장 효과(0 또는 아래쪽만 조금)와 구분된다. 그 옵저버에만 "첫 항목이
+ * 보인다"고 한 번 알려 주고 그 뒤로는 입을 막는다. 방문자가 본문 첫머리에 막 도착한 상태로
+ * 전체가 찍힌다.
+ */
+function inPageFreezeScrollspy() {
+  const list = window.__capIO || [];
+  const vh = window.innerHeight;
+  const px = (v) => (/%$/.test(v) ? (parseFloat(v) / 100) * vh : parseFloat(v) || 0);
+  let n = 0;
+  for (const st of list) {
+    if (st.frozen || st.opts.root) continue;
+    const m = String(st.opts.rootMargin || '0px').trim().split(/\s+/);
+    const top = px(m[0]), bottom = px(m.length === 1 ? m[0] : m.length === 2 ? m[0] : m[2]);
+    if (!(top < 0 && bottom < 0)) continue;                 // 위·아래 모두 잘라낸 것만
+    if (-(top + bottom) < vh * 0.5) continue;                // 절반 넘게 잘라내야 "가운데 띠"
+    st.frozen = true;
+    const targets = st.targets.filter((t) => t.isConnected)
+      .sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+    if (!targets.length) continue;
+    const t = targets[0];
+    const r = t.getBoundingClientRect();
+    const entry = { target: t, isIntersecting: true, intersectionRatio: 1, boundingClientRect: r, intersectionRect: r,
+      rootBounds: null, time: performance.now(), isVisible: true };
+    try { st.cb.call(st.wrapper, [entry], st.wrapper); } catch { /* 페이지 스크립트 오류는 무시 */ }
+    n++;
+  }
+  return n;
+}
+
 /** 돌고 있는 것을 멈춘다. 등장 애니메이션은 끝 상태로 보내고, 루프는 처음으로 되감는다. */
 async function inPageFreezeAnimations() {
   const notes = [];
@@ -714,6 +777,8 @@ export async function captureSite(context, url, opts = {}) {
   const vw = (page.viewportSize() || VIEWPORT).width;
 
   try {
+    // 페이지 스크립트보다 먼저: 스크롤 위치 표시 옵저버를 나중에 멈출 수 있게 감싼다
+    if (steps.has('motion')) await page.addInitScript(inPageInitObservers);
     progress('여는 중');
     try {
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
@@ -775,6 +840,12 @@ export async function captureSite(context, url, opts = {}) {
       }
       if (r.unstuck) notes.push(`스티키 요소 ${r.unstuck}개는 제자리에 한 번만 (따라오지 않게)`);
       await page.waitForTimeout(200);
+    }
+
+    // 스크롤 위치에 따라 밝아지는 항목이 바뀌는 페이지(연혁의 연도 목록)는 첫 항목에 고정한다.
+    if (steps.has('motion')) {
+      const n = await page.evaluate(inPageFreezeScrollspy).catch(() => 0);
+      if (n) { notes.push(`스크롤 위치 표시 ${n}개는 첫 항목에 고정 (조각마다 바뀌지 않게)`); await page.waitForTimeout(150); }
     }
 
     // 폰트가 덜 그려진 채로 찍으면 두 번 찍을 때 달라진다. (영영 안 오는 폰트도 있다 — 5초까지만)

@@ -368,6 +368,21 @@ const CASES = [
     },
   },
   {
+    // 연혁 페이지: 화면 가운데 띠에 들어온 연도만 밝다. 화면 단위로 찍으면 조각마다 밝은
+    // 연도가 달라 왼쪽 목록과 오른쪽 본문이 어긋난다. 그런 옵저버는 첫 항목에 고정한다 —
+    // 첫 구간(700~1600px)만 밝고, 그 아래 구간은 하나도 밝지 않아야 한다.
+    name: '스크롤 위치 표시는 첫 항목에 고정되어 조각마다 바뀌지 않는다',
+    file: 'scrollspy.html', mode: 'stitch', steps: ['sticky', 'motion', 'anim'], color: 1600,
+    check: (r, cmp, shots, extra) => {
+      if (!extra || !extra.rows) return '색을 못 셌다';
+      const { top, below } = extra.rows;
+      if (top < 30) return `첫 구간이 밝지 않다 (${top}줄) — 첫 항목에 고정되지 않았다`;
+      if (below > 0) return `아래 구간도 ${below}줄 밝다 — 조각마다 바뀌었다`;
+      if (!(r.notes || []).some((n) => n.includes('스크롤 위치 표시'))) return '고정했다는 기록이 없다';
+      return null;
+    },
+  },
+  {
     // 정보구조는 헤더 목록의 중첩을 그대로 읽는다. 숨긴 드롭다운도 읽고,
     // 모바일 메뉴에 반복된 링크는 한 번만 세고, 외부·앵커·파일은 표시한다.
     name: '정보구조: 메뉴 트리를 읽고 중복·외부·앵커를 가른다',

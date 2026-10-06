@@ -1,0 +1,34 @@
+<!doctype html><meta charset=utf-8><title>스크롤 위치 표시</title>
+<style>
+body{margin:0;font:16px/1.6 system-ui;background:#111;color:#999}
+.hero{height:700px;background:#234}
+.body{display:flex;gap:40px;padding:0 40px}
+.nav{position:sticky;top:0;flex:0 0 200px;height:160px;list-style:none;margin:0;padding:0}
+.nav li.active{color:#fff}
+.list{flex:1}
+/* 연혁 페이지처럼 화면 가운데 띠(위 40%·아래 50% 잘라낸 곳)에 들어온 구간만 밝힌다.
+   밝은 구간은 띠(.bar)가 자홍색이 된다 — 결과에서 그 색이 어디 있는지 센다. */
+.sec{height:900px;border-bottom:1px solid #333}
+.sec .bar{height:40px;background:#333;margin:0 -40px}
+.sec.active .bar{background:#ff00aa}
+</style>
+<div class="hero">히어로</div>
+<div class="body">
+  <ul class="nav"><li class="active" data-t="y1">2026</li><li data-t="y2">2025</li><li data-t="y3">2024</li><li data-t="y4">2023</li></ul>
+  <div class="list">
+    <section class="sec" id="y1"><div class="bar"></div><h3>2026</h3></section>
+    <section class="sec" id="y2"><div class="bar"></div><h3>2025</h3></section>
+    <section class="sec" id="y3"><div class="bar"></div><h3>2024</h3></section>
+    <section class="sec" id="y4"><div class="bar"></div><h3>2023</h3></section>
+  </div>
+</div>
+<script>
+const secs = document.querySelectorAll('.sec'), navs = document.querySelectorAll('.nav li');
+function setActive(id) {
+  secs.forEach((s) => s.classList.toggle('active', s.id === id));
+  navs.forEach((n) => n.classList.toggle('active', n.dataset.t === id));
+}
+const io = new IntersectionObserver((entries) => { entries.forEach((e) => { if (e.isIntersecting) setActive(e.target.id); }); },
+  { root: null, rootMargin: '-40% 0px -50% 0px', threshold: 0 });
+secs.forEach((s) => io.observe(s));
+</script>
