@@ -1,0 +1,14 @@
+# 헤더 유형이 서로 다른 아임웹 사이트 5곳 — 헤더 반복(스탬프) 검수용
+#
+#   cd tools/capture-engine && node shoot.mjs --file urls.header5.txt --width 1920 --out ./결과/헤더5
+#
+# ringocom      새 헤더(overlay) · 스크롤 고정 헤더 켜짐 + 끔 플래그 동시
+# yookang       자체 제작형 — 서랍(drawer) 메뉴, Vimeo 배경 영상, GNB 바 없음
+# airdog        새 헤더(overlay) · 고정 헤더 끔 · 영상 4개 + 유튜브 iframe 2개
+# labtobottle1  새 헤더(overlay) · 스크롤하면 고정 헤더 나타남(new_fixed_menu_on)
+# ksox          새 헤더(overlay) · 고정 헤더 끔 · 3차 메뉴
+https://ringocom.imweb.me/
+https://yookang.imweb.me/
+https://airdog.imweb.me/
+https://labtobottle1.imweb.me/
+https://ksox.imweb.me/
