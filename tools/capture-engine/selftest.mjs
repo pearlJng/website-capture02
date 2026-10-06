@@ -16,6 +16,7 @@ import { captureSite, VIEWPORT, SAFE_PIXELS, DEVICES, contextOptionsFor } from '
 import { compareCaptures, renderDiffStrip, VERDICT } from './diff.mjs';
 import { createBrowserHost, isBrowserDeath } from './browser.mjs';
 import { extractSitemap } from './sitemap.mjs';
+import { mergePngsVertically, decodePng } from './png.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PORT = 8825;
@@ -410,6 +411,38 @@ const CASES = [
     },
   },
   {
+    // 아주 긴 페이지는 20,000px 씩 여러 장이다. 내보낼 때는 한 페이지 = 한 파일이어야 하므로
+    // Node 에서 바이트로 이어 붙인다. 브라우저가 그 결과를 제대로 읽어야 한다.
+    name: '여러 장으로 나뉜 긴 그림을 한 장으로 이어 붙이고 브라우저가 읽는다',
+    unit: async ({ host, getDiffPage }) => {
+      const b = await host.get();
+      const ctx = await b.newContext({ viewport: { width: 640, height: 300 } });
+      const pg = await ctx.newPage();
+      const bufs = [];
+      for (const bg of ['#ff00aa', '#00aaff', '#aaff00']) {
+        await pg.setContent(`<body style="margin:0;background:${bg}"><h1 style="color:#fff;margin:0">조각</h1>`);
+        bufs.push(await pg.screenshot());
+      }
+      await ctx.close();
+      const merged = mergePngsVertically(bufs);
+      const d = decodePng(merged);
+      if (d.width !== 640 || d.height !== 900) return `크기가 ${d.width}x${d.height} (640x900 이어야 한다)`;
+      const parts = bufs.map(decodePng);
+      let off = 0;
+      for (const [i, p] of parts.entries()) {
+        if (!d.rows.subarray(off, off + p.rows.length).equals(p.rows)) return `${i + 1}번째 장의 픽셀이 다르다`;
+        off += p.rows.length;
+      }
+      const page = await getDiffPage();
+      const dims = await page.evaluate(async (b64) => {
+        const bmp = await createImageBitmap(await (await fetch('data:image/png;base64,' + b64)).blob());
+        return [bmp.width, bmp.height];
+      }, merged.toString('base64'));
+      if (dims[0] !== 640 || dims[1] !== 900) return `브라우저가 ${dims[0]}x${dims[1]} 로 읽었다`;
+      return null;
+    },
+  },
+  {
     // 정보구조는 헤더 목록의 중첩을 그대로 읽는다. 숨긴 드롭다운도 읽고,
     // 모바일 메뉴에 반복된 링크는 한 번만 세고, 외부·앵커·파일은 표시한다.
     name: '정보구조: 메뉴 트리를 읽고 중복·외부·앵커를 가른다',
@@ -584,6 +617,7 @@ async function main() {
 
   /** 한 항목을 한 번 돌린다. 브라우저가 죽었으면 그 사실을 알려준다. */
   async function attempt(c) {
+    if (c.unit) return { shots: [null], cmp: null, unitResult: await c.unit({ host, getDiffPage }) };
     if (c.sitemap) {
       const browser = await host.get();
       const ctx = await browser.newContext({ viewport: VIEWPORT, locale: 'ko-KR' });
@@ -647,7 +681,7 @@ async function main() {
         continue;
       }
     }
-    const problem = c.check(out.shots[0], out.cmp, out.shots, out.extra);
+    const problem = c.unit ? out.unitResult : c.check(out.shots[0], out.cmp, out.shots, out.extra);
     if (problem) { console.log(`  ✗ ${c.name}\n      ${problem}`); failed++; }
     else console.log(`  ✓ ${c.name}`);
   }

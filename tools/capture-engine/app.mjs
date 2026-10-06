@@ -23,6 +23,7 @@ import { extractSitemap, renderTree } from './sitemap.mjs';
 import { shootAll, writeOutputs } from './shoot.mjs';
 import { writeFileSync, copyFileSync, readFileSync as readBytes } from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
+import { mergePngsVertically } from './png.mjs';
 import AdmZip from 'adm-zip';
 
 /* 브라우저로 내려받기 — 서버에 올렸을 때(맥 저장 창을 못 띄울 때) 쓰는 길.
@@ -40,15 +41,29 @@ function offerDownload(filePath, name, mime) {
 const safeName = (t) => String(t || 'page').replace(/[\\/:*?"<>|\n\r\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60) || 'page';
 const stampNow = () => new Date().toISOString().slice(0, 16).replace('T', ' ').replace(':', '');
 
-/** 고른 결과를 정보구조 순서대로 번호를 붙여 폴더에 복사한다. */
+/**
+ * 고른 결과를 정보구조 순서대로 번호를 붙여 폴더에 복사한다.
+ * 아주 긴 페이지는 20,000px 씩 여러 장으로 찍혀 있다 — 내보낼 때는 한 페이지 = 한 파일로
+ * 이어 붙인다(Node 에서 바이트로). 붙이기에 실패하면 장 수대로 (1)(2)… 로 낸다.
+ */
 function exportImages(job, rows, { baseDir, name }) {
   const dir = join(baseDir, name);
   mkdirSync(dir, { recursive: true });
   const pad = String(rows.length).length;
   const files = [];
   rows.forEach((row, i) => {
-    (row.files || []).forEach((f, k) => {
-      const name = `${String(i + 1).padStart(pad, '0')} ${safeName(row.path || row.name)}${row.files.length > 1 ? ` (${k + 1})` : ''}${extname(f).toLowerCase() || '.png'}`;
+    const base = `${String(i + 1).padStart(pad, '0')} ${safeName(row.path || row.name)}`;
+    const list = row.files || [];
+    if (list.length > 1 && list.every((f) => /\.png$/i.test(f))) {
+      try {
+        const merged = mergePngsVertically(list.map((f) => readBytes(join(job.outDir, f))));
+        writeFileSync(join(dir, `${base}.png`), merged);
+        files.push(`${base}.png`);
+        return;
+      } catch { /* 아래에서 장 수대로 */ }
+    }
+    list.forEach((f, k) => {
+      const name = `${base}${list.length > 1 ? ` (${k + 1})` : ''}${extname(f).toLowerCase() || '.png'}`;
       copyFileSync(join(job.outDir, f), join(dir, name));
       files.push(name);
     });

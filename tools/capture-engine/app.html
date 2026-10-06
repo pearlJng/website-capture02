@@ -254,10 +254,14 @@
   function renderCard(card, row, id) {
     const cls = row.status === '확인됨' || row.status === '직접 찍음' ? 'ok' : row.status === '검수 필요' ? 'warn' : 'bad';
     const file = row.files && row.files[0] ? fileUrl(id, row.files[0]) : null;
-    card.innerHTML = `${file ? `<input type="checkbox" class="sel" title="출력에 넣기" checked>` : ''}<div class="t">${file ? `<a href="${file}" target="_blank"><img src="${file}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'err',style:'padding:12px;font-size:12px',textContent:'그림을 못 불러왔어요: ' + decodeURIComponent(this.src.split('/').pop())}))"></a>` : `<div class="err" style="padding:12px">${esc(row.error || '이미지 없음')}</div>`}</div>
+    const parts = (row.files || []).map((f) => fileUrl(id, f));
+    // 아주 긴 페이지는 20,000px 씩 여러 장이다. 첫 장만 보여 주면 "잘렸다"고 보인다 —
+    // 클릭하면 전부 이어서 보여 주고, 장마다 따로 열 수도 있게 한다.
+    card.innerHTML = `${file ? `<input type="checkbox" class="sel" title="출력에 넣기" checked>` : ''}<div class="t">${file ? `<a href="${parts.length > 1 ? '#' : file}" target="_blank" class="thumb"><img src="${file}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'err',style:'padding:12px;font-size:12px',textContent:'그림을 못 불러왔어요: ' + decodeURIComponent(this.src.split('/').pop())}))"></a>` : `<div class="err" style="padding:12px">${esc(row.error || '이미지 없음')}</div>`}</div>
       <div class="b"><b>${esc(row.path || row.name)}</b><span class="badge ${cls}">${esc(row.status)}</span>
       ${row.docHeight ? ` <span class="mute">${row.docHeight.toLocaleString('en-US')}px</span>` : ''}
       ${row.retakes ? ` <span class="mute">· ${row.retakes}번째 다시 찍음</span>` : ''}
+      ${parts.length > 1 ? `<div class="mute">너무 길어 ${parts.length}장으로 나뉨 (출력하면 한 장으로 붙습니다) · ${parts.map((p, i) => `<a href="${p}" target="_blank">${i + 1}</a>`).join(' · ')} · <a href="#" class="stack">이어서 보기</a></div>` : ''}
       ${row.gaps && row.gaps.length ? `<div class="mute">${esc(row.gaps.join(' · '))}</div>` : ''}
       ${row.diffFile ? `<div><a href="${fileUrl(id, row.diffFile)}" target="_blank">무엇이 달랐는지 보기</a></div>` : ''}
       ${(row.notes || []).filter((n) => /헤더|잘라/.test(n)).map((n) => `<div class="mute">${esc(n)}</div>`).join('')}
@@ -280,6 +284,15 @@
       card.dataset.stamp = '';
       poll(id);
     };
+    // 여러 장짜리는 새 탭에 전부 이어서 보여 준다
+    const openStacked = (e) => {
+      e.preventDefault();
+      const w = window.open('', '_blank');
+      if (!w) return;
+      w.document.write(`<!doctype html><meta charset="utf-8"><title>${esc(row.path || row.name)}</title><body style="margin:0;background:#222">${parts.map((p) => `<img src="${p}" style="display:block;width:100%">`).join('')}</body>`);
+      w.document.close();
+    };
+    if (parts.length > 1) { card.querySelector('.thumb').onclick = openStacked; card.querySelector('.stack').onclick = openStacked; }
     // 직접 찍기: 그 페이지를 새 탭에 연다. 거기서 원하는 상태로 만들고 크롬 전체 페이지 캡처
     // (개발자 도구 Cmd+Shift+P → "Capture full size screenshot", 또는 GoFullPage)로 찍은 뒤
     // 옆의 올리기 버튼으로 바꾼다.

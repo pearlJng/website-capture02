@@ -147,6 +147,8 @@ function renderIndex(rows, meta) {
     const badge = r.status === '확인됨' ? '<span class="b ok">확인됨</span>'
       : r.status === '검수 필요' ? '<span class="b warn">검수 필요</span>'
       : '<span class="b bad">실패</span>';
+    const more = r.files && r.files.length > 1
+      ? `<p class="d">너무 길어 ${r.files.length}장으로 나뉨: ${r.files.map((f, i) => `<a href="${encodeURIComponent(f)}" target="_blank">${i + 1}</a>`).join(' · ')}</p>` : '';
     const img = r.files && r.files[0]
       ? `<a href="${encodeURIComponent(r.files[0])}" target="_blank"><img src="${encodeURIComponent(r.files[0])}" alt="${esc(r.name)}"></a>`
       : `<div class="none">${esc(r.error || '이미지 없음')}</div>`;
@@ -154,7 +156,7 @@ function renderIndex(rows, meta) {
       r.diffFile ? `<p class="d">두 번이 ${(r.ratio * 100).toFixed(2)}% 달랐습니다 — <a href="${encodeURIComponent(r.diffFile)}" target="_blank">차이 보기</a></p>` : '',
       r.gaps && r.gaps.length ? `<p class="d">덜 뜬 것: ${esc(r.gaps.join(' · '))}</p>` : '',
     ].join('');
-    return `<figure>${img}<figcaption><b>${esc(r.name)}</b>${badge}
+    return `<figure>${img}<figcaption><b>${esc(r.name)}</b>${badge}${more}
       <p class="d">${esc(r.url)}</p>${extra}</figcaption></figure>`;
   };
   return `<!doctype html><meta charset="utf-8"><title>스크린샷 결과 ${rows.length}건</title>
