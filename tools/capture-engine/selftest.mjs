@@ -383,6 +383,20 @@ const CASES = [
     },
   },
   {
+    // 케이싹 홈에 헤더가 없었다. 아임웹은 스크롤용 고정 메뉴를 top:-99999px 에 숨겨 두는데,
+    // "맨 위에 걸친 폭 넓은 고정 요소"로 헤더를 고르니 그 숨은 것이 뽑히고 진짜 헤더가
+    // 나머지로 숨겨졌다. 화면 안에 있는 것만 헤더다.
+    name: '화면 밖에 숨겨 둔 고정 메뉴가 있어도 진짜 헤더는 첫 화면에 남는다',
+    file: 'offscreenfixed.html', mode: 'stitch', steps: ['sticky', 'motion', 'anim'], color: true,
+    check: (r, cmp, shots, extra) => {
+      if (!extra || !extra.rows) return '색을 못 셌다';
+      const { top, below } = extra.rows;
+      if (top < 40) return `첫 화면에 헤더가 ${top}줄뿐이다 — 숨은 메뉴를 헤더로 잘못 골랐다`;
+      if (below > 0) return `헤더 색이 두 번째 화면 아래에 ${below}줄 있다 — 반복됐다`;
+      return null;
+    },
+  },
+  {
     // 정보구조는 헤더 목록의 중첩을 그대로 읽는다. 숨긴 드롭다운도 읽고,
     // 모바일 메뉴에 반복된 링크는 한 번만 세고, 외부·앵커·파일은 표시한다.
     name: '정보구조: 메뉴 트리를 읽고 중복·외부·앵커를 가른다',

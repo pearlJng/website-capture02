@@ -319,13 +319,16 @@ function inPageTameFixed(viewportWidth) {
     let w = r.width, h = r.height;
     if (w < 8 || h < 8) for (const c of el.children) { const cr = c.getBoundingClientRect(); w = Math.max(w, cr.width); h = Math.max(h, cr.height); }
     if (w < 8 || h < 8) continue;
-    found.push({ el, top: r.top, width: w });
+    found.push({ el, top: r.top, bottom: r.top + h, width: w });
   }
   // 부모가 이미 목록에 있으면 자식은 뺀다. 같은 덩어리를 두 번 세지 않는다.
   const roots = found.filter((a) => !found.some((b) => b.el !== a.el && b.el.contains(a.el)));
 
+  // 헤더 후보: 맨 위에 걸쳐 있고(top ≤ 8) **화면 안에 있는 것**(bottom > 8). 아임웹은
+  // 스크롤용 고정 메뉴를 top:-99999px 에 숨겨 두는데, 그것도 "맨 위에 걸친 폭 넓은 고정
+  // 요소"라 헤더로 뽑혔고, 진짜 헤더는 "나머지"로 숨겨졌다 — 케이싹 홈의 헤더가 사라진 이유.
   const headers = roots
-    .filter((x) => x.top <= 8 && x.width >= viewportWidth * 0.6)
+    .filter((x) => x.top <= 8 && x.bottom > 8 && x.width >= viewportWidth * 0.6)
     .sort((a, b) => a.top - b.top);
   const keep = headers.length ? headers[0].el : null;
 
@@ -974,6 +977,12 @@ export async function captureSite(context, url, opts = {}) {
             progress(`따라붙는 헤더 ${band}px 발견 — 겹치게 다시 찍습니다`);
             shots.length = 0; y = 0; lastY = -1; pinned = null; i = -1; bandCheckedAt.clear();
             await page.evaluate(inPageScrollTo, 0);
+            // 다시 찍는 첫 조각에는 헤더가 있어야 한다. 둘째 조각부터 숨긴 표(헤더 포함)를
+            // 걷어내고 첫 화면 정리를 처음부터 다시 한다.
+            await page.evaluate(inPageRestoreFixed);
+            await page.waitForTimeout(150);
+            await page.evaluate(inPageTameFixed, vw);
+            await page.waitForTimeout(150);
             continue;
           }
         }
