@@ -1,0 +1,15 @@
+<!doctype html><meta charset=utf-8><title>두 단 헤더</title>
+<style>
+body{margin:0;font:16px/1.6 system-ui}
+/* 아임웹 쇼핑몰: 로고 줄과 메뉴 줄이 각각 따로 고정된다(둘 다 position:fixed, 위아래로
+   이어 붙음). "맨 위 하나만 헤더"로 보면 메뉴 줄이 플로팅으로 분류되어 첫 화면에서
+   사라진다. 두 줄 모두 자홍색 — 첫 화면에 110줄 가까이 있어야 한다. */
+.row1{position:fixed;top:0;left:0;width:100%;height:60px;background:#ff00aa;color:#fff;z-index:9}
+.row2{position:fixed;top:60px;left:0;width:100%;height:50px;background:#ff00aa;color:#fff;z-index:9;border-top:1px solid #fff}
+main{padding-top:110px}
+section{height:900px}
+section:nth-child(odd){background:#eef}section:nth-child(even){background:#efe}
+</style>
+<div class="row1">K'sox · 검색 · LOGIN · CART</div>
+<div class="row2">ABOUT · LOOKBOOK · QUOTATION · SHOP</div>
+<main><section>1</section><section>2</section><section>3</section><section>4</section></main>

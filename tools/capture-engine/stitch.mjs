@@ -107,18 +107,26 @@ export async function repeatedTopBand(page, bufs, maxPx, offset = 0) {
 
 /** 다 그린 캔버스를 PNG 로 받아 온다. */
 async function end(page) {
-  const b64 = await page.evaluate(async () => {
+  // 완성된 그림을 한 번에 돌려받으면 CDP 메시지 하나가 수십 MB 가 되어 페이지가 닫힌다
+  // (사진 많은 룩북). 페이지 안에 두고 4MB 씩 끊어 받는다.
+  const CHUNK = 4 * 1024 * 1024;
+  const n = await page.evaluate(async () => {
     const blob = await window.__stitch.cv.convertToBlob({ type: 'image/png' });
-    const bytes = new Uint8Array(await blob.arrayBuffer());
-    let bin = '';
-    const CH = 8192;   // 한 번에 다 넘기면 인자 길이 제한에 걸린다
-    for (let i = 0; i < bytes.length; i += CH) {
-      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CH));
-    }
     window.__stitch = null;
-    return btoa(bin);
+    const dataUrl = await new Promise((res, rej) => {
+      const fr = new FileReader();
+      fr.onload = () => res(fr.result); fr.onerror = () => rej(fr.error);
+      fr.readAsDataURL(blob);
+    });
+    window.__out = dataUrl.slice(dataUrl.indexOf(',') + 1);
+    return window.__out.length;
   });
-  return Buffer.from(b64, 'base64');
+  const parts = [];
+  for (let i = 0; i < n; i += CHUNK) {
+    parts.push(await page.evaluate(({ i, c }) => window.__out.slice(i, i + c), { i, c: CHUNK }));
+  }
+  await page.evaluate(() => { window.__out = null; });
+  return Buffer.from(parts.join(''), 'base64');
 }
 
 /**

@@ -37,9 +37,23 @@ const MAX_COMPARE_PIXELS = 4_000_000;
 const heightTolerance = (h) => Math.min(Math.round(h * 0.01), 300);
 
 /** 브라우저 안에서 두 PNG 를 펼쳐 다른 픽셀 비율을 센다. */
+/**
+ * 큰 그림을 페이지로 넘긴다. evaluate 인자로 한 번에 넘기면 CDP 메시지 하나가 수십~백 MB 가
+ * 되어 페이지가 닫힌다 — 사진이 많은 긴 룩북(그림 한 장 수십 MB)에서 실제로 그랬다.
+ * 4MB 씩 끊어 넘기고 페이지 안에서 합친다.
+ */
+const CHUNK = 4 * 1024 * 1024;
+export async function pushBuffer(page, buf, key) {
+  const b64 = buf.toString('base64');
+  await page.evaluate((k) => { window.__cap = window.__cap || {}; window.__cap[k] = []; }, key);
+  for (let i = 0; i < b64.length; i += CHUNK) {
+    await page.evaluate(({ k, s }) => { window.__cap[k].push(s); }, { k: key, s: b64.slice(i, i + CHUNK) });
+  }
+}
 async function inPageDiff(job) {
-  const load = async (b64) => {
-    const res = await fetch('data:image/png;base64,' + b64);
+  const take = (k) => { const s = window.__cap[k].join(''); delete window.__cap[k]; return s; };
+  const load = async (key) => {
+    const res = await fetch('data:image/png;base64,' + take(key));
     const blob = await res.blob();
     const opts = job.rw
       ? { resizeWidth: job.rw, resizeHeight: job.rh, resizeQuality: 'pixelated' }
@@ -51,7 +65,7 @@ async function inPageDiff(job) {
     }
     return opts ? createImageBitmap(blob, opts) : createImageBitmap(blob);
   };
-  const [ia, ib] = await Promise.all([load(job.a), load(job.b)]);
+  const [ia, ib] = await Promise.all([load('a'), load('b')]);
   if (ia.width !== ib.width || ia.height !== ib.height) {
     return { shape: true, aw: ia.width, ah: ia.height, bw: ib.width, bh: ib.height };
   }
@@ -96,10 +110,11 @@ async function inPageDiff(job) {
  * 1차 / 2차 / 차이 마스크 세 줄. 이거 한 장만 열면 무엇이 달라졌는지 보인다.
  */
 async function inPageStrip(job) {
-  const load = (b64) => fetch('data:image/png;base64,' + b64)
+  const take = (k) => { const s = window.__cap[k].join(''); delete window.__cap[k]; return s; };
+  const load = (key) => fetch('data:image/png;base64,' + take(key))
     .then((r) => r.blob())
     .then((bl) => createImageBitmap(bl, job.x, job.y, job.w, job.h));
-  const [ia, ib] = await Promise.all([load(job.a), load(job.b)]);
+  const [ia, ib] = await Promise.all([load('a'), load('b')]);
 
   const LABEL = 20, GAP = 6;
   const cv = new OffscreenCanvas(job.w, LABEL + (job.h + LABEL + GAP) * 2 + job.h);
@@ -164,8 +179,9 @@ export async function renderDiffStrip(page, a, b, region) {
   const y = Math.max(0, region.y - margin);
   const h = Math.min(STRIP_MAX_H, size.height - y, region.h + margin * 2);
   if (h <= 0) return null;
+  await pushBuffer(page, a, 'a');
+  await pushBuffer(page, b, 'b');
   const b64 = await page.evaluate(inPageStrip, {
-    a: a.toString('base64'), b: b.toString('base64'),
     x: 0, y, w: size.width, h,
     bg: '#141219', fg: '#EEEBF3',
   });
@@ -208,10 +224,9 @@ export async function comparePngs(page, a, b) {
     rh = Math.max(1, Math.round(cmpH * k));
   }
 
-  const r = await page.evaluate(inPageDiff, {
-    a: a.toString('base64'), b: b.toString('base64'),
-    rw, rh, cropW: sa.width, cropH,
-  });
+  await pushBuffer(page, a, 'a');
+  await pushBuffer(page, b, 'b');
+  const r = await page.evaluate(inPageDiff, { rw, rh, cropW: sa.width, cropH });
   const heightNote = dh ? `높이 ${dh}px 차이(겹치는 부분만 비교)` : '';
   if (r.shape) {
     return { verdict: VERDICT.SHAPE, ratio: 1, note: `디코딩 크기가 다름 ${r.aw}x${r.ah} vs ${r.bw}x${r.bh}` };

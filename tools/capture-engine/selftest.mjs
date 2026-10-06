@@ -397,6 +397,19 @@ const CASES = [
     },
   },
   {
+    // 케이싹 홈: 헤더가 로고 줄 + 메뉴 줄 두 단이고 단마다 따로 고정된다. 맨 위 하나만
+    // 헤더로 남기니 메뉴 줄이 플로팅으로 분류되어 첫 화면에서 사라졌다.
+    name: '두 단으로 따로 고정된 헤더는 두 단 모두 첫 화면에 남는다',
+    file: 'header2tier.html', mode: 'stitch', steps: ['sticky', 'motion', 'anim'], color: true,
+    check: (r, cmp, shots, extra) => {
+      if (!extra || !extra.rows) return '색을 못 셌다';
+      const { top, below } = extra.rows;
+      if (top < 100) return `첫 화면에 헤더가 ${top}줄뿐이다 (두 단이면 110줄 근처) — 메뉴 줄이 사라졌다`;
+      if (below > 0) return `헤더 색이 두 번째 화면 아래에 ${below}줄 있다 — 반복됐다`;
+      return null;
+    },
+  },
+  {
     // 정보구조는 헤더 목록의 중첩을 그대로 읽는다. 숨긴 드롭다운도 읽고,
     // 모바일 메뉴에 반복된 링크는 한 번만 세고, 외부·앵커·파일은 표시한다.
     name: '정보구조: 메뉴 트리를 읽고 중복·외부·앵커를 가른다',

@@ -288,7 +288,16 @@ export async function shootAll({ args = {}, urls, host, pick, device, scale, out
   const ctxOpts = contextOptionsFor(device, scale);
   let diffPage = null;
   async function getDiffPage() {
-    if (diffPage && !diffPage.isClosed()) return diffPage;
+    if (diffPage && !diffPage.isClosed()) {
+      // 브라우저가 죽었다 되살아났으면 예전 페이지는 껍데기다 — 살아 있는지 찔러 본다
+      const alive = await Promise.race([
+        diffPage.evaluate(() => 1).then(() => true).catch(() => false),
+        new Promise((r) => setTimeout(() => r(false), 3000)),
+      ]);
+      if (alive) return diffPage;
+      await diffPage.context().close().catch(() => {});
+      diffPage = null;
+    }
     const b = await host.get();
     diffPage = await (await b.newContext({ viewport: { width: 200, height: 200 } })).newPage();
     return diffPage;
@@ -363,17 +372,25 @@ export async function shootAll({ args = {}, urls, host, pick, device, scale, out
     const total = check ? retry + 1 : 1;
     let attempt = 0, revived = false, settled = false;
     while (attempt < total && !err && !settled) {
-      const parallel = check && attempt === 0 && total >= 2;
+      // 브라우저가 한 번 죽은 뒤에는 둘을 동시에 찍지 않는다 — 아주 긴 페이지(룩북)는
+      // 두 벌을 같이 띄우면 메모리가 두 배라 또 죽는다. 하나씩, 검사 없이.
+      const parallel = check && attempt === 0 && total >= 2 && !revived;
       const shots = parallel
         ? await Promise.all([capture('1번째'), capture('2번째')])
         : [await capture(`${attempt + 1}번째`)];
       attempt += shots.length;
 
-      // 브라우저가 죽었으면 다시 띄우고 처음부터 한 번만 다시
-      if (shots.some((x) => x.died) && !revived) { revived = true; attempt = 0; tries = 0; last = null; continue; }
+      // 브라우저가 죽었으면 다시 띄우고 처음부터 한 번만 다시 (이번엔 하나씩)
+      if (shots.some((x) => x.died)) {
+        if (!revived) { revived = true; attempt = 0; tries = 0; last = null; log(`      브라우저가 닫혀 다시 띄웁니다 — 이번에는 한 번만, 검사 없이 찍습니다`); continue; }
+        const d = shots.find((x) => x.died);
+        err = `브라우저가 두 번 닫혔습니다 — 페이지가 너무 커서 메모리가 모자란 것 같습니다. "직접 찍기"로 찍어 올려 주세요. (${d.error})`;
+        break;
+      }
 
       for (const shot of shots) {
         if (!shot.ok) { err = shot.error; break; }
+        if (revived) { last = shot; settled = true; break; }   // 되살린 뒤에는 한 번으로 끝
         tries++;
         if (!check) { last = shot; settled = true; break; }
         if (last) {

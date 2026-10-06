@@ -51,7 +51,7 @@ export const STEPS = ['sticky', 'motion', 'anim', 'slice'];
 const SETTLE_MS = 800;
 /** 한 번에 내려가는 양. 화면의 절반씩 — 지연 로딩이 따라올 시간을 준다. */
 const SCROLL_STEP_RATIO = 0.5;
-const MAX_SCROLL_STEPS = 120;
+const MAX_SCROLL_STEPS = 200;   // 1080px 화면이면 21만 px 까지. 넘으면 기록을 남기고 멈춘다
 const SCROLL_CFG = {
   ratio: SCROLL_STEP_RATIO,
   maxSteps: MAX_SCROLL_STEPS,
@@ -81,7 +81,7 @@ const SHOT_IMAGE_WAITS = { rounds: 10, ms: 150 };
  * 16,384px 텍스처 한계에서 잘린다는 통념은 사실이 아니다 — 크롬이 내부에서
  * 이어붙인다. 진짜 제약은 시간과 메모리다. 그래서 넉넉히 낮게 잡는다.
  */
-export const SAFE_PIXELS = 30000;
+export const SAFE_PIXELS = 20000;   // 한 장 최대 높이(px). 1920 폭이면 캔버스 150MB — 더 크면 GPU 메모리를 위협한다
 
 /* ────────────────────────── 페이지 안에서 도는 코드 ────────────────────────── */
 /* page.evaluate 로 직렬화되어 넘어간다. 바깥 변수를 참조하면 안 된다. */
@@ -331,9 +331,22 @@ function inPageTameFixed(viewportWidth) {
     .filter((x) => x.top <= 8 && x.bottom > 8 && x.width >= viewportWidth * 0.6)
     .sort((a, b) => a.top - b.top);
   const keep = headers.length ? headers[0].el : null;
+  // 헤더가 두 단(로고 줄 + 메뉴 줄)이고 단마다 따로 고정된 사이트가 있다(아임웹 쇼핑몰).
+  // 첫 단 바로 아래에 이어 붙은 폭 넓은 고정 요소도 헤더다 — 끊기지 않고 이어진 것까지.
+  const kept = [];
+  if (keep) {
+    kept.push(headers[0]);
+    const wide = roots.filter((x) => x.width >= viewportWidth * 0.6 && x.el !== keep).sort((a, b) => a.top - b.top);
+    let edge = headers[0].bottom;
+    for (const x of wide) {
+      if (x.top > edge + 8 || x.top < -8) continue;
+      if (x.bottom - x.top > 250) continue;      // 단 하나가 250px 넘으면 헤더가 아니라 패널이다
+      kept.push(x); edge = Math.max(edge, x.bottom);
+    }
+  }
 
   const hidden = [];
-  if (keep) keep.setAttribute('data-cap-header', '');   // 두 번째 화면부터는 이것도 숨긴다
+  for (const k of kept) k.el.setAttribute('data-cap-header', '');   // 두 번째 화면부터는 이것도 숨긴다
   // 고정이 아니어도 맨 위에 가로로 길게 앉은 것은 헤더다. JS 가 스크롤 위치만큼
   // 내려 붙이는 헤더(position: absolute 그대로)는 fixed 검사로는 절대 안 잡힌다.
   // 표만 붙여 둔다 — 첫 화면에는 그대로 두고, 두 번째 화면부터 숨긴다.
@@ -349,13 +362,13 @@ function inPageTameFixed(viewportWidth) {
     }
   }
   for (const item of roots) {
-    if (item.el === keep) continue;
+    if (kept.some((k) => k.el === item.el)) continue;
     item.el.setAttribute('data-cap-hidden', '');
     item.el.style.setProperty('visibility', 'hidden', 'important');
     const cls = (item.el.getAttribute('class') || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).join('.');
     hidden.push(item.el.tagName.toLowerCase() + (cls ? '.' + cls : ''));
   }
-  return { hidden, kept: keep ? 1 : 0, unstuck };
+  return { hidden, kept: kept.length, unstuck };
 }
 
 /** 고정·스티키 요소를 전부 숨긴다. 조각마다 따라 붙는 것을 막는다. */
@@ -764,7 +777,9 @@ export async function captureSite(context, url, opts = {}) {
   const mode = opts.mode || 'stitch';
   const scale = opts.scale || 1;
   const timeout = opts.timeout || 45000;
-  const progress = typeof opts.onProgress === 'function' ? opts.onProgress : () => {};
+  let lastProgress = '';
+  const progress = typeof opts.onProgress === 'function'
+    ? (m) => { lastProgress = m; opts.onProgress(m); } : (m) => { lastProgress = m; };
   // 수정 요청으로 켜는 것들. hideHeader: 첫 화면에서도 헤더를 숨긴다.
   // closePopups: 팝업·모달을 지운다. slow: 기다리는 시간을 배로 늘린다.
   const tweaks = opts.tweaks || {};
@@ -839,7 +854,7 @@ export async function captureSite(context, url, opts = {}) {
       if (r.hidden.length) {
         notes.push('고정 요소 ' + r.hidden.length + '개 숨김(' +
           r.hidden.slice(0, 4).join(', ') + (r.hidden.length > 4 ? '…' : '') + ')' +
-          (r.kept ? ' · 헤더 1개 유지' : ''));
+          (r.kept ? ` · 헤더 ${r.kept > 1 ? r.kept + '단' : '1개'} 유지` : ''));
       }
       if (r.unstuck) notes.push(`스티키 요소 ${r.unstuck}개는 제자리에 한 번만 (따라오지 않게)`);
       await page.waitForTimeout(200);
@@ -992,6 +1007,10 @@ export async function captureSite(context, url, opts = {}) {
         y = at.y + at.innerHeight - reserve;             // 실제 위치 기준으로 다음 칸 (헤더만큼 겹친다)
       }
       shotCount = shots.length;
+      if (shots.length >= MAX_SCROLL_STEPS && y < height) {
+        notes.push(`화면 ${MAX_SCROLL_STEPS}칸을 다 써서 ${y.toLocaleString('en-US')}px 에서 멈췄습니다 (문서 ${height.toLocaleString('en-US')}px) — 아래쪽은 찍지 못했습니다`);
+        stalled = stalled || { at: y, of: height };
+      }
       if (hiddenLater) notes.push(`${tweaks.hideHeader ? '첫' : '두 번째'} 조각부터 고정 요소 ${hiddenLater}개 숨김`);
       if (videosHeld) notes.push(`다시 돌기 시작한 비디오를 ${videosHeld}번 붙잡아 첫 프레임에 뒀습니다`);
       scrolled = { reachedBottom: !stalled, height };
@@ -1055,7 +1074,9 @@ export async function captureSite(context, url, opts = {}) {
       ms: Date.now() - started, timing,
     };
   } catch (e) {
-    return { ok: false, url, error: e.message.split('\n')[0], notes, ms: Date.now() - started };
+    // 어디서 죽었는지 같이 적는다. "브라우저가 닫혔다"만으로는 원인을 못 찾는다.
+    const msg = e.message.split('\n')[0] + (lastProgress ? ` (마지막 단계: ${lastProgress})` : '');
+    return { ok: false, url, error: msg, notes, ms: Date.now() - started };
   } finally {
     await page.close().catch(() => {});
   }
