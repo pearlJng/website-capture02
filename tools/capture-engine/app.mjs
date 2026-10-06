@@ -48,7 +48,7 @@ function exportImages(job, rows, { baseDir, name }) {
   const files = [];
   rows.forEach((row, i) => {
     (row.files || []).forEach((f, k) => {
-      const name = `${String(i + 1).padStart(pad, '0')} ${safeName(row.path || row.name)}${row.files.length > 1 ? ` (${k + 1})` : ''}.png`;
+      const name = `${String(i + 1).padStart(pad, '0')} ${safeName(row.path || row.name)}${row.files.length > 1 ? ` (${k + 1})` : ''}${extname(f).toLowerCase() || '.png'}`;
       copyFileSync(join(job.outDir, f), join(dir, name));
       files.push(name);
     });
@@ -65,9 +65,12 @@ async function exportPdf(job, rows, { baseDir, name }) {
   let pages = 0;
   for (const row of rows) {
     for (const f of row.files || []) {
-      const png = await pdf.embedPng(readBytes(join(job.outDir, f)));
+      const bytes = readBytes(join(job.outDir, f));
+      const png = /\.jpe?g$/i.test(f) ? await pdf.embedJpg(bytes) : await pdf.embedPng(bytes);
       // 화면 픽셀을 그대로 pt 로 쓴다 (1px = 1pt). 배율 2 면 절반으로 줄여 실제 크기를 맞춘다.
-      const k = 1 / (job.meta && job.meta.scale ? job.meta.scale : 1);
+      // 직접 올린 그림은 배율을 모른다 — 레티나로 찍어 폭이 1.5배 넘게 크면 작업 폭에 맞춘다.
+      let k = 1 / (job.meta && job.meta.scale ? job.meta.scale : 1);
+      if (row.manual && job.width && png.width >= job.width * 1.5) k = job.width / png.width;
       const w = png.width * k, h = png.height * k;
       const page = pdf.addPage([w, h]);
       page.drawImage(png, { x: 0, y: 0, width: w, height: h });
@@ -192,7 +195,7 @@ const PASSWORD = process.env.APP_PASSWORD || args.password || '';
 const OUT_ROOT = resolve(HERE, args.out || './결과/앱');
 
 const MIME = {
-  '.html': 'text/html; charset=utf-8', '.png': 'image/png', '.csv': 'text/csv; charset=utf-8',
+  '.html': 'text/html; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.csv': 'text/csv; charset=utf-8',
   '.txt': 'text/plain; charset=utf-8', '.json': 'application/json; charset=utf-8',
 };
 
@@ -310,6 +313,13 @@ const readBody = (req) => new Promise((res, rej) => {
   req.on('end', () => { try { res(d ? JSON.parse(d) : {}); } catch (e) { rej(e); } });
   req.on('error', rej);
 });
+/** 그림 파일 같은 날것 본문. 80MB 까지 — 긴 페이지를 레티나로 찍으면 수십 MB 가 된다. */
+const readRaw = (req, max = 80e6) => new Promise((res, rej) => {
+  const chunks = []; let n = 0;
+  req.on('data', (c) => { n += c.length; if (n > max) { req.destroy(); rej(new Error('그림이 너무 큽니다 (80MB 까지)')); return; } chunks.push(c); });
+  req.on('end', () => res(Buffer.concat(chunks)));
+  req.on('error', rej);
+});
 const json = (res, code, obj) => { res.writeHead(code, { 'content-type': 'application/json; charset=utf-8' }).end(JSON.stringify(obj)); };
 
 /** 이 요청이 이 컴퓨터의 브라우저에서 온 것인가. 터널(ngrok·cloudflared)이나 다른
@@ -375,6 +385,29 @@ const server = createServer(async (req, res) => {
       const { tweaks, applied, ignored } = parseRequest(request || '');
       retake(job, row, { tweaks, applied, ignored, request: request || '' });
       return json(res, 200, { ok: true, applied, ignored });
+    }
+    // 직접 찍은 그림으로 바꾼다. 자동 캡처가 못 잡는 페이지(스크롤 위치마다 모양이 바뀌는 연혁 등)는
+    // 사람이 크롬 전체 페이지 캡처로 찍어 올리는 편이 낫다. 이전 그림은 '이전'에 남긴다.
+    if (req.method === 'POST' && u.pathname === '/api/replace') {
+      const job = jobs.get(u.searchParams.get('id'));
+      if (!job) return json(res, 404, { ok: false, error: '없는 작업' });
+      const row = job.rows.find((r) => normUrl(r.url) === normUrl(u.searchParams.get('url') || ''));
+      if (!row) return json(res, 404, { ok: false, error: '그 페이지의 결과가 없습니다' });
+      const type = String(req.headers['content-type'] || '');
+      const ext = /png/i.test(type) ? '.png' : /jpe?g/i.test(type) ? '.jpg' : null;
+      if (!ext) return json(res, 400, { ok: false, error: 'PNG 나 JPG 그림만 올릴 수 있습니다' });
+      let buf;
+      try { buf = await readRaw(req); } catch (e) { return json(res, 400, { ok: false, error: e.message }); }
+      if (buf.length < 100) return json(res, 400, { ok: false, error: '빈 파일입니다' });
+      row.manual = (row.manual || 0) + 1;
+      const base = (row.name || 'page').replace(/ \((다시|직접) \d+\)$/, '');
+      const name = `${base} (직접 ${row.manual})${ext}`;
+      writeFileSync(join(job.outDir, name), buf);
+      row.previous = [...(row.previous || []), ...(row.files || [])];
+      Object.assign(row, { files: [name], status: '직접 찍음', error: '', gaps: [], diffFile: '', pieceFiles: [], notes: ['직접 찍은 그림으로 바꿨습니다'] });
+      job.log.push(`  ✎ ${row.path || row.name} 직접 찍은 그림으로 바꿈 (${name})`);
+      try { writeOutputs(job.rows, { ...job.meta, when: new Date().toLocaleString('ko-KR') }, job.outDir); } catch { /* 무시 */ }
+      return json(res, 200, { ok: true, file: name });
     }
     if (req.method === 'GET' && u.pathname.startsWith('/download/')) {
       const d = downloads.get(u.pathname.slice('/download/'.length));

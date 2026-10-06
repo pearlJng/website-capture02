@@ -330,6 +330,31 @@ const CASES = [
     },
   },
   {
+    // 연혁 페이지의 왼쪽 연도 목록(sticky)이 통째로 사라졌다. sticky 를 fixed 처럼 숨겼기
+    // 때문이다. 스티키는 내용이다 — 흐름 자리에 한 번만 나오고, 조각마다 따라붙지 않아야 한다.
+    name: '스티키 옆 목록은 제자리에 한 번만 나오고 따라붙지 않는다',
+    file: 'stickyside.html', mode: 'stitch', steps: ['sticky', 'motion', 'anim'], color: 500, colorFrac: 0.12,
+    check: (r, cmp, shots, extra) => {
+      if (!extra || !extra.rows) return '색을 못 셌다';
+      const { top, below } = extra.rows;
+      if (top < 100) return `목록이 제자리(300~420px)에 ${top}줄뿐이다 — 숨겨 버렸다`;
+      if (below > 0) return `목록 색이 500px 아래에 ${below}줄 있다 — 따라붙었다`;
+      return null;
+    },
+  },
+  {
+    // 두 번째 조각 위에 흰 띠가 남았다. 높이 0 짜리 fixed 포장 안에 absolute 로 그린
+    // 헤더는 포장 크기만 보면 지나치고, 처음 나타난 조각에서는 "같은 자리" 비교도 못 한다.
+    name: '높이 0 고정 포장 속 헤더도 조각 위에 남지 않는다',
+    file: 'zerofixed.html', mode: 'stitch', steps: ['sticky', 'motion', 'anim'], color: true,
+    check: (r, cmp, shots, extra) => {
+      if (!extra || !extra.rows) return '색을 못 셌다';
+      const { top, below } = extra.rows;
+      if (top > 0 || below > 0) return `헤더 색이 위 ${top}줄 · 아래 ${below}줄 남았다 — 포장 속 헤더를 못 숨겼다`;
+      return null;
+    },
+  },
+  {
     // 정보구조는 헤더 목록의 중첩을 그대로 읽는다. 숨긴 드롭다운도 읽고,
     // 모바일 메뉴에 반복된 링크는 한 번만 세고, 외부·앵커·파일은 표시한다.
     name: '정보구조: 메뉴 트리를 읽고 중복·외부·앵커를 가른다',
@@ -479,9 +504,9 @@ async function main() {
   }
 
   /** 결과 그림에서 특정 색이 든 가로줄을 센다. 위쪽 띠와 그 아래를 따로 센다. */
-  async function countColorRows(png, rgb, splitY) {
+  async function countColorRows(png, rgb, splitY, minFrac = 0.5) {
     const p = await getDiffPage();
-    return p.evaluate(async ({ b64, rgb, splitY }) => {
+    return p.evaluate(async ({ b64, rgb, splitY, minFrac }) => {
       const bin = atob(b64); const bytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
       const bmp = await createImageBitmap(new Blob([bytes], { type: 'image/png' }));
@@ -495,10 +520,11 @@ async function main() {
           const i = (y * bmp.width + x) * 4;
           if (Math.abs(d[i] - rgb[0]) < 12 && Math.abs(d[i + 1] - rgb[1]) < 12 && Math.abs(d[i + 2] - rgb[2]) < 12) hit++;
         }
-        if (hit > bmp.width / 8) { if (y < splitY) top++; else below++; }
+        // 줄의 minFrac 만큼이 그 색이면 센다 (4px 마다 봤으니 ×4). 헤더는 절반 넘게, 옆 목록은 좁다.
+        if (hit * 4 > bmp.width * minFrac) { if (y < splitY) top++; else below++; }
       }
       return { top, below, height: bmp.height };
-    }, { b64: png.toString('base64'), rgb, splitY });
+    }, { b64: png.toString('base64'), rgb, splitY, minFrac });
   }
 
   /** 한 항목을 한 번 돌린다. 브라우저가 죽었으면 그 사실을 알려준다. */
@@ -525,13 +551,17 @@ async function main() {
       shots.push(r);
     }
     const cmp = c.twice ? await compareCaptures(await getDiffPage(), shots[0].slices, shots[1].slices) : null;
-    const extra = c.color ? { rows: await countColorRows(shots[0].slices[0], [255, 0, 170], 200) } : null;
+    // color 가 숫자면 위/아래를 가르는 높이(px). 기본 200 — 헤더는 첫 화면 위쪽에만 있어야 한다.
+    const extra = c.color ? { rows: await countColorRows(shots[0].slices[0], [255, 0, 170], typeof c.color === 'number' ? c.color : 200, c.colorFrac) } : null;
     return { shots, cmp, extra };
   }
 
   let failed = 0;
+  // ONLY=글자 로 이름에 그 글자가 든 항목만 돌린다 — 하나를 고칠 때 35개를 다 기다리지 않게.
+  const only = process.env.ONLY || '';
+  const RUN = only ? CASES.filter((c) => c.name.includes(only)) : CASES;
   try {
-  for (const c of CASES) {
+  for (const c of RUN) {
     let out;
     for (let i = 0; i < 2; i++) {
       try {
@@ -571,7 +601,7 @@ async function main() {
     await cleanup();
   }
   if (host.restarts) console.log(`\n브라우저가 ${host.restarts}번 죽어서 다시 띄웠습니다. 환경 문제일 수 있습니다.`);
-  console.log(`\n${CASES.length - failed}/${CASES.length} 통과`);
+  console.log(`\n${RUN.length - failed}/${RUN.length} 통과${only ? ` (ONLY=${only})` : ''}`);
   process.exitCode = failed ? 1 : 0;
 }
 

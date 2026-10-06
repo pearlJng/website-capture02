@@ -57,6 +57,8 @@
   .card .retake .rt { width: 34px; height: 34px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; }
   .card .retake .rt svg { width: 18px; height: 18px; }
   .card .retake .rt:hover svg { transform: rotate(-60deg); transition: transform .3s; }
+  .card .retake .rt.up { margin-left: 10px; }
+  .card .retake .rt.up:hover svg { transform: translateY(-2px); }
   .card .sel { position: absolute; left: 10px; top: 10px; width: 20px; height: 20px; accent-color: var(--accent); }
   .card { position: relative; }
   .export { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 14px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: #fafafa; }
@@ -250,7 +252,7 @@
 
   const fileUrl = (id, f) => `/files/${encodeURIComponent(id)}/${encodeURIComponent(f)}`;
   function renderCard(card, row, id) {
-    const cls = row.status === '확인됨' ? 'ok' : row.status === '검수 필요' ? 'warn' : 'bad';
+    const cls = row.status === '확인됨' || row.status === '직접 찍음' ? 'ok' : row.status === '검수 필요' ? 'warn' : 'bad';
     const file = row.files && row.files[0] ? fileUrl(id, row.files[0]) : null;
     card.innerHTML = `${file ? `<input type="checkbox" class="sel" title="출력에 넣기" checked>` : ''}<div class="t">${file ? `<a href="${file}" target="_blank"><img src="${file}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'err',style:'padding:12px;font-size:12px',textContent:'그림을 못 불러왔어요: ' + decodeURIComponent(this.src.split('/').pop())}))"></a>` : `<div class="err" style="padding:12px">${esc(row.error || '이미지 없음')}</div>`}</div>
       <div class="b"><b>${esc(row.path || row.name)}</b><span class="badge ${cls}">${esc(row.status)}</span>
@@ -262,8 +264,22 @@
       ${row.pieceFiles && row.pieceFiles.length ? `<div class="mute">조각: ${row.pieceFiles.map((f, i) => `<a href="${fileUrl(id, f)}" target="_blank">${i + 1}</a>`).join(' · ')}</div>` : ''}
       ${row.previous && row.previous.length ? `<div class="prev">이전: ${row.previous.map((f) => `<a href="${fileUrl(id, f)}" target="_blank">${esc(f)}</a>`).join(', ')}</div>` : ''}
       <div class="retake">
-        <div class="r"><button class="rt" title="다시 찍기" aria-label="다시 찍기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 3 3 9 9 9"/></svg></button><span class="mute">다시 찍기</span></div>
+        <div class="r"><button class="rt" title="다시 찍기" aria-label="다시 찍기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 3 3 9 9 9"/></svg></button><span class="mute">다시 찍기</span>
+        <button class="rt up" title="직접 찍은 그림으로 바꾸기" aria-label="직접 찍은 그림으로 바꾸기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><polyline points="6 10 12 4 18 10"/><path d="M4 20h16"/></svg></button><span class="mute">직접 찍은 그림으로 바꾸기</span>
+        <input type="file" class="upf" accept="image/png,image/jpeg" hidden></div>
       </div></div>`;
+    // 자동 캡처가 못 잡는 페이지는 사람이 크롬에서 전체 페이지를 찍어 올린다 (PNG·JPG).
+    const upf = card.querySelector('.upf');
+    card.querySelector('.up').onclick = () => upf.click();
+    upf.onchange = async () => {
+      const f = upf.files[0]; if (!f) return;
+      card.querySelector('.t').innerHTML = '그림을 올리는 중';
+      const r = await fetch(`/api/replace?id=${encodeURIComponent(id)}&url=${encodeURIComponent(row.url)}`,
+        { method: 'POST', headers: { 'content-type': f.type || 'image/png' }, body: f }).then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
+      if (!r.ok) { alert(r.error); card.dataset.stamp = ''; poll(id); return; }
+      card.dataset.stamp = '';
+      poll(id);
+    };
     card.querySelector('.rt').onclick = async () => {
       const r = await api('/api/retake', { id, url: row.url, request: '' });
       if (!r.ok) { alert(r.error); return; }

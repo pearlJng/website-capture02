@@ -234,17 +234,27 @@ function inPageTameFixed(viewportWidth) {
   if (!document.getElementById('cap-hide-rule')) {
     const st = document.createElement('style');
     st.id = 'cap-hide-rule';
-    st.textContent = '[data-cap-hidden],[data-cap-hidden] *{visibility:hidden!important}';
+    st.textContent = '[data-cap-hidden],[data-cap-hidden] *{visibility:hidden!important}' +
+      '[data-cap-unstuck]{position:relative!important;top:auto!important;bottom:auto!important;left:auto!important;right:auto!important}';
     (document.head || document.documentElement).appendChild(st);
   }
   const found = [];
+  let unstuck = 0;
   for (const el of document.querySelectorAll('body *')) {
     const cs = getComputedStyle(el);
     if (cs.position !== 'fixed' && cs.position !== 'sticky') continue;
     if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) === 0) continue;
+    // sticky 는 숨기지 않고 흐름 자리로 되돌린다. 스티키는 "스크롤하면 따라오는 내용"이라
+    // 숨기면 내용이 통째로 사라진다 — 링고컴퍼니 연혁의 왼쪽 연도 목록이 그래서 없어졌다.
+    // 제자리(흐름)에 한 번만 두면 긴 그림에서 딱 한 번 나오고 따라붙지도 않는다.
+    if (cs.position === 'sticky') { el.setAttribute('data-cap-unstuck', ''); unstuck++; continue; }
     const r = el.getBoundingClientRect();
-    if (r.width < 8 || r.height < 8) continue;
-    found.push({ el, top: r.top, width: r.width });
+    // 높이 0 짜리 고정 포장 안에 absolute 로 그린 헤더가 있다(아임웹 고정 메뉴).
+    // 포장만 보면 크기가 없어 지나치고, 안의 헤더는 fixed 가 아니라 못 잡는다 — 자식 크기로 본다.
+    let w = r.width, h = r.height;
+    if (w < 8 || h < 8) for (const c of el.children) { const cr = c.getBoundingClientRect(); w = Math.max(w, cr.width); h = Math.max(h, cr.height); }
+    if (w < 8 || h < 8) continue;
+    found.push({ el, top: r.top, width: w });
   }
   // 부모가 이미 목록에 있으면 자식은 뺀다. 같은 덩어리를 두 번 세지 않는다.
   const roots = found.filter((a) => !found.some((b) => b.el !== a.el && b.el.contains(a.el)));
@@ -277,7 +287,7 @@ function inPageTameFixed(viewportWidth) {
     const cls = (item.el.getAttribute('class') || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).join('.');
     hidden.push(item.el.tagName.toLowerCase() + (cls ? '.' + cls : ''));
   }
-  return { hidden, kept: keep ? 1 : 0 };
+  return { hidden, kept: keep ? 1 : 0, unstuck };
 }
 
 /** 고정·스티키 요소를 전부 숨긴다. 조각마다 따라 붙는 것을 막는다. */
@@ -286,7 +296,8 @@ function inPageHideAllFixed() {
   if (!document.getElementById('cap-hide-rule')) {
     const st = document.createElement('style');
     st.id = 'cap-hide-rule';
-    st.textContent = '[data-cap-hidden],[data-cap-hidden] *{visibility:hidden!important}';
+    st.textContent = '[data-cap-hidden],[data-cap-hidden] *{visibility:hidden!important}' +
+      '[data-cap-unstuck]{position:relative!important;top:auto!important;bottom:auto!important;left:auto!important;right:auto!important}';
     (document.head || document.documentElement).appendChild(st);
   }
   let n = 0;
@@ -301,8 +312,12 @@ function inPageHideAllFixed() {
     // 고정으로 바뀌었다 풀렸다 하는 헤더가 화면마다 다시 찍혀 GNB 가 반복됐다.
     if (!el.hasAttribute('data-cap-header') && cs.position !== 'fixed' && cs.position !== 'sticky') continue;
     if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+    // 스크롤하다 sticky 로 바뀐 것도 숨기지 않고 흐름 자리로 되돌린다 (첫 화면에 남긴 헤더는 숨긴다)
+    if (cs.position === 'sticky' && !el.hasAttribute('data-cap-header')) { el.setAttribute('data-cap-unstuck', ''); continue; }
     const r = el.getBoundingClientRect();
-    if (r.width < 8 || r.height < 8) continue;
+    let w = r.width, h = r.height;   // 높이 0 포장 — 자식 크기로 본다
+    if (w < 8 || h < 8) for (const c of el.children) { const cr = c.getBoundingClientRect(); w = Math.max(w, cr.width); h = Math.max(h, cr.height); }
+    if (w < 8 || h < 8) continue;
     el.setAttribute('data-cap-hidden', '');
     el.style.setProperty('visibility', 'hidden', 'important');
     n++;
@@ -346,7 +361,8 @@ function inPageHidePinned(prev) {
   if (!document.getElementById('cap-hide-rule')) {
     const st = document.createElement('style');
     st.id = 'cap-hide-rule';
-    st.textContent = '[data-cap-hidden],[data-cap-hidden] *{visibility:hidden!important}';
+    st.textContent = '[data-cap-hidden],[data-cap-hidden] *{visibility:hidden!important}' +
+      '[data-cap-unstuck]{position:relative!important;top:auto!important;bottom:auto!important;left:auto!important;right:auto!important}';
     (document.head || document.documentElement).appendChild(st);
   }
   const W = window.innerWidth, H = window.innerHeight;
@@ -400,6 +416,7 @@ function inPageRestoreFixed() {
     el.style.removeProperty('visibility');
     el.removeAttribute('data-cap-hidden');
   }
+  for (const el of document.querySelectorAll('[data-cap-unstuck]')) el.removeAttribute('data-cap-unstuck');
   const st = document.getElementById('cap-hide-rule');
   if (st) st.remove();
 }
@@ -751,6 +768,7 @@ export async function captureSite(context, url, opts = {}) {
           r.hidden.slice(0, 4).join(', ') + (r.hidden.length > 4 ? '…' : '') + ')' +
           (r.kept ? ' · 헤더 1개 유지' : ''));
       }
+      if (r.unstuck) notes.push(`스티키 요소 ${r.unstuck}개는 제자리에 한 번만 (따라오지 않게)`);
       await page.waitForTimeout(200);
     }
 

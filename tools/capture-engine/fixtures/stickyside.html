@@ -1,0 +1,16 @@
+<!doctype html><meta charset=utf-8><title>스티키 옆 목록</title>
+<style>
+body{margin:0;font:16px/1.6 system-ui;background:#111;color:#ddd}
+.hero{height:300px;background:#234}
+/* 연혁 페이지처럼 왼쪽 연도 목록이 sticky 로 따라온다. 숨기면 내용이 통째로 사라지고,
+   그대로 두면 조각마다 반복된다. 제자리(흐름)에 한 번만 나와야 한다. 순수한 자홍색으로 센다. */
+.body{display:flex;gap:40px;padding:0 40px}
+.nav{position:sticky;top:0;flex:0 0 260px;height:120px;background:#ff00aa;color:#fff;font-weight:700;padding:12px}
+.list{flex:1}
+.sec{height:900px;border-bottom:1px solid #333}
+</style>
+<div class="hero">히어로</div>
+<div class="body">
+  <ul class="nav">2026 · 2025 · 2024</ul>
+  <div class="list"><div class="sec">2026</div><div class="sec">2025</div><div class="sec">2024</div><div class="sec">2023</div></div>
+</div>
