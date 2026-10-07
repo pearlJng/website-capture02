@@ -59,16 +59,27 @@ function inPageReadNav(aliasList) {
     return '페이지';
   };
 
+  // 글자 없이 아이콘만 있는 링크(장바구니·로그인·검색)는 주소로 이름을 짓는다 — 카페24 하루나
+  const guessLabel = (href) => {
+    const h = String(href || '');
+    if (/basket|cart/i.test(h)) return '장바구니';
+    if (/login/i.test(h)) return '로그인';
+    if (/join|signup|sign-up|register/i.test(h)) return '회원가입';
+    if (/myshop|mypage|my-page|account/i.test(h)) return '마이페이지';
+    if (/wish/i.test(h)) return '위시리스트';
+    if (/search/i.test(h)) return '검색';
+    return '';
+  };
   const linkOf = (a) => {
     const raw = a.getAttribute('href');
     if (raw == null) return null;
-    if (/^javascript:/i.test(raw) || raw === '#' || raw === '') {
-      // 눌러야 열리는 항목 — 주소는 없지만 메뉴에는 있는 것이다
+    // "#", "index.html#" 처럼 자리만 잡은 링크는 눌러야 열리는 항목이다 — 주소는 없지만 메뉴에는 있다
+    if (/^javascript:/i.test(raw) || raw === '#' || raw === '' || /#$/.test(raw)) {
       return { label: labelOf(a), href: '', kind: '없음' };
     }
     let u = null;
     try { u = new URL(raw, location.href); } catch { return null; }
-    return { label: labelOf(a), href: u.href, kind: kindOf(u) };
+    return { label: labelOf(a) || guessLabel(u.href), href: u.href, kind: kindOf(u) };
   };
 
   const key = (l) => `${l.href}|${l.label}`;
@@ -269,15 +280,19 @@ function inPageVisibleItems() {
     const hit = document.elementFromPoint(cx, cy);
     if (!hit || !(el === hit || el.contains(hit) || hit.contains(el))) continue;
     const text = clean(el.innerText || el.textContent);
-    const label = text || clean(el.getAttribute('aria-label') || el.getAttribute('title'))
+    let label = text || clean(el.getAttribute('aria-label') || el.getAttribute('title'))
       || clean([...el.querySelectorAll('img[alt]')].map((i) => i.alt).join(' '));
-    if (!label) continue;
     // 글자 없이 그림만 있는 링크 (로고). 인라인 a 는 높이가 글자 높이로 나와 그림 크기로는 못 가른다.
     const img = !text && Boolean(el.querySelector('img, svg'));
     let href = '';
     const a = el.tagName === 'A' ? el : el.querySelector('a');
     const raw = a && a.getAttribute('href');
-    if (raw && !/^javascript:/i.test(raw) && raw !== '#') { try { href = new URL(raw, location.href).href; } catch { /* 무시 */ } }
+    if (raw && !/^javascript:/i.test(raw) && raw !== '#' && !/#$/.test(raw)) { try { href = new URL(raw, location.href).href; } catch { /* 무시 */ } }
+    if (!label && href) {   // 아이콘만 있는 링크 — 주소로 이름을 짓는다
+      label = /basket|cart/i.test(href) ? '장바구니' : /login/i.test(href) ? '로그인' : /join|signup|sign-up|register/i.test(href) ? '회원가입'
+        : /myshop|mypage|my-page|account/i.test(href) ? '마이페이지' : /wish/i.test(href) ? '위시리스트' : /search/i.test(href) ? '검색' : '';
+    }
+    if (!label) continue;
     out.push({ id: el.getAttribute('data-ia'), label: label.length > 50 ? label.slice(0, 47) + '…' : label, href, img,
       x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) });
   }
@@ -436,7 +451,7 @@ const langLabel = (t) => { const parts = String(t || '').split(/[\/|·,]/).map((
 const isLang = (x) => langLabel(x.label) || (x.children && x.children.length >= 2 && x.children.every((c) => langLabel(c.label)));
 
 /** 로그인·장바구니·검색·마이페이지처럼 어느 사이트에나 있는 유틸리티 항목 */
-const UTIL = /^(login|log ?in|logout|log ?out|join|sign ?up|sign ?in|register|cart|bag|basket|search|site search|mypage|my ?page|my account|account|wish ?list|alarm|notification|order|주문조회|로그인|로그아웃|회원가입|장바구니|검색|사이트 검색|마이페이지|찜|위시리스트|알림|고객센터|customer center|cs center|q&a)$/i;
+const UTIL = /^(login|log ?in|logout|log ?out|join|sign ?up|sign ?in|register|cart|bag|basket|search|site search|mypage|my ?page|my account|account|wish ?list|alarm|notification|order|주문조회|로그인|로그아웃|회원가입|장바구니|검색|사이트 검색|마이페이지|찜|위시리스트|알림|q&a)$/i;   // 고객센터·customer center 는 하위 페이지를 가진 메뉴일 때가 많아 뺐다(하루나)
 
 /* ──────────────────── 마우스를 올려 GNB 를 찾는다 ──────────────────── */
 
@@ -496,7 +511,9 @@ async function discoverByHover(page, origin, progress, aliases = new Set()) {
   // 사이트 안 페이지로 가는 짧은 글자 항목은 +1, 유틸리티(로그인·장바구니·검색·로고)는 −1,
   // 화면 가운데 앉은 줄은 +1 (GNB 는 가운데나 왼쪽, 유틸리티는 오른쪽에 붙는다).
   const isUtil = (it) => UTIL.test(it.label) || (it.href && /\/(login|logout|join|signup|sign-up|cart|shop_cart|basket|search|mypage|my-page|wishlist|order)\b/i.test(it.href.replace(origin, '')));
-  const isLogo = (it) => { try { const u = new URL(it.href); return origins.has(u.origin) && (u.pathname === '/' || u.pathname === '') && (it.img || (it.h >= 28 && (it.w >= 100 || /logo|로고/i.test(it.label)))); } catch { return false; } };
+  // 홈 주소는 "/" 만이 아니다 — 카페24는 /index.html, 다른 곳은 /main, /home 도 쓴다
+  const isRootPath = (p) => p === '' || p === '/' || /^\/(index|main|home|default)(\.html?|\.php|\.asp)?$/i.test(p);
+  const isLogo = (it) => { try { const u = new URL(it.href); return origins.has(u.origin) && isRootPath(u.pathname) && (it.img || (it.h >= 28 && (it.w >= 100 || /logo|로고/i.test(it.label)))); } catch { return false; } };
   const score = (items) => {
     let n = 0;
     for (const it of items) {

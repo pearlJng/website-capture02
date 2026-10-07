@@ -1,0 +1,33 @@
+<!doctype html><meta charset=utf-8><title>카페24 쇼핑몰 헤더 (하루나 구조)</title>
+<style>
+body{margin:0;font:16px/1.6 system-ui}
+#header{display:flex;align-items:center;gap:40px;padding:16px 24px;border-bottom:1px solid #ddd}
+.gnb{display:flex;gap:24px}
+.gnb ul{list-style:none;margin:0;padding:0;display:flex;gap:24px}
+.gnb li{position:relative}
+.gnb .sub-category{display:none;position:absolute;left:0;top:100%;background:#fff;padding:8px;min-width:160px;flex-direction:column}
+.gnb li:hover > .sub-category{display:flex}
+.icons{margin-left:auto;display:flex;gap:16px}
+.icons a{display:inline-block;width:24px;height:24px;background:#333;border-radius:4px}
+section{height:900px}
+</style>
+<header id="header">
+  <h1><a href="/index.html"><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="HARUNA" style="width:110px;height:28px"></a></h1>
+  <nav class="gnb">
+    <ul><li class="nav-item"><a href="/product/list.html?cate_no=4">SHOP</a></li></ul>
+    <ul class="nav-list">
+      <li class="nav-item"><a href="/shopinfo/company.html">브랜드</a></li>
+      <li class="nav-item"><a href="/shopinfo/friend.html">프로모션</a></li>
+      <!-- 고객센터: 자리만 잡은 링크(index.html#) 에 하위 페이지가 달렸다. "고객센터"는 유틸리티가 아니라 메뉴다. -->
+      <li class="nav-item hover-menu"><a href="/index.html#">고객센터</a>
+        <ul class="sub-category"><li><a href="/board/free2/list.html?board_no=3">자주 묻는 질문</a></li><li><a href="/board/free/list.html?board_no=1">1:1 문의</a></li></ul></li>
+    </ul>
+  </nav>
+  <!-- 아이콘만 있는 유틸리티 링크 — 글자는 주석으로 빠져 있다 -->
+  <div class="icons">
+    <a class="logins" href="/myshop/index.html"><!-- 마이페이지 --></a>
+    <a class="my" href="/member/login.html"><!-- 로그인 --></a>
+    <a class="cart" href="/order/basket.html"><!-- 장바구니 --></a>
+  </div>
+</header>
+<main><section><h1>히어로</h1></section><section><h2>NEW</h2></section></main>

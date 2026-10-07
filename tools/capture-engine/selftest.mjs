@@ -575,6 +575,24 @@ const CASES = [
     },
   },
   {
+    // 카페24 하루나: "고객센터"가 UTIL 목록에 있어 유틸리티로 빠지며 하위(FAQ·1:1 문의)가 사라졌고,
+    // 장바구니·로그인은 아이콘만 있어(글자는 주석) 이름이 없어 아예 빠졌다. 고객센터는 메뉴로,
+    // 아이콘 링크는 주소로 이름을 지어 유틸리티로 낸다. "index.html#" 는 눌러야 열리는 항목.
+    name: '메뉴구조(카페24): 고객센터는 메뉴로 읽고, 아이콘뿐인 장바구니·로그인은 이름을 지어 유틸리티로 낸다',
+    file: 'cafe24nav.html', sitemap: true,
+    check: (r) => {
+      if (!r.ok) return `실패: ${r.error}`;
+      const top = r.menu.map((x) => x.label);
+      if (top.join('|') !== 'SHOP|브랜드|프로모션|고객센터') return `최상위가 ${top.join(' / ')} (method ${r.method})`;
+      const cs = r.menu[3];
+      if (cs.kind !== '없음') return `고객센터가 ${cs.kind} (기대 없음 — index.html# 는 자리만 잡은 링크)`;
+      if (cs.children.map((x) => x.label).join('|') !== '자주 묻는 질문|1:1 문의') return `고객센터 하위가 ${cs.children.map((x) => x.label).join(' / ') || '(없음)'}`;
+      const util = [...(r.utility || []), ...(r.loose || [])].map((x) => x.label);
+      for (const w of ['장바구니', '로그인', '마이페이지']) if (!util.includes(w)) return `유틸리티에 ${w} 가 없다 (${util.join(', ') || '없음'})`;
+      return null;
+    },
+  },
+  {
     // 정보구조는 헤더 목록의 중첩을 그대로 읽는다. 숨긴 드롭다운도 읽고,
     // 모바일 메뉴에 반복된 링크는 한 번만 세고, 외부·앵커·파일은 표시한다.
     name: '정보구조: 메뉴 트리를 읽고 중복·외부·앵커를 가른다',

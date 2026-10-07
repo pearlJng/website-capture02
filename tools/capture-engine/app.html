@@ -222,6 +222,17 @@
       }
     };
     walk(r.menu, 0, []);
+    // 장바구니·로그인·마이페이지 같은 유틸리티 페이지도 고를 수 있게 — 기본은 체크 안 함
+    const utilRows = [];
+    const utilSeen = new Set();
+    for (const it of [...(r.utility || []), ...(r.loose || [])]) {
+      if (!it.href || it.kind !== '페이지') continue;
+      const k = norm(it.href);
+      if (seen.has(k) || utilSeen.has(k)) continue;
+      utilSeen.add(k);
+      utilRows.push(`<label class="d1"><input type="checkbox" class="pg" data-depth="1" data-util="1" data-url="${esc(it.href)}" data-label="${esc(it.label)}"> ${esc(it.label)} <span class="path">${esc(shortUrl(it.href))}</span></label>`);
+    }
+    if (utilRows.length) rows.push(`<div class="d0 skip" style="margin-top:8px">유틸리티 <span class="why">(장바구니·로그인·마이페이지 — 필요하면 체크)</span></div>`, ...utilRows);
     // 메뉴를 하나도 못 찾았으면 왜 그런지 보여 준다 — 이걸 보내 주면 바로 고칠 수 있다
     if (!r.menu || !r.menu.length) {
       const d = r.diag || {};
@@ -249,10 +260,10 @@
   // 깊이로 고르기: 1depth = 홈 + 1차 메뉴, 2depth = 2차 메뉴까지 … 그보다 깊은 것은 체크를 푼다
   document.querySelectorAll('input[name=dep]').forEach((rd) => { rd.onchange = () => {
     const max = Number(rd.value);
-    document.querySelectorAll('.pg').forEach((c) => { c.checked = Number(c.dataset.depth || 0) <= max; });
+    document.querySelectorAll('.pg').forEach((c) => { if (!c.dataset.util) c.checked = Number(c.dataset.depth || 0) <= max; });
     updateCount();
   }; });
-  $('#all').onclick = () => { document.querySelectorAll('.pg').forEach((c) => { c.checked = true; }); document.querySelector('input[name=dep][value="99"]').checked = true; updateCount(); };
+  $('#all').onclick = () => { document.querySelectorAll('.pg').forEach((c) => { if (!c.dataset.util) c.checked = true; }); document.querySelector('input[name=dep][value="99"]').checked = true; updateCount(); };
   $('#none').onclick = () => { document.querySelectorAll('.pg').forEach((c) => { c.checked = false; }); updateCount(); };
 
   /* ── 3·4. 캡처 ── */
