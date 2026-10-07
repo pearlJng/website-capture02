@@ -558,6 +558,23 @@ const CASES = [
     },
   },
   {
+    // 오띠인터내셔널(3): 아임웹 마크업 그대로. 모바일 메뉴는 li 가 ul 없이 div 바로 아래 있어
+    // 하위 ul 이 "최상위 목록"으로 먼저 읽히고, 데스크탑 메뉴의 하위가 중복으로 버려졌다.
+    // 같은 링크는 더 깊이 들어 있는 쪽을 남긴다.
+    name: '메뉴구조: 아임웹 ⋮ 메뉴 마크업 그대로 — 하위 메뉴가 모바일 메뉴 중복으로 사라지지 않는다',
+    file: 'imwebicon.html', sitemap: true,
+    check: (r) => {
+      if (!r.ok) return `실패: ${r.error}`;
+      const top = r.menu.map((x) => x.label);
+      if (top.join('|') !== 'COMPANY|BRAND|ARCHIVE|MARKETS') return `최상위가 ${top.join(' / ') || '(없음)'} (method ${r.method})`;
+      if (r.menu[0].children.map((x) => x.label).join('|') !== 'Introduction|History & Certifications') return `COMPANY 하위가 ${r.menu[0].children.map((x) => x.label).join(' / ') || '(없음)'}`;
+      if (r.menu[1].children.map((x) => x.label).join('|') !== 'OTTIE') return `BRAND 하위가 ${r.menu[1].children.map((x) => x.label).join(' / ') || '(없음)'}`;
+      if (r.utility.length) return `하위 메뉴가 유틸리티로 샜다: ${r.utility.map((x) => x.label).join(', ')}`;
+      if (r.menuCount !== 7) return `메뉴를 ${r.menuCount}개로 셌다 (기대 7)`;
+      return null;
+    },
+  },
+  {
     // 정보구조는 헤더 목록의 중첩을 그대로 읽는다. 숨긴 드롭다운도 읽고,
     // 모바일 메뉴에 반복된 링크는 한 번만 세고, 외부·앵커·파일은 표시한다.
     name: '정보구조: 메뉴 트리를 읽고 중복·외부·앵커를 가른다',

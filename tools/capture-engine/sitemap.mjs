@@ -91,14 +91,26 @@ function inPageReadNav(aliasList) {
         link = { label: text || '(제목 없음)', href: '', kind: '없음' };
       }
       if (!link.label) continue;
-      const k = key(link);
-      const dup = seen.has(k);
-      seen.add(k);
       const children = sub ? walkList(sub, depth + 1) : [];
-      if (dup && !children.length) continue;      // 모바일 메뉴 등에서 반복된 것
       items.push({ ...link, depth, children });
     }
     return items;
+  }
+  /**
+   * 같은 링크가 여러 번 나온다(모바일 메뉴·데스크탑 메뉴). 하나만 남기되 **더 깊이 들어 있는
+   * 쪽**을 남긴다 — 아임웹 모바일 메뉴는 li 가 ul 없이 있어 하위 ul 이 "최상위 목록"으로 먼저
+   * 읽히고, 그러면 데스크탑 메뉴의 하위(Introduction…)가 중복으로 버려져 하위가 다 사라졌다(오띠).
+   * 같은 깊이면 하위를 가진 쪽, 그다음 먼저 나온 쪽.
+   */
+  function dedupeLists(lists) {
+    const best = new Map(); let order = 0;
+    const visit = (items, depth) => { for (const n of items) { const k = key(n); const score = depth * 1000 + (n.children.length ? 500 : 0) - (order++) / 1e6; const cur = best.get(k); if (!cur || score > cur.score) best.set(k, { node: n, score }); visit(n.children, depth + 1); } };
+    for (const l of lists) visit(l, 0);
+    const prune = (items) => items.filter((n) => best.get(key(n)).node === n).map((n) => { n.children = prune(n.children); return n; });
+    const out = lists.map(prune).filter((l) => l.length);
+    const mark = (items) => { for (const n of items) { seen.add(key(n)); mark(n.children); } };
+    for (const l of out) mark(l);
+    return out;
   }
 
   /** 컨테이너 안에서 다른 목록 안에 들어 있지 않은 최상위 목록들 */
@@ -114,13 +126,18 @@ function inPageReadNav(aliasList) {
   // 헤더·내비는 한 화면을 넘지 않는다 — 페이지 높이짜리는 헤더가 아니다.
   const small = (el, k) => el !== document.body && el !== document.documentElement
     && el.getBoundingClientRect().height <= vh * k;
-  const headerRoots = pick(HEADERISH).filter((el) => small(el, 1.2) && !el.closest(FOOTERISH));
+  // 보이는 것(데스크탑 메뉴)을 먼저 읽는다. 숨긴 모바일 메뉴가 문서상 앞에 있으면 거기서
+  // 먼저 읽혀 "이미 본 링크"가 되고, 데스크탑 메뉴의 하위가 중복으로 버려진다 — 아임웹.
+  const shown = (el) => { const cs = getComputedStyle(el); return cs.display !== 'none' && cs.visibility !== 'hidden' && el.getBoundingClientRect().height > 0; };
+  const headerRoots = pick(HEADERISH).filter((el) => small(el, 1.2) && !el.closest(FOOTERISH))
+    .map((el, i) => ({ el, i, v: shown(el) ? 0 : 1 })).sort((a, b) => a.v - b.v || a.i - b.i).map((x) => x.el);
+  const diag = { headerRoots: headerRoots.slice(0, 12).map((el) => `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}${el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/).slice(0, 2).join('.') : ''} h${Math.round(el.getBoundingClientRect().height)}${shown(el) ? '' : ' (숨김)'}`), lists: [] };
   const footerRoots = pick(FOOTERISH).filter((el) => small(el, 2));
 
   // 헤더 안의 목록을 전부 읽고, GNB 와 유틸리티(알림·마이페이지·언어)를 가른다.
   // 사이트 안 페이지로 가는 항목이 3개 이상인 목록이 GNB 다. 하나도 없으면
   // 가장 긴 목록을 GNB 로 본다.
-  const lists = [];
+  let lists = [];
   for (const root of headerRoots) {
     for (const list of topLists(root)) {
       if (list.__read) continue;
@@ -130,6 +147,8 @@ function inPageReadNav(aliasList) {
       if (items.length) lists.push(items);
     }
   }
+  lists = dedupeLists(lists);
+  for (const items of lists) diag.lists.push(`${items.length}개: ${items.slice(0, 5).map((x) => x.label + '(' + x.kind + (x.children.length ? '+' + x.children.length : '') + ')').join(', ')}`);
   const countPages = (items) => items.reduce((n, x) => n + (x.kind === '페이지' ? 1 : 0) + countPages(x.children), 0);
   const allLang = (items) => items.length > 0 && items.every((x) => langLabel(x.label));
   let gnbLists = lists.filter((items) => countPages(items) >= 3 && !allLang(items));
@@ -168,7 +187,7 @@ function inPageReadNav(aliasList) {
     url: location.href,
     h1: clean((document.querySelector('h1') || {}).textContent),
     description: clean((document.querySelector('meta[name="description"]') || {}).content),
-    menu, utility, loose, footer,
+    menu, utility, loose, footer, diag,
     // 판정이 틀렸을 때 들여다볼 수 있게 헤더 원문을 남긴다
     headerHtml: headerRoots.slice(0, 4).map((el) => el.outerHTML).join('\n\n').slice(0, 300000),
   };
@@ -481,13 +500,16 @@ async function discoverByHover(page, origin, progress, aliases = new Set()) {
     return n;
   };
   let row = null, best = -Infinity;
+  const rowDiag = [];
   for (const items of rows.values()) {
     const distinct = items.filter((it, i) => items.findIndex((o) => o.label === it.label) === i);
+    rowDiag.push(`y${Math.round(distinct[0].y)}: ${distinct.slice(0, 6).map((it) => it.label).join(' · ')}${distinct.length > 6 ? ' …' : ''}`);
     if (distinct.length < 3) continue;
     const sc = score(distinct);
     // 같은 점수면 아래쪽 줄 — 메뉴는 로고 아래에 온다
     if (sc > best || (sc === best && distinct[0].y > row[0].y)) { best = sc; row = distinct; }
   }
+  discoverByHover.lastDiag = { rows: rowDiag, langTop };
   if (!row) return null;
   row.sort((a, b) => a.x - b.x);
   // 로그인·장바구니·검색·로고는 GNB 가 아니다. GNB 줄에 섞였든 다른 줄(로고 옆)에
@@ -737,6 +759,7 @@ export async function extractSitemap(context, url, opts = {}) {
       menu: home.menu, utility: home.utility || [], loose: home.loose, footer: home.footer, main, pages,
       languages: home.languages || [],
       aliases: home.aliases || [],
+      diag: { ...(home.diag || {}), hover: discoverByHover.lastDiag || null, method },
       headerHtml: home.headerHtml,
       menuCount: count(home.menu), inspected, method, ms: Date.now() - started,
     };

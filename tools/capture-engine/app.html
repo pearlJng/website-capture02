@@ -22,6 +22,7 @@
   .tree { font-size: 14px; }
   .tree label { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
   label.dep { margin-left: 6px; font-size: 13px; }
+  .tree .diag pre { white-space: pre-wrap; font-size: 12px; background: var(--bg); padding: 8px 10px; border-radius: 6px; }
   .tree .d1 { padding-left: 28px; } .tree .d2 { padding-left: 56px; } .tree .d3 { padding-left: 84px; }
   .tree .path { color: var(--mute); font-size: 12px; margin-left: 4px; }
   .tree .skip { color: var(--mute); }
@@ -221,6 +222,15 @@
       }
     };
     walk(r.menu, 0, []);
+    // 메뉴를 하나도 못 찾았으면 왜 그런지 보여 준다 — 이걸 보내 주면 바로 고칠 수 있다
+    if (!r.menu || !r.menu.length) {
+      const d = r.diag || {};
+      const lines = [];
+      if (d.hover && d.hover.rows) lines.push('마우스로 본 줄: ' + (d.hover.rows.length ? d.hover.rows.join(' / ') : '(없음)'));
+      if (d.headerRoots) lines.push('헤더 후보: ' + (d.headerRoots.join(', ') || '(없음)'));
+      if (d.lists) lines.push('헤더 안 목록: ' + (d.lists.length ? d.lists.join(' / ') : '(없음)'));
+      rows.push(`<details class="diag" open><summary class="err">메뉴를 찾지 못했어요 — 진단</summary><pre>${esc(lines.join('\n'))}</pre>${r.diagDir ? `<div class="mute">헤더 원문과 진단 파일: ${esc(r.diagDir)}</div>` : ''}</details>`);
+    }
     $('#tree').innerHTML = rows.join('');
     $('#m2').textContent = (r.aliases && r.aliases.length ? `메뉴 링크가 ${r.aliases.map((a) => a.replace(/^https?:\/\//, '')).join(', ')} 로 적혀 있어 같은 사이트로 보고, 입력한 주소로 찍습니다. ` : '')
       + (r.languages && r.languages.length ? `언어 선택(${r.languages.join(', ')})은 메뉴구조에서 뺐습니다. ` : '') + '체크한 페이지만 찍습니다.';

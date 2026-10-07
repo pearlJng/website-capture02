@@ -399,7 +399,17 @@ const server = createServer(async (req, res) => {
       });
       if (!r.ok) return json(res, 200, r);
       const { headerHtml, ...rest } = r;
-      return json(res, 200, { ...rest, pages: pagesFrom(r, url), tree: renderTree(r), browser: pick && pick.name });
+      // 판정이 틀렸을 때 보내 달라고 할 수 있게 헤더 원문과 진단을 남긴다
+      let diagDir = '';
+      try {
+        let hostName = 'site'; try { hostName = new URL(r.finalUrl || url).hostname; } catch { /* 무시 */ }
+        diagDir = join(OUT_ROOT, '분석', `${stampNow()} ${safeName(hostName)}`);
+        mkdirSync(diagDir, { recursive: true });
+        if (headerHtml) writeFileSync(join(diagDir, '헤더원문.html'), headerHtml);
+        writeFileSync(join(diagDir, '진단.json'), JSON.stringify({ url, finalUrl: r.finalUrl, method: r.method, aliases: r.aliases, languages: r.languages, diag: r.diag, menu: r.menu, utility: r.utility, loose: r.loose }, null, 2));
+        writeFileSync(join(diagDir, '메뉴구조.txt'), renderTree(r));
+      } catch { /* 무시 */ }
+      return json(res, 200, { ...rest, pages: pagesFrom(r, url), tree: renderTree(r), browser: pick && pick.name, diagDir });
     }
     if (req.method === 'POST' && u.pathname === '/api/capture') {
       const { pages, width, check } = await readBody(req);
