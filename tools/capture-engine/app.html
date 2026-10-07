@@ -222,7 +222,8 @@
     };
     walk(r.menu, 0, []);
     $('#tree').innerHTML = rows.join('');
-    $('#m2').textContent = (r.languages && r.languages.length ? `언어 선택(${r.languages.join(', ')})은 메뉴구조에서 뺐습니다. ` : '') + '체크한 페이지만 찍습니다.';
+    $('#m2').textContent = (r.aliases && r.aliases.length ? `메뉴 링크가 ${r.aliases.map((a) => a.replace(/^https?:\/\//, '')).join(', ')} 로 적혀 있어 같은 사이트로 보고, 입력한 주소로 찍습니다. ` : '')
+      + (r.languages && r.languages.length ? `언어 선택(${r.languages.join(', ')})은 메뉴구조에서 뺐습니다. ` : '') + '체크한 페이지만 찍습니다.';
     document.querySelector('input[name=dep][value="99"]').checked = true;
     const sec = (r.main && r.main.sections) || [];
     $('#sections').innerHTML = sec.length

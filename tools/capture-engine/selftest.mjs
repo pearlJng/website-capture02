@@ -520,6 +520,27 @@ const CASES = [
     },
   },
   {
+    // 오띠인터내셔널: imweb.me 주소로 들어갔는데 메뉴 링크는 연결한 도메인(en.ottieintl.com)으로
+    // 적혀 있어 전부 "외부 링크"가 되고 하위 메뉴가 빠졌다. 그 도메인을 같은 사이트로 보고,
+    // 주소는 들어온 쪽으로 바꿔 찍는다. 진짜 외부(인스타그램)는 여전히 외부다.
+    name: '메뉴구조: 연결한 도메인으로 적힌 메뉴도 같은 사이트로 보고 하위까지 읽는다',
+    file: 'aliasnav.html', sitemap: true,
+    check: (r) => {
+      if (!r.ok) return `실패: ${r.error}`;
+      if (!(r.aliases || []).includes(CROSS)) return `연결한 도메인을 못 알아봤다 (aliases: ${(r.aliases || []).join(', ') || '없음'})`;
+      const top = r.menu.map((x) => x.label);
+      if (top.join('|') !== 'COMPANY|BRAND|ARCHIVE|MARKETS|INSTAGRAM') return `최상위가 ${top.join(' / ')}`;
+      const bad = [];
+      const scan = (items) => { for (const x of items) { if (x.label !== 'INSTAGRAM' && (x.kind !== '페이지' || !x.href.startsWith(BASE))) bad.push(`${x.label}(${x.kind} ${x.href})`); scan(x.children); } };
+      scan(r.menu);
+      if (bad.length) return `사이트 안 페이지로 안 보거나 주소를 안 바꿨다: ${bad.join(', ')}`;
+      if (r.menu[0].children.map((x) => x.label).join('|') !== 'Introduction|History & Certifications') return `COMPANY 하위가 ${r.menu[0].children.map((x) => x.label).join(' / ') || '(없음)'}`;
+      if (r.menu[1].children.length !== 2) return `BRAND 하위가 ${r.menu[1].children.length}개`;
+      if (r.menu[4].kind !== '외부') return '인스타그램이 외부가 아니다';
+      return null;
+    },
+  },
+  {
     // 정보구조는 헤더 목록의 중첩을 그대로 읽는다. 숨긴 드롭다운도 읽고,
     // 모바일 메뉴에 반복된 링크는 한 번만 세고, 외부·앵커·파일은 표시한다.
     name: '정보구조: 메뉴 트리를 읽고 중복·외부·앵커를 가른다',

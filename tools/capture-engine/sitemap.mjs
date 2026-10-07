@@ -204,14 +204,17 @@ function inPageVisibleItems() {
     const cy = Math.min(window.innerHeight - 1, Math.max(0, r.top + r.height / 2));
     const hit = document.elementFromPoint(cx, cy);
     if (!hit || !(el === hit || el.contains(hit) || hit.contains(el))) continue;
-    const label = clean(el.innerText || el.textContent) || clean(el.getAttribute('aria-label') || el.getAttribute('title'))
+    const text = clean(el.innerText || el.textContent);
+    const label = text || clean(el.getAttribute('aria-label') || el.getAttribute('title'))
       || clean([...el.querySelectorAll('img[alt]')].map((i) => i.alt).join(' '));
     if (!label) continue;
+    // 글자 없이 그림만 있는 링크 (로고). 인라인 a 는 높이가 글자 높이로 나와 그림 크기로는 못 가른다.
+    const img = !text && Boolean(el.querySelector('img, svg'));
     let href = '';
     const a = el.tagName === 'A' ? el : el.querySelector('a');
     const raw = a && a.getAttribute('href');
     if (raw && !/^javascript:/i.test(raw) && raw !== '#') { try { href = new URL(raw, location.href).href; } catch { /* 무시 */ } }
-    out.push({ id: el.getAttribute('data-ia'), label: label.length > 50 ? label.slice(0, 47) + '…' : label, href,
+    out.push({ id: el.getAttribute('data-ia'), label: label.length > 50 ? label.slice(0, 47) + '…' : label, href, img,
       x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) });
   }
   return out;
@@ -373,11 +376,12 @@ const UTIL = /^(login|log ?in|logout|log ?out|join|sign ?up|sign ?in|register|ca
 
 /* ──────────────────── 마우스를 올려 GNB 를 찾는다 ──────────────────── */
 
+const originSet = (o) => (o instanceof Set ? o : new Set([o]));
 const kindOfHref = (href, origin) => {
   if (!href) return '없음';
   let u; try { u = new URL(href); } catch { return '없음'; }
   if (/^(mailto|tel|sms):/.test(u.protocol)) return '연락';
-  if (u.origin !== origin) return '외부';
+  if (!originSet(origin).has(u.origin)) return '외부';
   if (/\.(pdf|zip|docx?|xlsx?|pptx?|hwp)$/i.test(u.pathname)) return '파일';
   if (u.hash) return '앵커';
   return '페이지';
@@ -391,7 +395,10 @@ const kindOfHref = (href, origin) => {
  * 테라클(아임웹)은 드롭다운이 li 안에 있지 않아 Product·Contact 의 하위가
  * 1차로 흩어져 나왔다. 화면에 무엇이 나타나는지는 구조와 무관하다.
  */
-async function discoverByHover(page, origin, progress) {
+async function discoverByHover(page, origin, progress, aliases = new Set()) {
+  // 사이트의 다른 주소(연결한 도메인)로 가는 링크도 "사이트 안"이다 — 아래 origins 로 본다
+  const origins = new Set([origin, ...aliases]);
+  const originOf = (href) => { try { return new URL(href).origin; } catch { return ''; } };
   await page.evaluate(inPageTagItems);
   const away = async () => {
     await page.mouse.move(2, Math.max(2, (page.viewportSize() || { height: 900 }).height - 2));
@@ -421,12 +428,12 @@ async function discoverByHover(page, origin, progress) {
   // 사이트 안 페이지로 가는 짧은 글자 항목은 +1, 유틸리티(로그인·장바구니·검색·로고)는 −1,
   // 화면 가운데 앉은 줄은 +1 (GNB 는 가운데나 왼쪽, 유틸리티는 오른쪽에 붙는다).
   const isUtil = (it) => UTIL.test(it.label) || (it.href && /\/(login|logout|join|signup|sign-up|cart|shop_cart|basket|search|mypage|my-page|wishlist|order)\b/i.test(it.href.replace(origin, '')));
-  const isLogo = (it) => { try { const u = new URL(it.href); return u.origin === origin && (u.pathname === '/' || u.pathname === '') && it.h >= 28 && (it.w >= 100 || /logo|로고/i.test(it.label)); } catch { return false; } };
+  const isLogo = (it) => { try { const u = new URL(it.href); return origins.has(u.origin) && (u.pathname === '/' || u.pathname === '') && (it.img || (it.h >= 28 && (it.w >= 100 || /logo|로고/i.test(it.label)))); } catch { return false; } };
   const score = (items) => {
     let n = 0;
     for (const it of items) {
       if (isUtil(it) || isLogo(it)) n -= 1;
-      else if (!it.href || it.href.startsWith(origin)) n += 1;
+      else if (!it.href || origins.has(originOf(it.href))) n += 1;
     }
     const xs = items.map((it) => it.x + it.w / 2);
     const center = (Math.min(...xs) + Math.max(...xs)) / 2;
@@ -496,7 +503,7 @@ async function discoverByHover(page, origin, progress) {
     const nextKnown = new Set([...known, ...fresh.map((f) => f.id)]);
     for (const f of fresh) {
       if (f.label === it.label && f.href === it.href) continue;    // 자기 자신의 복사본
-      const node = { label: f.label, href: f.href, kind: kindOfHref(f.href, origin), depth, children: [], id: f.id };
+      const node = { label: f.label, href: f.href, kind: kindOfHref(f.href, origins), depth, children: [], id: f.id };
       if (depth < 3) node.children = await children([...path, f], depth + 1, nextKnown);
       out.push(node);
     }
@@ -506,7 +513,7 @@ async function discoverByHover(page, origin, progress) {
   const menu = [];
   for (const it of row) {
     progress(`메뉴에 마우스 올려 확인 — ${it.label}`);
-    const node = { label: it.label, href: it.href, kind: kindOfHref(it.href, origin), depth: 0, children: [], id: it.id };
+    const node = { label: it.label, href: it.href, kind: kindOfHref(it.href, origins), depth: 0, children: [], id: it.id };
     node.children = await children([it], 1, seenId);
     // 마우스를 치우고 열린 것이 닫히게 한다
     await page.mouse.move(2, Math.max(2, (page.viewportSize() || { height: 900 }).height - 2));
@@ -527,7 +534,7 @@ async function discoverByHover(page, origin, progress) {
     else gnb.push(m);
   }
   const utility = utilityRow.filter((it) => it.href && !isLogo(it))
-    .map((it) => ({ label: it.label, href: it.href, kind: kindOfHref(it.href, origin), depth: 0, children: [] }));
+    .map((it) => ({ label: it.label, href: it.href, kind: kindOfHref(it.href, origins), depth: 0, children: [] }));
   return { menu: gnb, languages, utility };
 }
 
@@ -554,9 +561,52 @@ export async function extractSitemap(context, url, opts = {}) {
     const home = await page.evaluate(inPageReadNav);
     const origin = new URL(page.url()).origin;
 
+    // 사이트의 다른 주소. 아임웹은 imweb.me 주소로 들어가도 메뉴 링크가 연결한 도메인
+    // (en.ottieintl.com)으로 적혀 있다 — 그대로 두면 하위 메뉴가 전부 "외부 링크"가 되어 빠진다.
+    // og:url·canonical 의 주소, 그리고 헤더 링크의 3개 이상(또는 3할 이상)이 가리키는 주소를
+    // 같은 사이트로 본다. 캡처는 들어온 주소(origin)로 바꿔서 한다 — 도메인이 아직 안 붙어
+    // 있어도 찍힌다.
+    const aliases = await page.evaluate(() => {
+      const out = [];
+      for (const sel of ['link[rel="canonical"]', 'meta[property="og:url"]']) {
+        const el = document.querySelector(sel);
+        const v = el && (el.getAttribute('href') || el.getAttribute('content'));
+        try { if (v) out.push(new URL(v, location.href).origin); } catch { /* 무시 */ }
+      }
+      return out;
+    }).then((list) => new Set(list.filter((o) => o && o !== origin))).catch(() => new Set());
+    {
+      const flat = [];
+      const walk = (items) => { for (const x of items || []) { flat.push(x); walk(x.children); } };
+      walk(home.menu); walk(home.utility); walk(home.loose);
+      const counts = new Map(); let total = 0;
+      for (const x of flat) {
+        if (!x.href) continue;
+        let o; try { o = new URL(x.href).origin; } catch { continue; }
+        total++;
+        if (o !== origin) counts.set(o, (counts.get(o) || 0) + 1);
+      }
+      const SOCIAL = /facebook|instagram|youtube|youtu\.be|twitter|x\.com|linkedin|tiktok|pinterest|kakao|naver\.(com|me)|blog\.|smartstore|coupang|google\.|apple\.com|play\.google/i;
+      for (const [o, n] of counts) if (!SOCIAL.test(o) && (n >= 3 || n >= total * 0.3)) aliases.add(o);
+    }
+    const origins = new Set([origin, ...aliases]);
+    // 다른 주소로 적힌 링크를 들어온 주소로 바꾼다 (경로는 그대로)
+    const rehost = (items) => {
+      for (const x of items || []) {
+        if (x.href) {
+          try {
+            const u = new URL(x.href);
+            if (aliases.has(u.origin)) { x.href = origin + u.pathname + u.search + u.hash; x.aliasOf = u.origin; }
+          } catch { /* 무시 */ }
+          x.kind = kindOfHref(x.href, origins);
+        }
+        rehost(x.children);
+      }
+    };
+
     // 1순위: 마우스를 올려 찾은 것. 2순위: DOM 구조로 읽은 것.
     let method = 'dom';
-    const found = await discoverByHover(page, origin, progress).catch(() => null);
+    const found = await discoverByHover(page, origin, progress, aliases).catch(() => null);
     const hovered = found && found.menu;
     if (hovered && hovered.length >= 3) {
       // hover 로 하위가 안 보인 항목은 DOM 목록 구조에서 채운다. 서서히 열리거나
@@ -598,6 +648,10 @@ export async function extractSitemap(context, url, opts = {}) {
       home.languages = found.languages;
       method = 'hover';
     }
+
+    // 연결한 도메인으로 적힌 링크를 들어온 주소로 (hover·DOM 어느 쪽이든)
+    for (const k of ['menu', 'utility', 'loose', 'footer']) rehost(home[k]);
+    home.aliases = [...aliases];
 
     // 언어 선택은 어디서 나오든 정보구조에서 뺀다 (GNB·유틸리티·헤더·푸터 전부)
     const languages = new Set(home.languages || []);
@@ -660,6 +714,7 @@ export async function extractSitemap(context, url, opts = {}) {
       ok: true, url, finalUrl: page.url(), title: home.title, description: home.description,
       menu: home.menu, utility: home.utility || [], loose: home.loose, footer: home.footer, main, pages,
       languages: home.languages || [],
+      aliases: home.aliases || [],
       headerHtml: home.headerHtml,
       menuCount: count(home.menu), inspected, method, ms: Date.now() - started,
     };
@@ -688,6 +743,7 @@ export function renderTree(r) {
   if (r.description) L.push(`  "${r.description}"`);
   L.push('');
   L.push(`  메뉴 ${r.menuCount}개${r.method === 'hover' ? ' · 항목마다 마우스를 올려 하위 메뉴를 확인했습니다' : ' · 메뉴 구조를 읽었습니다'}${r.inspected ? ` · 하위 페이지 ${r.inspected}곳 확인` : ''}`);
+  if (r.aliases && r.aliases.length) L.push(`  메뉴 링크가 ${r.aliases.join(', ')} 로 적혀 있어 같은 사이트로 보고 입력한 주소로 바꿨습니다`);
   L.push('');
 
   const walk = (items, prefix) => {
