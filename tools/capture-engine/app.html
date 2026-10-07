@@ -281,9 +281,8 @@
         <button class="rt up" title="직접 찍은 그림으로 바꾸기 — 여러 장을 고르면 순서대로 이어 붙입니다" aria-label="직접 찍은 그림으로 바꾸기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><polyline points="6 10 12 4 18 10"/><path d="M4 20h16"/></svg></button><span class="mute">직접 찍은 그림으로 바꾸기 <small>(여러 장이면 이어 붙임)</small></span>
         <input type="file" class="upf" accept="image/png,image/jpeg" multiple hidden></div>
         <div class="man" hidden>
-          <div class="mute mhint">크롬 창이 열렸어요. 그 창에서 스크롤해 원하는 화면을 만든 뒤 <b>이 화면 찍기</b>를 누르세요. 위에서부터 차례로 찍고, 다 찍으면 <b>완성</b>.</div>
-          <div class="r"><button class="ms">이 화면 찍기</button><button class="mn">한 화면 아래로</button><button class="mu">마지막 취소</button><button class="mf">완성</button><button class="mc">그만두기</button></div>
-          <div class="mute mlist"></div>
+          <div class="mute mhint">크롬 창이 열렸어요. <b>그 창 오른쪽 아래의 버튼</b>으로 화면을 하나씩 찍고, 다 찍으면 창의 <b>완성</b>을 누르세요. 결과는 이 카드로 돌아옵니다.</div>
+          <div class="r"><button class="mc">창 닫기</button><span class="mute mlist"></span></div>
         </div>
       </div></div>`;
     // 자동 캡처가 못 잡는 페이지는 사람이 크롬에서 전체 페이지를 찍어 올린다 (PNG·JPG).
@@ -321,16 +320,9 @@
     // 앱이 스크롤 위치까지 알고 찍어 정확히 잇는다. 이 컴퓨터가 아니면(터널) 새 탭만 연다.
     const man = card.querySelector('.man');
     const q = (c) => card.querySelector(c);
-    let key = null;
-    const fmt = (n) => Number(n).toLocaleString('en-US');
-    const showState = (st) => {
-      if (!st || !st.ok) return;
-      const parts = [`찍은 화면 ${st.shots.length}장` + (st.shots.length ? `: ${st.shots.map((s) => `${fmt(s.y)}~${fmt(s.y + s.height)}`).join(' · ')}` : '')];
-      if (st.gaps && st.gaps.length) parts.push(`<span class="err">빈틈 ${st.gaps.map(([a, b]) => `${fmt(a)}~${fmt(b)}px`).join(', ')}</span>`);
-      if (st.at) parts.push(`지금 창은 ${fmt(st.at.y)}px (문서 ${fmt(st.at.height)}px)` + (st.tail ? ` · 아직 ${fmt(st.tail[0])}px 아래가 남았어요` : st.shots.length ? ' · 끝까지 찍었어요' : ''));
-      q('.mlist').innerHTML = parts.join('<br>');
-    };
-    const call = async (action, extra) => { const r = await api(`/api/manual/${action}`, { key, id, url: row.url, ...(extra || {}) }); if (!r.ok) { alert(r.error); if (/닫혔|없습니다/.test(r.error || '')) { man.hidden = true; key = null; } } return r; };
+    let key = null, watch = null;
+    const call = async (action, extra) => api(`/api/manual/${action}`, { key, id, url: row.url, ...(extra || {}) });
+    const stopWatch = () => { if (watch) { clearInterval(watch); watch = null; } };
     q('.go').onclick = async () => {
       if (key) { man.hidden = false; return; }
       const r = await api('/api/manual/start', { id, url: row.url });
@@ -338,19 +330,16 @@
         if (r.local === false) { window.open(row.url, '_blank', 'noopener'); return; }
         alert(r.error); return;
       }
-      key = r.key; man.hidden = false; q('.mlist').textContent = `크롬 창: ${r.width}px 폭. 맨 위부터 찍어 보세요.`;
+      key = r.key; man.hidden = false; q('.mlist').textContent = `${r.width}px 폭 창에서 찍는 중`;
+      // 창이 닫히거나 완성되면 카드 상태를 정리한다
+      stopWatch();
+      watch = setInterval(async () => {
+        const st = await call('state');
+        if (!st.ok) { stopWatch(); man.hidden = true; key = null; card.dataset.stamp = ''; poll(id); return; }
+        q('.mlist').textContent = `${st.shots.length}장 찍음` + (st.tail ? ` · ${Number(st.tail[0]).toLocaleString('en-US')}px 아래 남음` : st.shots.length ? ' · 끝까지 찍음' : '');
+      }, 1500);
     };
-    q('.ms').onclick = async () => { q('.ms').disabled = true; try { showState(await call('shot')); } finally { q('.ms').disabled = false; } };
-    q('.mn').onclick = async () => showState(await call('scroll', { page: 1 }));   // 창 높이만큼 내려간다 — 이어서 찍으면 딱 맞물린다
-    q('.mu').onclick = async () => showState(await call('undo'));
-    q('.mc').onclick = async () => { await call('cancel'); man.hidden = true; key = null; };
-    q('.mf').onclick = async () => {
-      q('.mf').disabled = true; card.querySelector('.t').innerHTML = '이어 붙이는 중';
-      const r = await call('finish');
-      q('.mf').disabled = false;
-      if (!r.ok) { card.dataset.stamp = ''; poll(id); return; }
-      man.hidden = true; key = null; card.dataset.stamp = ''; poll(id);
-    };
+    q('.mc').onclick = async () => { stopWatch(); await call('cancel'); man.hidden = true; key = null; };
   }
 
   /* ── 내보내기 ── */

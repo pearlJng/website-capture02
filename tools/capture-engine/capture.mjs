@@ -292,7 +292,7 @@ async function inPageFreezeAnimations() {
  * 맨 위에 가로로 걸친 것 하나는 헤더로 보고 남긴다 — 스냅샷에 헤더는 있어야 한다.
  * 나머지(챗 위젯, 맨 위로 버튼, 쿠키 배너, 하단 고정바)는 콘텐츠를 가리므로 숨긴다.
  */
-function inPageTameFixed(viewportWidth) {
+export function inPageTameFixed(viewportWidth) {
   // 숨김 규칙. visibility 는 자식이 스스로 visible 로 정해 두면 부모를 숨겨도 그 자식은
   // 보인다 — 테라클 헤더가 그랬다(포장은 숨었는데 메뉴 글자만 조각마다 남았다).
   // 그래서 규칙이 자손까지 !important 로 덮는다.
@@ -306,6 +306,7 @@ function inPageTameFixed(viewportWidth) {
   const found = [];
   let unstuck = 0;
   for (const el of document.querySelectorAll('body *')) {
+    if (el.closest('[data-cap-ui]')) continue;   // 직접 찍기 창에 우리가 띄운 버튼
     const cs = getComputedStyle(el);
     if (cs.position !== 'fixed' && cs.position !== 'sticky') continue;
     if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) === 0) continue;
@@ -352,6 +353,7 @@ function inPageTameFixed(viewportWidth) {
   // 표만 붙여 둔다 — 첫 화면에는 그대로 두고, 두 번째 화면부터 숨긴다.
   if (!keep) {
     for (const el of document.querySelectorAll('body *')) {
+      if (el.closest('[data-cap-ui]')) continue;
       const cs = getComputedStyle(el);
       if (cs.display === 'none' || cs.visibility === 'hidden') continue;
       const r = el.getBoundingClientRect();
@@ -372,7 +374,7 @@ function inPageTameFixed(viewportWidth) {
 }
 
 /** 고정·스티키 요소를 전부 숨긴다. 조각마다 따라 붙는 것을 막는다. */
-function inPageHideAllFixed() {
+export function inPageHideAllFixed() {
   // 숨김 규칙을 문서에 심는다. 인라인 style 은 사이트 JS 가 갈아엎을 수 있지만 속성+규칙은 남는다.
   if (!document.getElementById('cap-hide-rule')) {
     const st = document.createElement('style');
@@ -383,6 +385,7 @@ function inPageHideAllFixed() {
   }
   let n = 0;
   for (const el of document.querySelectorAll('body *')) {
+    if (el.closest('[data-cap-ui]')) continue;
     if (el.hasAttribute('data-cap-hidden')) {
       // 이미 숨긴 것도 다시 다진다 — 인라인 style 을 사이트가 지웠을 수 있다
       el.style.setProperty('visibility', 'hidden', 'important');
@@ -414,14 +417,14 @@ function inPageHideAllFixed() {
  * 화면의 4할 이상을 덮는 고정 요소, 그리고 이름에 popup·modal·layer·dim 이
  * 들어간 떠 있는 요소를 지운다. 숨기는 게 아니라 지운다 — 스크롤 잠금까지 같이 푼다.
  */
-function inPageClosePopups() {
+export function inPageClosePopups() {
   const vw = window.innerWidth, vh = window.innerHeight;
   const removed = [];
   // 이름은 토막으로 본다 — 'layer' 가 'player' 에, 'dim' 이 'dimension' 에 걸리면 안 된다.
   const WORDS = /^(popup|pop|modal|layer|dim|dimmed|overlay|lightbox)$/i;
   const named = (el) => ((el.getAttribute('class') || '') + ' ' + (el.id || '')).split(/[^a-z0-9]+/i).some((t) => WORDS.test(t));
   for (const el of [...document.querySelectorAll('body *')]) {
-    if (!el.isConnected) continue;
+    if (!el.isConnected || el.closest('[data-cap-ui]')) continue;
     if (el.closest('[data-cap-header]') || el.querySelector('[data-cap-header]')) continue;   // 헤더는 건드리지 않는다
     const cs = getComputedStyle(el);
     if (cs.display === 'none' || cs.visibility === 'hidden') continue;
@@ -459,7 +462,7 @@ function inPageClosePopups() {
  * 화면 위쪽 띠(헤더)와 아래쪽 띠(플로팅 바)에 점을 찍어 거기 있는 요소들의 자리를
  * 재고, 직전 조각과 비교한다. GNB 가 조각마다 반복된 마지막 원인이 이것이었다.
  */
-function inPageHidePinned(prev) {
+export function inPageHidePinned(prev) {
   if (!document.getElementById('cap-hide-rule')) {
     const st = document.createElement('style');
     st.id = 'cap-hide-rule';
@@ -478,6 +481,7 @@ function inPageHidePinned(prev) {
   const seen = new Map();
   for (const [x, y] of pts) {
     for (const hit of document.elementsFromPoint(x, y)) {
+      if (hit.closest && hit.closest('[data-cap-ui]')) continue;
       for (let el = hit; el && el !== document.body && el !== document.documentElement; el = el.parentElement) {
         if (!seen.has(el)) seen.set(el, el.getBoundingClientRect());
       }
@@ -513,7 +517,7 @@ function inPageHidePinned(prev) {
   return { ids: cur, scrollY: window.scrollY, hidden };
 }
 
-function inPageRestoreFixed() {
+export function inPageRestoreFixed() {
   for (const el of document.querySelectorAll('[data-cap-hidden]')) {
     el.style.removeProperty('visibility');
     el.removeAttribute('data-cap-hidden');

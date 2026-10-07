@@ -24,7 +24,7 @@ import { shootAll, writeOutputs } from './shoot.mjs';
 import { writeFileSync, copyFileSync, readFileSync as readBytes } from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
 import { mergePngsVertically, stitchUserShots } from './png.mjs';
-import { startManual, stateManual, scrollManual, shotManual, undoManual, finishManual, closeManual, closeAllManual } from './manual.mjs';
+import { startManual, stateManual, scrollManual, shotManual, undoManual, finishManual, closeManual, closeAllManual, pressManual } from './manual.mjs';
 import AdmZip from 'adm-zip';
 
 /* 브라우저로 내려받기 — 서버에 올렸을 때(맥 저장 창을 못 띄울 때) 쓰는 길.
@@ -321,6 +321,23 @@ function startJob({ pages, width, check }) {
   return job;
 }
 
+/** 직접 찍기 결과를 카드(행)에 넣는다 — 창 안의 "완성" 버튼과 HTTP 둘 다 여기로 온다. */
+function applyManualResult(job, row, r) {
+  row.manual = (row.manual || 0) + 1;
+  const base = (row.name || 'page').replace(/ \((다시|직접) \d+\)$/, '');
+  const files = r.slices.map((buf, i) => {
+    const f = r.slices.length === 1 ? `${base} (직접 ${row.manual}).png` : `${base} (직접 ${row.manual}) (${i + 1}).png`;
+    writeFileSync(join(job.outDir, f), buf);
+    return f;
+  });
+  row.previous = [...(row.previous || []), ...(row.files || [])];
+  Object.assign(row, { files, status: '직접 찍음', error: '', gaps: [], diffFile: '', pieceFiles: [], docHeight: r.height,
+    notes: r.notes, manualNote: r.notes.join(' · '), manualKey: null });
+  job.log.push(`  ✎ ${row.path || row.name} 크롬 창에서 직접 찍음 (${files.join(', ')})`);
+  try { writeOutputs(job.rows, { ...job.meta, when: new Date().toLocaleString('ko-KR') }, job.outDir); } catch { /* 무시 */ }
+  return { files, notes: r.notes };
+}
+
 /* ───────────── HTTP ───────────── */
 
 const readBody = (req) => new Promise((res, rej) => {
@@ -455,7 +472,10 @@ const server = createServer(async (req, res) => {
         await ensureBrowser();
         const device = DEVICES[job.width] || DEVICES[1920];
         try {
-          const r = await startManual({ url: row.url, device, scale: device.scale, channel: pick && pick.channel, headless: process.env.CAP_MANUAL_HEADLESS === '1' });
+          const r = await startManual({
+            url: row.url, device, scale: device.scale, channel: pick && pick.channel, headless: process.env.CAP_MANUAL_HEADLESS === '1',
+            onFinish: (result) => applyManualResult(job, row, result),   // 창 안의 "완성" 버튼이 여기로 온다
+          });
           return json(res, 200, { ok: true, ...r });
         } catch (e) { return json(res, 500, { ok: false, error: `크롬 창을 못 띄웠습니다: ${e.message.split('\n')[0]}` }); }
       }
@@ -464,6 +484,7 @@ const server = createServer(async (req, res) => {
         if (action === 'scroll') return json(res, 200, await scrollManual(body.key, { delta: body.delta, y: body.y, page: body.page }));
         if (action === 'shot') return json(res, 200, await shotManual(body.key));
         if (action === 'undo') return json(res, 200, await undoManual(body.key));
+        if (action === 'press') return json(res, 200, await pressManual(body.key, body.name));
         if (action === 'cancel') { await closeManual(body.key); return json(res, 200, { ok: true }); }
         if (action === 'finish') {
           const job = jobs.get(body.id);
@@ -471,19 +492,7 @@ const server = createServer(async (req, res) => {
           const row = job.rows.find((r) => normUrl(r.url) === normUrl(body.url || ''));
           if (!row) return json(res, 404, { ok: false, error: '그 페이지의 결과가 없습니다' });
           const r = await finishManual(body.key);
-          row.manual = (row.manual || 0) + 1;
-          const base = (row.name || 'page').replace(/ \((다시|직접) \d+\)$/, '');
-          const files = r.slices.map((buf, i) => {
-            const f = r.slices.length === 1 ? `${base} (직접 ${row.manual}).png` : `${base} (직접 ${row.manual}) (${i + 1}).png`;
-            writeFileSync(join(job.outDir, f), buf);
-            return f;
-          });
-          row.previous = [...(row.previous || []), ...(row.files || [])];
-          Object.assign(row, { files, status: '직접 찍음', error: '', gaps: [], diffFile: '', pieceFiles: [], docHeight: r.height,
-            notes: r.notes, manualNote: r.notes.join(' · ') });
-          job.log.push(`  ✎ ${row.path || row.name} 크롬 창에서 직접 찍음 (${files.join(', ')})`);
-          try { writeOutputs(job.rows, { ...job.meta, when: new Date().toLocaleString('ko-KR') }, job.outDir); } catch { /* 무시 */ }
-          return json(res, 200, { ok: true, files, notes: r.notes });
+          return json(res, 200, { ok: true, ...applyManualResult(job, row, r) });
         }
         return json(res, 404, { ok: false, error: '없는 동작' });
       } catch (e) { return json(res, 200, { ok: false, error: e.message.split('\n')[0] }); }

@@ -151,12 +151,14 @@ export function stitchUserShots(bufs) {
   if (imgs.length === 1) return { png: encodePng(imgs[0]), notes: [] };
 
   // 1) 공통 띠: 모든 조각에서 같은 행이 위에서부터 몇 줄인가
+  // 첫 조각은 히어로 위에 투명하게 얹힌 헤더라 둘째부터와 다를 수 있다 — 셋 이상이면 둘째부터 견준다
   let band = 0;
+  const base = imgs.length >= 3 ? 1 : 0;
   const maxBand = Math.floor(Math.min(...imgs.map((i) => i.height)) * 0.4);
   for (; band < maxBand; band++) {
     let same = true;
-    for (let k = 1; k < imgs.length && same; k++) {
-      if (rowDiff(imgs[0].rows, band * stride, imgs[k].rows, band * stride, stride, bpp) > 2) same = false;
+    for (let k = base + 1; k < imgs.length && same; k++) {
+      if (rowDiff(imgs[base].rows, band * stride, imgs[k].rows, band * stride, stride, bpp) > 2) same = false;
     }
     if (!same) break;
   }
