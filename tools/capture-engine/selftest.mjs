@@ -443,6 +443,21 @@ const CASES = [
     },
   },
   {
+    // 케이싹 위치: 구글 지도 임베드(loading="lazy" iframe)가 비어 있었다. 화면 가까이 와야
+    // 불러오기 시작하고 1~3초 걸리는데, 그 칸을 250ms 만에 찍고 지나갔다. 처음부터 불러오게
+    // 하고, 칸마다 가까운 iframe 이 뜰 때까지 기다린다. 자홍색 iframe 이 아래쪽에 있어야 한다.
+    name: '늦게 뜨는 지연 로딩 iframe(지도)도 비어 있지 않게 찍는다',
+    file: 'lazyframe.html', mode: 'stitch', steps: ['sticky', 'motion', 'anim'], color: 2000,
+    check: (r, cmp, shots, extra) => {
+      if (!extra || !extra.rows) return '색을 못 셌다';
+      const { top, below } = extra.rows;
+      if (below < 200) return `iframe 자리에 색이 ${below}줄뿐이다 (300줄 근처여야 한다) — 뜨기 전에 찍었다`;
+      if (top > 0) return `위쪽에 엉뚱한 색이 ${top}줄 있다`;
+      if (!(r.notes || []).some((n) => n.includes('미리 불러옵니다'))) return '지연 로딩 iframe 을 미리 불러온 기록이 없다';
+      return null;
+    },
+  },
+  {
     // 정보구조는 헤더 목록의 중첩을 그대로 읽는다. 숨긴 드롭다운도 읽고,
     // 모바일 메뉴에 반복된 링크는 한 번만 세고, 외부·앵커·파일은 표시한다.
     name: '정보구조: 메뉴 트리를 읽고 중복·외부·앵커를 가른다',
@@ -525,6 +540,14 @@ function makeServer() {
     if (name.includes('..')) { res.writeHead(400).end(); return; }
     // 일부러 늦게 주는 그림. 스크롤이 기다려 주는지 시험한다.
     if (name === '느린무한.html') { return; }   // 일부러 응답하지 않는다 — 영영 안 뜨는 iframe
+    // 늦게 뜨는 iframe(구글 지도 임베드 흉내). 2.5초 뒤에 자홍색 문서를 준다.
+    if (name === '느린프레임.html') {
+      setTimeout(() => {
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(
+          '<!doctype html><meta charset="utf-8"><body style="margin:0;background:#ff00aa;height:100vh"></body>');
+      }, 2500);
+      return;
+    }
     if (name === '느린그림.svg') {
       setTimeout(() => {
         res.writeHead(200, { 'content-type': 'image/svg+xml' }).end(

@@ -737,10 +737,78 @@ const withTimeout = (p, ms, fallback) => Promise.race([p, new Promise((r) => set
  * 돌아오지 않아 조각마다 제한 시간을 꽉 채운다. 어차피 아무것도 안 그리는
  * 프레임이니 about:blank 로 바꿔도 그림은 같다.
  */
+/**
+ * 지연 로딩(loading="lazy") iframe 을 지금 당장 불러오게 한다.
+ * 구글 지도 임베드가 이렇다 — 화면 가까이 와야 그제서야 불러오기 시작하고, 뜨는 데 1~3초가
+ * 걸린다. 화면 단위로 찍으면 그 칸을 250ms 만에 찍고 지나가 지도 자리가 비었다(케이싹 위치).
+ * 처음부터 불러오게 바꿔 두면 아래쪽에 닿을 때쯤엔 이미 떠 있다. 나중에 생기는 것도 본다.
+ */
+function inPageEagerFrames() {
+  let n = 0;
+  const arm = (f) => {
+    if (f.hasAttribute('data-cap-frame')) return;
+    f.setAttribute('data-cap-frame', '');
+    f.addEventListener('load', () => f.setAttribute('data-cap-loaded', ''));
+    if ((f.getAttribute('loading') || '').toLowerCase() === 'lazy') { f.setAttribute('loading', 'eager'); n++; }
+  };
+  document.querySelectorAll('iframe').forEach(arm);
+  if (!window.__capFrameObs) {
+    window.__capFrameObs = new MutationObserver((muts) => {
+      for (const m of muts) for (const node of m.addedNodes) {
+        if (node.nodeType !== 1) continue;
+        if (node.tagName === 'IFRAME') arm(node);
+        else if (node.querySelectorAll) node.querySelectorAll('iframe').forEach(arm);
+      }
+    });
+    window.__capFrameObs.observe(document.documentElement, { childList: true, subtree: true });
+  }
+  return n;
+}
+
+/**
+ * 이 칸(과 다음 칸) 가까이에 있는 iframe 이 다 뜰 때까지 기다린다 — 그림만 기다리고 iframe 은
+ * 안 기다려서 지도 자리가 비었다. 교차 출처 프레임도 Playwright 로는 안을 볼 수 있어,
+ * 지도 프레임은 안의 타일 그림까지 다 받았는지 본다. 프레임마다 짧게 끊는다.
+ */
+async function waitNearFrames(page, slow = 1) {
+  let waited = 0;
+  for (const f of page.frames()) {
+    if (f === page.mainFrame() || f.isDetached()) continue;
+    const url = f.url() || '';
+    if (!url || url === 'about:blank') continue;
+    let el;
+    try { el = await withTimeout(f.frameElement().catch(() => null), 1000, null); } catch { el = null; }
+    if (!el) continue;
+    const near = await withTimeout(el.evaluate((e) => {
+      const r = e.getBoundingClientRect();
+      return r.width >= 8 && r.height >= 8 && r.bottom > -window.innerHeight && r.top < window.innerHeight * 2;
+    }).catch(() => false), 1000, false);
+    if (!near) continue;
+    const t0 = Date.now();
+    await withTimeout(f.waitForLoadState('load', { timeout: 4000 * slow }).catch(() => {}), 4200 * slow, null);
+    // 안의 그림(지도 타일)까지. 교차 출처라 evaluate 가 안 되면 조금만 더 기다린다.
+    const inner = await withTimeout(f.evaluate(async () => {
+      const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+      for (let k = 0; k < 20; k++) {
+        const loading = [...document.images].filter((im) => !im.complete).length;
+        if (!loading) return k;
+        await sleep(150);
+      }
+      return 20;
+    }).catch(() => null), 3500 * slow, null);
+    if (inner === null) await page.waitForTimeout(600 * slow);
+    else if (/maps|map\.|kakao|naver\.com\/maps/i.test(url)) await page.waitForTimeout(400 * slow);  // 타일이 그려질 시간
+    waited += Date.now() - t0;
+  }
+  return waited;
+}
+
 async function neutralizeStuckFrames(page) {
   let n = 0;
   for (const f of page.frames()) {
     if (f === page.mainFrame() || f.isDetached()) continue;
+    // 늦게 뜨는 것(지도)과 영영 안 뜨는 것(죽은 광고)을 가른다 — 4초는 기다려 준다
+    await withTimeout(f.waitForLoadState('domcontentloaded', { timeout: 4000 }).catch(() => {}), 4200, null);
     const alive = await withTimeout(f.evaluate(() => 1).then(() => true).catch(() => false), 1500, false);
     if (alive) continue;
     try {
@@ -872,6 +940,11 @@ export async function captureSite(context, url, opts = {}) {
     if (mode !== 'stitch') await page.waitForLoadState('networkidle', { timeout: 5000 }).catch(() => {});
     lap('준비');
 
+    // 지연 로딩 iframe(구글 지도 임베드)은 지금 불러오게 한다 — 아래쪽에 닿았을 때 비어 있지 않게
+    if (steps.has('motion')) {
+      const eager = await page.evaluate(inPageEagerFrames).catch(() => 0);
+      if (eager) notes.push(`지연 로딩 iframe ${eager}개를 미리 불러옵니다 (지도 등)`);
+    }
     // 응답 없는 iframe 은 찍기 전에 비운다 (스크린샷이 그 프레임을 기다리다 멈춘다)
     const stuck = await neutralizeStuckFrames(page);
     if (stuck) notes.push(`응답 없는 iframe ${stuck}개를 비웠습니다 (지도·광고 등)`);
@@ -932,6 +1005,8 @@ export async function captureSite(context, url, opts = {}) {
         await page.waitForTimeout((i === 0 ? SHOT_SETTLE_FIRST_MS : SHOT_SETTLE_MS) * slow);
         // 이 칸(과 다음 칸)의 지연 로딩 이미지가 뜰 때까지. 없으면 바로 지나간다.
         await page.evaluate(inPageWaitNearImages, { rounds: SHOT_IMAGE_WAITS.rounds * slow, ms: SHOT_IMAGE_WAITS.ms });
+        // 이 칸 가까이의 iframe(지도)도 다 뜰 때까지
+        if (steps.has('motion')) await waitNearFrames(page, slow);
         // 비디오가 다시 돌고 있으면 붙잡는다 — 조각마다 같은 프레임이어야 이음새가 맞는다
         if (steps.has('anim')) { const r = await holdVideosEverywhere(page); if (r.fixed) videosHeld += r.fixed; }
 

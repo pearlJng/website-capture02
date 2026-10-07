@@ -1,0 +1,7 @@
+<!doctype html><meta charset=utf-8><title>늦게 뜨는 지연 로딩 iframe</title>
+<style>body{margin:0;font:16px/1.6 system-ui}section{height:900px}section:nth-child(odd){background:#eef}section:nth-child(even){background:#efe}
+iframe{width:100%;height:300px;border:0;display:block}</style>
+<section>1</section><section>2</section><section>3</section>
+<!-- 구글 지도 임베드처럼: 화면 가까이 와야 불러오기 시작하고(loading=lazy), 뜨는 데 2.5초 걸린다 -->
+<iframe src="/느린프레임.html" loading="lazy"></iframe>
+<section>4</section>
