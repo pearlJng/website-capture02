@@ -541,6 +541,23 @@ const CASES = [
     },
   },
   {
+    // 오띠인터내셔널(2): 메뉴가 ⋮ 아이콘 뒤에 숨어 있고 화면에 줄로 선 건 언어 선택뿐이라,
+    // 언어 줄이 GNB 로 뽑혔다가 언어를 빼고 나니 메뉴가 0개였다. 언어는 줄 후보에서 빼고,
+    // 마우스로 찾은 메뉴가 비면 DOM 구조로 읽은 메뉴를 쓴다.
+    name: '메뉴구조: 아이콘 뒤에 숨은 메뉴 — 언어 줄을 GNB 로 잡지 않고 DOM 으로 읽는다',
+    file: 'iconnav.html', sitemap: true,
+    check: (r) => {
+      if (!r.ok) return `실패: ${r.error}`;
+      const top = r.menu.map((x) => x.label);
+      if (top.join('|') !== 'COMPANY|BRAND|ARCHIVE|MARKETS') return `최상위가 ${top.join(' / ') || '(없음)'} (method ${r.method})`;
+      if (r.menu[0].children.map((x) => x.label).join('|') !== 'Introduction|History') return `COMPANY 하위가 ${r.menu[0].children.map((x) => x.label).join(' / ') || '(없음)'}`;
+      if (!r.menu.every((x) => x.kind === '페이지' && x.href.startsWith(BASE))) return '연결한 도메인 링크를 입력한 주소로 안 바꿨다';
+      const langs = (r.languages || []).slice().sort().join('|');
+      if (!/English/.test(langs) || !/한국어/.test(langs)) return `언어 선택이 ${langs || '(없음)'}`;
+      return null;
+    },
+  },
+  {
     // 정보구조는 헤더 목록의 중첩을 그대로 읽는다. 숨긴 드롭다운도 읽고,
     // 모바일 메뉴에 반복된 링크는 한 번만 세고, 외부·앵커·파일은 표시한다.
     name: '정보구조: 메뉴 트리를 읽고 중복·외부·앵커를 가른다',

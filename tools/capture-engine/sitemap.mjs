@@ -36,9 +36,14 @@ const PAGE_TIMEOUT = 30000;
  * 숨겨진 드롭다운도 읽는다 — 보이는 것만 읽으면 하위 메뉴가 전부 빠진다.
  * 모바일 메뉴가 DOM 에 따로 있어 같은 링크가 두 번 나오는데, 주소+이름으로 걸러낸다.
  */
-function inPageReadNav() {
+function inPageReadNav(aliasList) {
   const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
   const seen = new Set();
+  // 사이트의 다른 주소(연결한 도메인)도 사이트 안이다 — 바깥에서 찾아 넘겨 준다
+  const origins = new Set([location.origin, ...(aliasList || [])]);
+  // 언어 선택 목록은 GNB 가 아니다 (바깥의 LANG 과 같은 규칙)
+  const LANG = /^(en|eng|english|kr|ko|kor|korean|한국어|한글|jp|ja|jpn|japanese|日本語|cn|zh|chinese|中文|简体中文|繁體中文|de|deutsch|german|fr|français|french|es|español|spanish|vi|tiếng việt|th|ไทย|language|languages|lang|언어|global)$/i;
+  const langLabel = (t) => { const parts = String(t || '').split(/[\/|·,]/).map((x) => x.trim()).filter(Boolean); return parts.length > 0 && parts.every((x) => LANG.test(x)); };
 
   const cap = (t) => (t.length > 50 ? t.slice(0, 47) + '…' : t);
   const labelOf = (a) => cap(clean(a.innerText || a.textContent)
@@ -48,7 +53,7 @@ function inPageReadNav() {
   const kindOf = (u) => {
     if (!u) return '없음';
     if (/^(mailto|tel|sms):/.test(u.protocol)) return '연락';
-    if (u.origin !== location.origin) return '외부';
+    if (!origins.has(u.origin)) return '외부';
     if (/\.(pdf|zip|docx?|xlsx?|pptx?|hwp)$/i.test(u.pathname)) return '파일';
     if (u.hash) return '앵커';           // 어느 페이지든 그 안의 한 자리를 가리키는 링크
     return '페이지';
@@ -126,8 +131,9 @@ function inPageReadNav() {
     }
   }
   const countPages = (items) => items.reduce((n, x) => n + (x.kind === '페이지' ? 1 : 0) + countPages(x.children), 0);
-  let gnbLists = lists.filter((items) => countPages(items) >= 3);
-  if (!gnbLists.length && lists.length) gnbLists = [lists.reduce((a, b) => (b.length > a.length ? b : a))];
+  const allLang = (items) => items.length > 0 && items.every((x) => langLabel(x.label));
+  let gnbLists = lists.filter((items) => countPages(items) >= 3 && !allLang(items));
+  if (!gnbLists.length && lists.filter((l) => !allLang(l)).length) gnbLists = [lists.filter((l) => !allLang(l)).reduce((a, b) => (b.length > a.length ? b : a))];
   const menu = gnbLists.flat();
   const utility = lists.filter((l) => !gnbLists.includes(l)).flat()
     .filter((x) => x.kind !== '없음');
@@ -166,6 +172,36 @@ function inPageReadNav() {
     // 판정이 틀렸을 때 들여다볼 수 있게 헤더 원문을 남긴다
     headerHtml: headerRoots.slice(0, 4).map((el) => el.outerHTML).join('\n\n').slice(0, 300000),
   };
+}
+
+/**
+ * 사이트의 다른 주소를 찾는다. 아임웹은 imweb.me 주소로 들어가도 메뉴 링크가 연결한 도메인으로
+ * 적혀 있다. og:url·canonical 의 주소, 그리고 헤더 링크의 3개 이상(또는 3할 이상)이 가리키는
+ * 주소를 같은 사이트로 본다. SNS·포털·마켓은 뺀다.
+ */
+function inPageAliasOrigins() {
+  const out = new Set();
+  for (const sel of ['link[rel="canonical"]', 'meta[property="og:url"]']) {
+    const el = document.querySelector(sel);
+    const v = el && (el.getAttribute('href') || el.getAttribute('content'));
+    try { if (v) { const o = new URL(v, location.href).origin; if (o !== location.origin) out.add(o); } } catch { /* 무시 */ }
+  }
+  const SOCIAL = /facebook|instagram|youtube|youtu\.be|twitter|x\.com|linkedin|tiktok|pinterest|kakao|naver\.(com|me)|blog\.|smartstore|coupang|google\.|apple\.com|play\.google/i;
+  const HEADERISH = 'header, nav, [role="navigation"], [class*="gnb"], [id*="gnb"], [class*="header"], [id*="header"], [class*="menu"], [id*="menu"], [class*="nav"], [id*="nav"]';
+  const counts = new Map(); let total = 0;
+  const seen = new Set();
+  for (const root of document.querySelectorAll(HEADERISH)) {
+    if (root.getBoundingClientRect().height > window.innerHeight * 1.2) continue;
+    for (const a of root.querySelectorAll('a[href]')) {
+      if (seen.has(a)) continue; seen.add(a);
+      let u; try { u = new URL(a.getAttribute('href'), location.href); } catch { continue; }
+      if (!/^https?:$/.test(u.protocol)) continue;
+      total++;
+      if (u.origin !== location.origin) counts.set(u.origin, (counts.get(u.origin) || 0) + 1);
+    }
+  }
+  for (const [o, n] of counts) if (!SOCIAL.test(o) && (n >= 3 || n >= total * 0.3)) out.add(o);
+  return [...out];
 }
 
 /* ── 마우스를 올려 찾는 방식에 쓰는 페이지 안 도우미들 ── */
@@ -416,7 +452,11 @@ async function discoverByHover(page, origin, progress, aliases = new Set()) {
   // 220px 로 잡았더니 로고 아래 두 번째 줄에 메뉴가 있는 쇼핑몰(K'sox)을 놓쳤다.
   const vh = (page.viewportSize() || { height: 900 }).height;
   const band = Math.max(320, Math.round(vh * 0.35));
-  const top = base.filter((it) => it.y < band && it.h <= 120 && it.label.length <= 30);
+  // 언어 선택(한국어·English·KR·EN)은 줄 후보에서 뺀다 — 진짜 메뉴가 아이콘(⋮) 뒤에 숨은
+  // 사이트에서 언어 줄이 "항목 넷짜리 줄"로 GNB 에 뽑혔고, 언어를 빼고 나니 메뉴가 0개였다(오띠).
+  const top = base.filter((it) => it.y < band && it.h <= 120 && it.label.length <= 30 && !isLang({ label: it.label }));
+  // 뺀 언어 선택은 "무엇을 뺐는지" 한 줄로 남긴다
+  const langTop = [...new Set(base.filter((it) => it.y < band && it.h <= 120 && isLang({ label: it.label })).map((it) => it.label))];
   const rows = new Map();
   for (const it of top) {
     const key = Math.round((it.y + it.h / 2) / 8);
@@ -527,7 +567,7 @@ async function discoverByHover(page, origin, progress, aliases = new Set()) {
   // 알림·마이페이지 같은 버튼은 보통 다른 줄(유틸리티 바)에 있어 여기 안 섞인다.
   // 언어 선택은 같은 줄에 앉아 있어도 GNB 가 아니다. 정보구조 항목으로도 안 적는다 —
   // 무엇을 뺐는지만 한 줄로 남긴다.
-  const languages = [];
+  const languages = [...langTop];
   const gnb = [];
   for (const m of menu) {
     if (isLang(m)) languages.push(m.label);
@@ -558,37 +598,10 @@ export async function extractSitemap(context, url, opts = {}) {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: PAGE_TIMEOUT });
     await page.waitForLoadState('networkidle', { timeout: 4000 }).catch(() => {});
     await page.waitForTimeout(500);
-    const home = await page.evaluate(inPageReadNav);
     const origin = new URL(page.url()).origin;
+    const aliases = new Set(await page.evaluate(inPageAliasOrigins).catch(() => []));
+    const home = await page.evaluate(inPageReadNav, [...aliases]);
 
-    // 사이트의 다른 주소. 아임웹은 imweb.me 주소로 들어가도 메뉴 링크가 연결한 도메인
-    // (en.ottieintl.com)으로 적혀 있다 — 그대로 두면 하위 메뉴가 전부 "외부 링크"가 되어 빠진다.
-    // og:url·canonical 의 주소, 그리고 헤더 링크의 3개 이상(또는 3할 이상)이 가리키는 주소를
-    // 같은 사이트로 본다. 캡처는 들어온 주소(origin)로 바꿔서 한다 — 도메인이 아직 안 붙어
-    // 있어도 찍힌다.
-    const aliases = await page.evaluate(() => {
-      const out = [];
-      for (const sel of ['link[rel="canonical"]', 'meta[property="og:url"]']) {
-        const el = document.querySelector(sel);
-        const v = el && (el.getAttribute('href') || el.getAttribute('content'));
-        try { if (v) out.push(new URL(v, location.href).origin); } catch { /* 무시 */ }
-      }
-      return out;
-    }).then((list) => new Set(list.filter((o) => o && o !== origin))).catch(() => new Set());
-    {
-      const flat = [];
-      const walk = (items) => { for (const x of items || []) { flat.push(x); walk(x.children); } };
-      walk(home.menu); walk(home.utility); walk(home.loose);
-      const counts = new Map(); let total = 0;
-      for (const x of flat) {
-        if (!x.href) continue;
-        let o; try { o = new URL(x.href).origin; } catch { continue; }
-        total++;
-        if (o !== origin) counts.set(o, (counts.get(o) || 0) + 1);
-      }
-      const SOCIAL = /facebook|instagram|youtube|youtu\.be|twitter|x\.com|linkedin|tiktok|pinterest|kakao|naver\.(com|me)|blog\.|smartstore|coupang|google\.|apple\.com|play\.google/i;
-      for (const [o, n] of counts) if (!SOCIAL.test(o) && (n >= 3 || n >= total * 0.3)) aliases.add(o);
-    }
     const origins = new Set([origin, ...aliases]);
     // 다른 주소로 적힌 링크를 들어온 주소로 바꾼다 (경로는 그대로)
     const rehost = (items) => {
@@ -644,6 +657,7 @@ export async function extractSitemap(context, url, opts = {}) {
       // 유틸리티로 간 것은 "헤더의 다른 링크"에 다시 안 나온다
       const inUtil = new Set(home.utility.map((x) => normUrl(x.href)));
       home.loose = home.loose.filter((x) => !inUtil.has(normUrl(x.href)));
+      home.domMenu = home.menu;
       home.menu = hovered;
       home.languages = found.languages;
       method = 'hover';
@@ -661,6 +675,14 @@ export async function extractSitemap(context, url, opts = {}) {
     home.loose = dropLang(home.loose);
     home.footer = dropLang(home.footer);
     home.languages = [...languages];
+    // 마우스로 찾은 메뉴가 언어 선택뿐이어서 비었으면, DOM 구조로 읽은 메뉴를 쓴다.
+    // 메뉴가 아이콘(⋮·≡) 뒤에 숨어 화면에 줄로 안 서는 사이트가 그렇다 — DOM 에는 있다.
+    const usable = (items) => items.reduce((n, x) => n + (x.kind === '페이지' ? 1 : 0) + usable(x.children || []), 0);
+    if (method === 'hover' && usable(home.menu) === 0 && home.domMenu && usable(home.domMenu) > 0) {
+      home.menu = dropLang(home.domMenu);
+      method = 'dom';
+    }
+    delete home.domMenu;
 
     progress('메인페이지 구성 읽는 중');
     await page.evaluate(inPageQuickScroll);

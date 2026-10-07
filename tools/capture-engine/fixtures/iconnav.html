@@ -1,0 +1,30 @@
+<!doctype html><meta charset=utf-8><title>아이콘 뒤에 숨은 메뉴</title>
+<meta property="og:url" content="http://localhost:8826/">
+<style>
+body{margin:0;font:16px/1.6 system-ui}
+header{display:flex;gap:24px;padding:16px 24px;border-bottom:1px solid #ddd;align-items:center;justify-content:space-between}
+.langs{display:flex;gap:14px;list-style:none;margin:0;padding:0}
+.more{position:relative}
+.more > a{display:inline-block;width:40px;height:40px;text-align:center;line-height:40px;font-size:22px}
+.more ul{display:none;position:absolute;right:0;top:100%;background:#fff;padding:8px;min-width:180px;list-style:none;margin:0}
+.more:hover > ul{display:block}
+.more li{position:relative}
+.more li ul{display:none;position:absolute;left:100%;top:0}
+.more li:hover > ul{display:block}
+section{height:900px}
+</style>
+<!-- 오띠인터내셔널: 메뉴가 ⋮ 아이콘 뒤에 있고, 화면에 줄로 선 것은 언어 선택(한국어·English·KR·EN)뿐.
+     언어 줄을 GNB 로 잡으면 언어를 빼고 나서 메뉴가 0개가 된다. 링크는 연결한 도메인으로 적혀 있다. -->
+<header>
+  <a href="http://localhost:8826/" class="logo"><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="로고" style="width:120px;height:32px"></a>
+  <ul class="langs"><li><a href="/?lang=ko">한국어</a></li><li><a href="/?lang=en">English</a></li><li><a href="/?lang=kr">KR</a></li><li><a href="/?lang=en2">EN</a></li></ul>
+  <div class="more"><a href="javascript:void(0)" aria-label="메뉴">⋮</a>
+    <ul>
+      <li><a href="http://localhost:8826/74">COMPANY</a><ul><li><a href="http://localhost:8826/Introduction">Introduction</a></li><li><a href="http://localhost:8826/history">History</a></li></ul></li>
+      <li><a href="http://localhost:8826/brand">BRAND</a><ul><li><a href="http://localhost:8826/OTTIE">OTTIE</a></li></ul></li>
+      <li><a href="http://localhost:8826/ARCHIVE">ARCHIVE</a></li>
+      <li><a href="http://localhost:8826/MARKETS">MARKETS</a></li>
+    </ul>
+  </div>
+</header>
+<main><section><h1>히어로</h1></section><section><h2>About</h2></section></main>
