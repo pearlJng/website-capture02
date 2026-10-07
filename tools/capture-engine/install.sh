@@ -2,7 +2,7 @@
 # 웹사이트 스냅샷 — 맥에 한 번에 설치한다.
 #
 #   터미널에 아래 한 줄을 붙여 넣는다 (GitHub 저장소에 접근 권한이 있어야 한다):
-#   git clone https://github.com/pearlJng/website-capture02.git ~/website-capture02 && bash ~/website-capture02/tools/capture-engine/install.sh
+#   bash <(curl -fsSL https://raw.githubusercontent.com/pearlJng/website-capture02/claude/website-snapshot-automation-wdjs4i/tools/capture-engine/install.sh)
 #
 # 하는 일: git·Node·크롬을 확인하고(없으면 설치 안내), 코드를 받고, 라이브러리를 깔고,
 # 바탕화면에 "웹사이트 스냅샷.command" 를 만든다. 그 뒤로는 그 파일을 더블클릭하면 된다.

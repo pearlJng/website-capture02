@@ -225,7 +225,7 @@ sticky 요소(스크롤하면 따라오는 옆 목록·소제목)는 숨기지 �
 `받는사람-안내.md` 에 있다.
 
 ```
-git clone https://github.com/pearlJng/website-capture02.git ~/website-capture02 && bash ~/website-capture02/tools/capture-engine/install.sh
+bash <(curl -fsSL https://raw.githubusercontent.com/pearlJng/website-capture02/claude/website-snapshot-automation-wdjs4i/tools/capture-engine/install.sh)
 ```
 
 ## 서버에 올려 어디서든 주소로 쓰기
