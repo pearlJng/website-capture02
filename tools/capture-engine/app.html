@@ -271,27 +271,34 @@
     // 아주 긴 페이지는 20,000px 씩 여러 장이다. 첫 장만 보여 주면 "잘렸다"고 보인다 —
     // 클릭하면 전부 이어서 보여 주고, 장마다 따로 열 수도 있게 한다.
     card.innerHTML = `${file ? `<input type="checkbox" class="sel" title="출력에 넣기" checked>` : ''}<div class="t">${file ? `<a href="${parts.length > 1 ? '#' : file}" target="_blank" class="thumb"><img src="${file}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'err',style:'padding:12px;font-size:12px',textContent:'그림을 못 불러왔어요: ' + decodeURIComponent(this.src.split('/').pop())}))"></a>` : `<div class="err" style="padding:12px">${esc(row.error || '이미지 없음')}</div>`}</div>
-      <div class="b"><b>${esc(row.path || row.name)}</b><span class="badge ${cls}">${esc(row.status)}</span>
-      ${row.docHeight ? ` <span class="mute">${row.docHeight.toLocaleString('en-US')}px</span>` : ''}
-      ${row.retakes ? ` <span class="mute">· ${row.retakes}번째 다시 찍음</span>` : ''}
+      <div class="b"><b>${esc(row.path || row.name)}</b>${row.status === '실패' || row.status === '직접 찍음' ? `<span class="badge ${cls}">${esc(row.status)}</span>` : ''}
+      ${row.manualNote ? `<div class="mute">${esc(row.manualNote)}</div>` : ''}
       ${parts.length > 1 ? `<div class="mute">너무 길어 ${parts.length}장으로 나뉨 (출력하면 한 장으로 붙습니다) · ${parts.map((p, i) => `<a href="${p}" target="_blank">${i + 1}</a>`).join(' · ')} · <a href="#" class="stack">이어서 보기</a></div>` : ''}
-      ${row.gaps && row.gaps.length ? `<div class="mute">${esc(row.gaps.join(' · '))}</div>` : ''}
-      ${(row.notes || []).filter((n) => /헤더|잘라/.test(n)).map((n) => `<div class="mute">${esc(n)}</div>`).join('')}
       ${row.pieceFiles && row.pieceFiles.length ? `<div class="mute">조각: ${row.pieceFiles.map((f, i) => `<a href="${fileUrl(id, f)}" target="_blank">${i + 1}</a>`).join(' · ')}</div>` : ''}
       ${row.previous && row.previous.length ? `<div class="prev">이전: ${row.previous.map((f) => `<a href="${fileUrl(id, f)}" target="_blank">${esc(f)}</a>`).join(', ')}</div>` : ''}
       <div class="retake">
         <div class="r"><button class="rt go" title="직접 찍기 — 이 페이지를 새 탭에 연다" aria-label="직접 찍기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button><span class="mute">직접 찍기</span>
-        <button class="rt up" title="직접 찍은 그림으로 바꾸기" aria-label="직접 찍은 그림으로 바꾸기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><polyline points="6 10 12 4 18 10"/><path d="M4 20h16"/></svg></button><span class="mute">직접 찍은 그림으로 바꾸기</span>
-        <input type="file" class="upf" accept="image/png,image/jpeg" hidden></div>
+        <button class="rt up" title="직접 찍은 그림으로 바꾸기 — 여러 장을 고르면 순서대로 이어 붙입니다" aria-label="직접 찍은 그림으로 바꾸기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><polyline points="6 10 12 4 18 10"/><path d="M4 20h16"/></svg></button><span class="mute">직접 찍은 그림으로 바꾸기 <small>(여러 장이면 이어 붙임)</small></span>
+        <input type="file" class="upf" accept="image/png,image/jpeg" multiple hidden></div>
       </div></div>`;
     // 자동 캡처가 못 잡는 페이지는 사람이 크롬에서 전체 페이지를 찍어 올린다 (PNG·JPG).
     const upf = card.querySelector('.upf');
     card.querySelector('.up').onclick = () => upf.click();
     upf.onchange = async () => {
-      const f = upf.files[0]; if (!f) return;
-      card.querySelector('.t').innerHTML = '그림을 올리는 중';
+      const files = [...upf.files].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+      if (!files.length) return;
+      card.querySelector('.t').innerHTML = files.length > 1 ? `${files.length}장을 이어 붙이는 중` : '그림을 올리는 중';
+      let body, type;
+      if (files.length === 1) { body = files[0]; type = files[0].type || 'image/png'; }
+      else {
+        // 화면 조각 여러 장: 이름순(맥 스크린샷은 시각순)으로, 길이 목록 한 줄 + PNG 들
+        if (files.some((f) => !/png/i.test(f.type))) { alert('여러 장을 이어 붙일 때는 PNG 만 됩니다 (맥 스크린샷은 PNG 입니다)'); return; }
+        const bufs = await Promise.all(files.map((f) => f.arrayBuffer()));
+        body = new Blob([JSON.stringify(bufs.map((b) => b.byteLength)) + '\n', ...bufs]);
+        type = 'application/x-cap-parts';
+      }
       const r = await fetch(`/api/replace?id=${encodeURIComponent(id)}&url=${encodeURIComponent(row.url)}`,
-        { method: 'POST', headers: { 'content-type': f.type || 'image/png' }, body: f }).then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
+        { method: 'POST', headers: { 'content-type': type }, body }).then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
       if (!r.ok) { alert(r.error); card.dataset.stamp = ''; poll(id); return; }
       card.dataset.stamp = '';
       poll(id);
@@ -371,7 +378,7 @@
     for (const row of j.rows) {
       const card = document.querySelector(`.card[data-url="${CSS.escape(norm(row.url))}"]`);
       if (!card) continue;
-      const stamp = `${row.status}|${(row.files || []).join(',')}|${row.retakes || 0}`;
+      const stamp = `${row.status}|${(row.files || []).join(',')}|${row.retakes || 0}|${row.manual || 0}`;
       if (card.dataset.stamp === stamp) continue;
       card.dataset.stamp = stamp;
       card.classList.remove('pending');

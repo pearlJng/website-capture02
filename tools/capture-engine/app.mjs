@@ -23,7 +23,7 @@ import { extractSitemap, renderTree } from './sitemap.mjs';
 import { shootAll, writeOutputs } from './shoot.mjs';
 import { writeFileSync, copyFileSync, readFileSync as readBytes } from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
-import { mergePngsVertically } from './png.mjs';
+import { mergePngsVertically, stitchUserShots } from './png.mjs';
 import AdmZip from 'adm-zip';
 
 /* 브라우저로 내려받기 — 서버에 올렸을 때(맥 저장 창을 못 띄울 때) 쓰는 길.
@@ -409,17 +409,33 @@ const server = createServer(async (req, res) => {
       const row = job.rows.find((r) => normUrl(r.url) === normUrl(u.searchParams.get('url') || ''));
       if (!row) return json(res, 404, { ok: false, error: '그 페이지의 결과가 없습니다' });
       const type = String(req.headers['content-type'] || '');
-      const ext = /png/i.test(type) ? '.png' : /jpe?g/i.test(type) ? '.jpg' : null;
+      // 여러 장(화면 조각)은 application/x-cap-parts: 첫 줄에 길이 목록(JSON), 그 뒤에 PNG 들을 이어 붙인 본문
+      const multi = /x-cap-parts/i.test(type);
+      const ext = multi || /png/i.test(type) ? '.png' : /jpe?g/i.test(type) ? '.jpg' : null;
       if (!ext) return json(res, 400, { ok: false, error: 'PNG 나 JPG 그림만 올릴 수 있습니다' });
       let buf;
       try { buf = await readRaw(req); } catch (e) { return json(res, 400, { ok: false, error: e.message }); }
       if (buf.length < 100) return json(res, 400, { ok: false, error: '빈 파일입니다' });
+      let stitchNotes = [];
+      if (multi) {
+        const nl = buf.indexOf(10);
+        let lens;
+        try { lens = JSON.parse(buf.subarray(0, nl).toString()); } catch { return json(res, 400, { ok: false, error: '조각 목록을 읽을 수 없습니다' }); }
+        const parts = []; let o = nl + 1;
+        for (const L of lens) { parts.push(buf.subarray(o, o + L)); o += L; }
+        try {
+          const r = stitchUserShots(parts);
+          buf = r.png; stitchNotes = r.notes;
+        } catch (e) { return json(res, 400, { ok: false, error: `이어 붙이지 못했습니다: ${e.message}` }); }
+      }
       row.manual = (row.manual || 0) + 1;
       const base = (row.name || 'page').replace(/ \((다시|직접) \d+\)$/, '');
       const name = `${base} (직접 ${row.manual})${ext}`;
       writeFileSync(join(job.outDir, name), buf);
       row.previous = [...(row.previous || []), ...(row.files || [])];
-      Object.assign(row, { files: [name], status: '직접 찍음', error: '', gaps: [], diffFile: '', pieceFiles: [], notes: ['직접 찍은 그림으로 바꿨습니다'] });
+      Object.assign(row, { files: [name], status: '직접 찍음', error: '', gaps: [], diffFile: '', pieceFiles: [],
+        notes: ['직접 찍은 그림으로 바꿨습니다', ...stitchNotes],
+        manualNote: multi ? `직접 찍은 조각을 이어 붙였습니다 — ${stitchNotes.join(' · ') || '겹침 없음'}` : '직접 찍은 그림으로 바꿨습니다' });
       job.log.push(`  ✎ ${row.path || row.name} 직접 찍은 그림으로 바꿈 (${name})`);
       try { writeOutputs(job.rows, { ...job.meta, when: new Date().toLocaleString('ko-KR') }, job.outDir); } catch { /* 무시 */ }
       return json(res, 200, { ok: true, file: name });

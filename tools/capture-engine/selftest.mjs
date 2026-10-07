@@ -16,7 +16,7 @@ import { captureSite, VIEWPORT, SAFE_PIXELS, DEVICES, contextOptionsFor } from '
 import { compareCaptures, renderDiffStrip, VERDICT } from './diff.mjs';
 import { createBrowserHost, isBrowserDeath } from './browser.mjs';
 import { extractSitemap } from './sitemap.mjs';
-import { mergePngsVertically, decodePng } from './png.mjs';
+import { mergePngsVertically, decodePng, stitchUserShots } from './png.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PORT = 8825;
@@ -494,6 +494,28 @@ const CASES = [
       try { rs = await Promise.all(jobs); } catch (e) { return `동시 비교가 터졌다: ${e.message.split('\n')[0]}`; }
       if (rs.slice(0, 6).some((r) => r.verdict !== VERDICT.DIFF)) return '다른 그림을 같다고 했다';
       if (!same(rs[6].verdict)) return '같은 그림을 다르다고 했다';
+      return null;
+    },
+  },
+  {
+    // 움직이는 것이 너무 많아 자동 캡처가 안 되면 사람이 스크롤해 가며 화면을 찍어 올린다.
+    // 고정 헤더가 조각마다 찍혀 있고 조각끼리 겹치는데, 그걸 알아서 잘라 한 장으로 잇는다.
+    name: '사람이 찍은 화면 조각들을 헤더·겹침을 잘라 한 장으로 잇는다',
+    unit: async ({ host }) => {
+      const b = await host.get();
+      const ctx = await b.newContext({ viewport: { width: 1000, height: 900 } });
+      const pg = await ctx.newPage();
+      await pg.goto(BASE + 'userstitch.html'); await pg.waitForTimeout(300);
+      const bufs = [];
+      for (const y of [0, 700, 1400, 1400]) { await pg.evaluate((y) => scrollTo(0, y), y); await pg.waitForTimeout(150); bufs.push(await pg.screenshot()); }
+      const ref = decodePng(await pg.screenshot({ fullPage: true }));
+      await ctx.close();
+      const r = stitchUserShots(bufs);
+      const d = decodePng(r.png);
+      if (Math.abs(d.height - ref.height) > 60) return `이은 높이 ${d.height}px, 실제 ${ref.height}px — 겹침을 잘못 잘랐다 (${r.notes.join(' / ')})`;
+      let bad = 0; const stride = d.width * d.bpp; const h = Math.min(d.height, ref.height);
+      for (let y = 100; y < h; y += 7) { for (let x = 0; x < stride; x += 4 * d.bpp) if (Math.abs(d.rows[y * stride + x] - ref.rows[y * stride + x]) > 8) { bad++; break; } }
+      if (bad > 15) return `실제 페이지와 다른 줄이 ${bad}개 — 어긋나게 붙였다 (${r.notes.join(' / ')})`;
       return null;
     },
   },

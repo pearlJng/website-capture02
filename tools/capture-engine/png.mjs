@@ -109,3 +109,100 @@ export function mergePngsVertically(bufs) {
   }
   return encodePng({ width, height, bpp, rows });
 }
+
+/* ───────────── 사람이 찍은 화면 조각 이어 붙이기 ───────────── */
+
+/** 두 행의 평균 절대 차. 4px 마다 본다. */
+function rowDiff(A, ao, B, bo, stride, bpp) {
+  let sum = 0, n = 0;
+  for (let x = 0; x < stride; x += bpp * 4) {
+    sum += Math.abs(A[ao + x] - B[bo + x]) + Math.abs(A[ao + x + 1] - B[bo + x + 1]) + Math.abs(A[ao + x + 2] - B[bo + x + 2]);
+    n += 3;
+  }
+  return sum / n;
+}
+
+/** 행이 얼마나 "내용"이 있는가 — 한 색으로 밋밋한 행은 어디에나 맞아 기준으로 못 쓴다. */
+function rowVariance(A, ao, stride, bpp) {
+  let sum = 0, n = 0;
+  for (let x = bpp * 4; x < stride; x += bpp * 4) {
+    sum += Math.abs(A[ao + x] - A[ao + x - bpp * 4]) + Math.abs(A[ao + x + 1] - A[ao + x + 1 - bpp * 4]);
+    n += 2;
+  }
+  return sum / n;
+}
+
+/**
+ * 사람이 스크롤해 가며 찍은 화면 조각들을 한 장으로 잇는다 (순서대로).
+ *
+ * 1) 모든 조각의 맨 위에 똑같이 찍힌 띠(고정 헤더)는 둘째 조각부터 잘라낸다.
+ * 2) 앞 조각의 아래쪽 한 토막(64줄, 내용이 있는 곳)을 뒤 조각에서 찾아 겹친 만큼 잘라낸다.
+ *    못 찾으면 겹치지 않은 것으로 보고 그대로 붙인다.
+ * 폭이 다르면 못 잇는다 — 같은 창에서 찍어야 한다.
+ */
+export function stitchUserShots(bufs) {
+  const imgs = bufs.map(decodePng);
+  const width = imgs[0].width, bpp = imgs[0].bpp;
+  if (imgs.some((i) => i.width !== width || i.bpp !== bpp)) {
+    throw new Error(`폭이 다른 그림은 이어 붙일 수 없습니다 (${imgs.map((i) => i.width).join(', ')}px) — 같은 창 크기로 찍어 주세요`);
+  }
+  const stride = width * bpp;
+  const notes = [];
+  if (imgs.length === 1) return { png: encodePng(imgs[0]), notes: [] };
+
+  // 1) 공통 띠: 모든 조각에서 같은 행이 위에서부터 몇 줄인가
+  let band = 0;
+  const maxBand = Math.floor(Math.min(...imgs.map((i) => i.height)) * 0.4);
+  for (; band < maxBand; band++) {
+    let same = true;
+    for (let k = 1; k < imgs.length && same; k++) {
+      if (rowDiff(imgs[0].rows, band * stride, imgs[k].rows, band * stride, stride, bpp) > 2) same = false;
+    }
+    if (!same) break;
+  }
+  if (band < 16) band = 0;
+  if (band) notes.push(`모든 조각 위에 같은 띠 ${band}px (고정 헤더) — 둘째 조각부터 잘라냄`);
+
+  // 2) 겹침 찾기
+  const pieces = [{ rows: imgs[0].rows, from: 0, to: imgs[0].height }];
+  let prev = imgs[0], prevTo = imgs[0].height;
+  const K = 64;
+  for (let k = 1; k < imgs.length; k++) {
+    const cur = imgs[k];
+    // 앞 조각 아래쪽 200줄 안에서 가장 내용이 많은 64줄 토막
+    let bestStart = -1, bestVar = -1;
+    for (let s = Math.max(0, prevTo - 200); s + K <= prevTo; s += 8) {
+      let v = 0;
+      for (let y = 0; y < K; y += 4) v += rowVariance(prev.rows, (s + y) * stride, stride, bpp);
+      if (v > bestVar) { bestVar = v; bestStart = s; }
+    }
+    let crop = band;
+    if (bestStart >= 0 && bestVar > 4 * (K / 4)) {
+      const limit = Math.min(cur.height - K, Math.floor(cur.height * 0.9));
+      let found = -1, foundErr = Infinity;
+      for (let o = 0; o <= limit; o++) {   // 띠 안쪽부터 본다 — 토막이 띠 바로 밑에 걸쳐 있을 수 있다
+        // 첫 줄로 빠르게 거른 뒤 토막 전체를 본다
+        if (rowDiff(prev.rows, bestStart * stride, cur.rows, o * stride, stride, bpp) > 6) continue;
+        let err = 0;
+        for (let y = 0; y < K; y += 2) err += rowDiff(prev.rows, (bestStart + y) * stride, cur.rows, (o + y) * stride, stride, bpp);
+        err /= K / 2;
+        if (err < foundErr) { foundErr = err; found = o; }
+      }
+      if (found >= 0 && foundErr <= 4) {
+        crop = Math.max(band, found + (prevTo - bestStart));   // 앞 조각의 끝에 해당하는 뒤 조각의 줄
+        notes.push(`${k}·${k + 1}번째 조각이 ${crop}px 겹침 — 잘라냄`);
+      } else {
+        notes.push(`${k}·${k + 1}번째 조각은 겹치는 곳을 못 찾음 — 그대로 이어 붙임`);
+      }
+    }
+    crop = Math.min(crop, cur.height);
+    pieces.push({ rows: cur.rows, from: crop, to: cur.height });
+    prev = cur; prevTo = cur.height;
+  }
+
+  const height = pieces.reduce((s, p) => s + (p.to - p.from), 0);
+  const rows = Buffer.alloc(stride * height);
+  let off = 0;
+  for (const p of pieces) { p.rows.copy(rows, off, p.from * stride, p.to * stride); off += (p.to - p.from) * stride; }
+  return { png: encodePng({ width, height, bpp, rows }), notes, band };
+}

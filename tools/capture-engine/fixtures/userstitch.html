@@ -1,0 +1,16 @@
+<!doctype html><meta charset=utf-8><title>사람이 찍은 조각 잇기</title>
+<style>
+body{margin:0;font:16px/1.6 system-ui;background:#fff}
+header{position:fixed;top:0;left:0;width:100%;height:80px;background:#ff00aa;color:#fff;display:flex;align-items:center;padding:0 24px;font-weight:700;z-index:9}
+main{padding-top:80px}
+.row{height:40px;padding:0 24px;border-bottom:1px solid #ddd;display:flex;align-items:center;gap:24px}
+.row b{width:60px}.row i{display:inline-block;height:14px;background:#4a7}
+</style>
+<header>GNB · About · Product · Contact</header>
+<main id="m"></main>
+<script>
+// 줄마다 다른 내용 — 겹침을 찾을 수 있게. 2300px 짜리 문서.
+const m = document.getElementById('m');
+for (let i = 0; i < 55; i++) { const d = document.createElement('div'); d.className = 'row'; d.innerHTML = `<b>${String(i).padStart(3,'0')}</b><i style="width:${40 + (i * 37) % 300}px"></i><span>줄 ${i} 의 내용입니다 ${'·'.repeat(i % 7)}</span>`; m.appendChild(d); }
+document.body.style.height = '2300px';
+</script>
