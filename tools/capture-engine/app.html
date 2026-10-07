@@ -234,7 +234,9 @@
       utilRows.push(`<label class="d${d}"><input type="checkbox" class="pg" data-depth="${d}" data-util="1" data-url="${esc(it.href)}" data-label="${esc(path)}"> ${esc(it.label)} <span class="path">${esc(shortUrl(it.href))}</span></label>`);
       return true;
     };
-    for (const it of [...(r.utility || []), ...(r.loose || [])]) {
+    // 카페24 기본 화면 묶음은 맨 끝에 — 화면에 보이는 아이콘·링크가 먼저다
+    const utilAll = [...(r.utility || []).filter((x) => !x.std), ...(r.loose || []), ...(r.utility || []).filter((x) => x.std)];
+    for (const it of utilAll) {
       const kids = it.children || [];
       const shown = utilRow(it, 1, it.label);
       if (!shown && kids.length) utilRows.push(`<div class="d1 skip">${esc(it.label)}<span class="why">(${it.std ? '메뉴에 안 보여도 카페24 쇼핑몰에 늘 있는 화면' : '아이콘 메뉴'})</span></div>`);

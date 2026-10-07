@@ -45,8 +45,23 @@ function inPageReadNav(aliasList) {
   const LANG = /^(en|eng|english|kr|ko|kor|korean|한국어|한글|jp|ja|jpn|japanese|日本語|cn|zh|chinese|中文|简体中文|繁體中文|de|deutsch|german|fr|français|french|es|español|spanish|vi|tiếng việt|th|ไทย|language|languages|lang|언어|global)$/i;
   const langLabel = (t) => { const parts = String(t || '').split(/[\/|·,]/).map((x) => x.trim()).filter(Boolean); return parts.length > 0 && parts.every((x) => LANG.test(x)); };
 
+  // 링크 글자. 숨긴 글자와 개수 배지(장바구니 "0")는 뺀다 — 카페24는 개수를 .displaynone·.count 로 숨겨 둔다.
+  // 조상의 숨김은 보지 않는다(숨은 드롭다운의 하위 메뉴도 읽어야 한다). 링크 안쪽만 본다.
+  const linkText = (el) => {
+    let out = '';
+    const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let n = w.nextNode(); n; n = w.nextNode()) {
+      let skip = false;
+      for (let q = n.parentElement; q && q !== el; q = q.parentElement) {
+        const c = typeof q.className === 'string' ? q.className : '';
+        if (/count|badge|qty|displaynone|(?:^|[\s_-])num(?:$|[\s_-])/i.test(c) || getComputedStyle(q).display === 'none') { skip = true; break; }
+      }
+      if (!skip) out += ' ' + n.textContent;
+    }
+    return clean(out);
+  };
   const cap = (t) => (t.length > 50 ? t.slice(0, 47) + '…' : t);
-  const labelOf = (a) => cap(clean(a.innerText || a.textContent)
+  const labelOf = (a) => cap(linkText(a)
     || clean(a.getAttribute('aria-label') || a.getAttribute('title'))
     || clean([...a.querySelectorAll('img[alt]')].map((i) => i.alt).join(' ')));
 
@@ -186,7 +201,7 @@ function inPageReadNav(aliasList) {
     }
     return false;
   };
-  const textOf = (el) => clean(el.innerText || el.textContent);
+  const textOf = (el) => linkText(el);
   const isIconTrigger = (el) => !textOf(el) && Boolean(el.querySelector('svg, img, i, span, em')) || (!textOf(el) && el.tagName === 'BUTTON');
   const iconMenus = [];
   const iconDiag = [];
@@ -334,6 +349,22 @@ function inPageTagItems() {
  */
 function inPageVisibleItems() {
   const clean = (t) => (t || '').replace(/\s+/g, ' ').trim();
+  // 링크 글자. 숨긴 글자와 개수 배지(장바구니 "0")는 뺀다 — 카페24는 개수를 .displaynone·.count 로 숨겨 둔다.
+  // 조상의 숨김은 보지 않는다(숨은 드롭다운의 하위 메뉴도 읽어야 한다). 링크 안쪽만 본다.
+  const linkText = (el) => {
+    let out = '';
+    const w = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let n = w.nextNode(); n; n = w.nextNode()) {
+      let skip = false;
+      for (let q = n.parentElement; q && q !== el; q = q.parentElement) {
+        const c = typeof q.className === 'string' ? q.className : '';
+        if (/count|badge|qty|displaynone|(?:^|[\s_-])num(?:$|[\s_-])/i.test(c) || getComputedStyle(q).display === 'none') { skip = true; break; }
+      }
+      if (!skip) out += ' ' + n.textContent;
+    }
+    return clean(out);
+  };
+
   const out = [];
   // 마우스를 올릴 때 스크립트가 새로 그린 드롭다운(장바구니 아이콘)도 볼 수 있게 새 요소에 번호를 단다
   let n = window.__iaN || 0;
@@ -359,7 +390,7 @@ function inPageVisibleItems() {
     const cy = Math.min(window.innerHeight - 1, Math.max(0, r.top + r.height / 2));
     const hit = document.elementFromPoint(cx, cy);
     if (!hit || !(el === hit || el.contains(hit) || hit.contains(el))) continue;
-    const text = clean(el.innerText || el.textContent);
+    const text = el.getClientRects().length ? clean(el.innerText) && linkText(el) : linkText(el);
     let label = text || clean(el.getAttribute('aria-label') || el.getAttribute('title'))
       || clean([...el.querySelectorAll('img[alt]')].map((i) => i.alt).join(' '));
     // 글자 없이 그림만 있는 링크 (로고). 인라인 a 는 높이가 글자 높이로 나와 그림 크기로는 못 가른다.

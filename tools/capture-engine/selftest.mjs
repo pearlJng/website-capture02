@@ -589,6 +589,7 @@ const CASES = [
       if (cs.children.map((x) => x.label).join('|') !== '자주 묻는 질문|1:1 문의') return `고객센터 하위가 ${cs.children.map((x) => x.label).join(' / ') || '(없음)'}`;
       const util = [...(r.utility || []), ...(r.loose || [])].map((x) => x.label);
       for (const w of ['장바구니', '로그인', '마이페이지']) if (!util.includes(w)) return `유틸리티에 ${w} 가 없다 (${util.join(', ') || '없음'})`;
+      if (util.some((x) => /^\d+$/.test(x))) return `숨긴 장바구니 개수("0")를 이름으로 읽었다 (${util.join(', ')})`;
       // 카페24 표시(xans-)가 있으니 메뉴에 안 보이는 기본 화면을 채운다 — 이미 있는 건 또 안 넣는다
       const std = (r.utility || []).find((x) => x.label === '카페24 기본 화면');
       if (!std) return '카페24 기본 화면(회원가입·주문조회…)을 채우지 않았다';
