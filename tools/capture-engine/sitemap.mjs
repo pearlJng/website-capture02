@@ -77,25 +77,43 @@ function inPageReadNav(aliasList) {
   const ownLink = (li) => [...li.querySelectorAll('a')].find((a) => a.closest('li') === li) || null;
   const ownList = (li) => [...li.querySelectorAll('ul, ol')].find((u) => u.parentElement.closest('li') === li) || null;
 
-  function walkList(list, depth) {
+  /**
+   * 컨테이너 안을 걸으며 항목(li)을 모은다. li 가 아닌 것(div·nav·ul·span)은 투명한 포장으로
+   * 보고 그 안으로 들어간다 — 아임웹은 ul 없이 div 바로 아래 li 를 두기도 하고, ul > li > div > li
+   * 처럼 포장 li 안에 진짜 메뉴 li 를 두기도 한다(⋮ 메뉴). ul/li 중첩만 믿으면 통째로 놓친다.
+   * 자기 링크도 하위 목록도 글자도 없는 li 는 포장이다 — 그 안을 같은 깊이로 읽는다.
+   */
+  const SKIP = /^(A|SCRIPT|STYLE|TEMPLATE|SVG|IMG|BUTTON|INPUT|SELECT|TEXTAREA|FORM|IFRAME|VIDEO)$/;
+  function walkInto(container, depth) {
     const items = [];
-    for (const li of list.children) {
-      if (li.tagName !== 'LI') continue;
-      const a = ownLink(li);
-      const sub = ownList(li);
-      let link = a ? linkOf(a) : null;
-      if (!link) {
-        // 링크 없는 항목(제목만 있는 그룹). 텍스트가 있으면 그룹으로 남긴다.
-        const text = clean([...li.childNodes].filter((n) => n.nodeType === 3 || (n.nodeType === 1 && !n.matches('ul, ol'))).map((n) => n.textContent).join(' '));
-        if (!text && !sub) continue;
-        link = { label: text || '(제목 없음)', href: '', kind: '없음' };
+    for (const el of container.children) {
+      if (el.nodeType !== 1) continue;
+      if (el.tagName === 'LI' || el.getAttribute('role') === 'menuitem') {
+        if (el.__read) continue;
+        el.__read = true;
+        const a = ownLink(el);
+        const sub = ownList(el);
+        let link = a ? linkOf(a) : null;
+        if (!link) {
+          // 링크 없는 항목(제목만 있는 그룹). 안쪽 메뉴의 글자는 빼고 자기 글자만 본다.
+          const text = clean([...el.childNodes].filter((n) => n.nodeType === 3 || (n.nodeType === 1 && !n.matches('ul, ol') && !n.querySelector('li'))).map((n) => n.textContent).join(' '));
+          if (!text && !sub) { items.push(...walkInto(el, depth)); continue; }   // 포장 li
+          link = { label: text || '(제목 없음)', href: '', kind: '없음' };
+        }
+        if (!link.label) continue;
+        const children = sub ? walkInto(sub, depth + 1) : [];
+        items.push({ ...link, depth, children });
+      } else if (!SKIP.test(el.tagName)) {
+        items.push(...walkInto(el, depth));   // 포장 — 투명
       }
-      if (!link.label) continue;
-      const children = sub ? walkList(sub, depth + 1) : [];
-      items.push({ ...link, depth, children });
     }
     return items;
   }
+  /** 이름 없는 그룹((제목 없음)) 하나가 메뉴를 통째로 감싸고 있으면 벗긴다 — ⋮ 버튼이 그렇다 */
+  const bump = (n, d) => { n.depth = d; for (const c of n.children) bump(c, d + 1); return n; };
+  // 글자가 없거나 아이콘뿐(⋮ ≡ ☰)인 항목이 하위를 감싸고 있으면 포장이다
+  const iconish = (t) => !/[\p{L}\p{N}]/u.test(t || '');
+  const unwrap = (items, d) => items.flatMap((x) => (x.kind === '없음' && (x.label === '(제목 없음)' || iconish(x.label)) && x.children.length ? unwrap(x.children, d).map((c) => bump(c, d)) : [bump(x, d)]));
   /**
    * 같은 링크가 여러 번 나온다(모바일 메뉴·데스크탑 메뉴). 하나만 남기되 **더 깊이 들어 있는
    * 쪽**을 남긴다 — 아임웹 모바일 메뉴는 li 가 ul 없이 있어 하위 ul 이 "최상위 목록"으로 먼저
@@ -112,10 +130,6 @@ function inPageReadNav(aliasList) {
     for (const l of out) mark(l);
     return out;
   }
-
-  /** 컨테이너 안에서 다른 목록 안에 들어 있지 않은 최상위 목록들 */
-  const topLists = (root) => [...root.querySelectorAll('ul, ol')]
-    .filter((u) => !u.parentElement.closest('ul, ol') || !root.contains(u.parentElement.closest('ul, ol')));
 
   const pick = (sel) => [...document.querySelectorAll(sel)];
   const vh = window.innerHeight;
@@ -139,15 +153,10 @@ function inPageReadNav(aliasList) {
   // 가장 긴 목록을 GNB 로 본다.
   let lists = [];
   for (const root of headerRoots) {
-    for (const list of topLists(root)) {
-      if (list.__read) continue;
-      list.__read = true;
-      for (const u of list.querySelectorAll('ul, ol')) u.__read = true;
-      const items = walkList(list, 0);
-      if (items.length) lists.push(items);
-    }
+    const items = walkInto(root, 0);
+    if (items.length) lists.push(items);
   }
-  lists = dedupeLists(lists);
+  lists = dedupeLists(lists).map((l) => unwrap(l, 0)).filter((l) => l.length);
   for (const items of lists) diag.lists.push(`${items.length}개: ${items.slice(0, 5).map((x) => x.label + '(' + x.kind + (x.children.length ? '+' + x.children.length : '') + ')').join(', ')}`);
   const countPages = (items) => items.reduce((n, x) => n + (x.kind === '페이지' ? 1 : 0) + countPages(x.children), 0);
   const allLang = (items) => items.length > 0 && items.every((x) => langLabel(x.label));

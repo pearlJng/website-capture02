@@ -6,6 +6,7 @@ body{margin:0;font:16px/1.6 system-ui}
 .inline-section-wrap{display:flex;align-items:center;justify-content:space-between;padding:12px 24px;border-bottom:1px solid #ddd}
 .viewport-nav.mobile{display:none}
 .viewport-nav.desktop{display:flex;list-style:none}
+.nav.navbar-nav{list-style:none;margin:0;padding:0}.nav.navbar-nav>li{list-style:none}
 .viewport-nav.desktop > li{position:relative;list-style:none}
 .viewport-nav.desktop .dropdown-toggle{display:inline-block;width:40px;height:40px;text-align:center;line-height:40px;font-size:22px}
 .viewport-nav.desktop .dropdown-menu{display:none;position:absolute;right:0;top:100%;background:#fff;padding:8px;min-width:200px;list-style:none;margin:0}
@@ -18,6 +19,7 @@ section{height:900px}
 </style>
 <header id="doz_header_wrap"><div id="doz_header" data-newheader="Y"><div class="new_org_header">
 <!-- 모바일 메뉴: li 가 ul 없이 div 바로 아래에 있다 (아임웹이 이렇다) -->
+<div id="mobile_slide_menu_wrap" class="mobile_slide_menu_container" style="display:none"><ul class="nav navbar-nav">
 <div class="viewport-nav mobile _menu_wrap" style="position:relative">
   <li class="depth-01" data-code="m1"><a href="http://localhost:8826/74" class="has_child"><span class="plain_name">COMPANY</span></a>
     <ul data-index="0" style="height:0px"><li class="depth-02"><a href="http://localhost:8826/Introduction"><span class="plain_name">Introduction</span></a></li><li class="depth-02"><a href="http://localhost:8826/history"><span class="plain_name">History &amp; Certifications</span></a></li></ul></li>
@@ -25,12 +27,12 @@ section{height:900px}
     <ul data-index="1" style="height:0px"><li class="depth-02"><a href="http://localhost:8826/OTTIE"><span class="plain_name">OTTIE</span></a></li></ul></li>
   <li class="depth-01" data-code="m3"><a href="http://localhost:8826/ARCHIVE"><span class="plain_name">ARCHIVE</span></a></li>
   <li class="depth-01" data-code="m4"><a href="http://localhost:8826/MARKETS"><span class="plain_name">MARKETS</span></a></li>
-</div>
+</div></ul></div>
 <div id="inline_header_normal"><div data-type="section-wrap" class="inline-section-wrap">
   <a href="http://localhost:8826/" class="logo"><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="로고" style="width:120px;height:32px"></a>
   <ul class="langs"><li><a href="/?lang=ko">한국어</a></li><li><a href="/?lang=en">English</a></li><li><a href="/?lang=kr">KR</a></li><li><a href="/?lang=en2">EN</a></li></ul>
   <!-- 데스크탑: ⋮ 아이콘 하나, 그 안에 전부 -->
-  <div class="viewport-nav desktop _main_menu"><li class="dropdown _more_menu"><a data-toggle="dropdown" class="fixed_transform dropdown-toggle disabled dropdown-more" aria-expanded="false"><i class="icon-options" aria-hidden="true">⋮</i></a>
+  <ul class="nav navbar-nav"><li class="_menu_box"><div class="viewport-nav desktop _main_menu"><li class="dropdown _more_menu"><a data-toggle="dropdown" class="fixed_transform dropdown-toggle disabled dropdown-more" aria-expanded="false"><i class="icon-options" aria-hidden="true">⋮</i></a>
     <ul class="dropdown-menu more_list _more_list">
       <li class="dropdown-submenu sub-active" data-code="m1"><a href="http://localhost:8826/74" class="fixed_transform dropdown-toggle disabled _fade_link"><span class="plain_name">COMPANY</span></a>
         <ul class="dropdown-menu" role="menu"><li class="dropdown-submenu"><a tabindex="-1" href="http://localhost:8826/Introduction" class="_fade_link"><span class="plain_name">Introduction</span></a></li><li class="dropdown-submenu"><a tabindex="-1" href="http://localhost:8826/history" class="_fade_link"><span class="plain_name">History &amp; Certifications</span></a></li></ul></li>
@@ -38,7 +40,7 @@ section{height:900px}
         <ul class="dropdown-menu" role="menu"><li class="dropdown-submenu"><a tabindex="-1" href="http://localhost:8826/OTTIE" class="_fade_link"><span class="plain_name">OTTIE</span></a></li></ul></li>
       <li class="dropdown-submenu" data-code="m3"><a href="http://localhost:8826/ARCHIVE" class="fixed_transform dropdown-toggle disabled _fade_link"><span class="plain_name">ARCHIVE</span></a></li>
       <li class="dropdown-submenu" data-code="m4"><a href="http://localhost:8826/MARKETS" class="fixed_transform dropdown-toggle disabled _fade_link"><span class="plain_name">MARKETS</span></a></li>
-    </ul></li></div>
+    </ul></li></div></li></ul>
 </div></div>
 </div></div></header>
 <main><section><h1>히어로</h1></section><section><h2>About</h2></section></main>
