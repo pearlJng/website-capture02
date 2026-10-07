@@ -458,6 +458,46 @@ const CASES = [
     },
   },
   {
+    // 공지 팝업(아임웹 pop-container)은 기본으로 지운다. 단, 섹션을 다 덮는 absolute 배경
+    // (.section_bg)은 팝업이 아니다 — 그것까지 지우면 히어로가 사라진다. 딱 하나만 지워야 한다.
+    name: '공지 팝업은 지우고 섹션 배경은 남긴다',
+    file: 'popup.html', mode: 'stitch', steps: ['sticky', 'motion', 'anim'], color: true,
+    check: (r, cmp, shots, extra) => {
+      if (!extra || !extra.rows) return '색을 못 셌다';
+      const { top, below } = extra.rows;
+      if (top > 0 || below > 0) return `팝업 색이 ${top + below}줄 남았다 — 팝업을 못 지웠다`;
+      const note = (r.notes || []).find((n) => n.startsWith('팝업·모달'));
+      if (!note) return '팝업을 지운 기록이 없다';
+      if (!/팝업·모달 1개/.test(note)) return `지운 수가 1개가 아니다: ${note} — 섹션 배경까지 지웠을 수 있다`;
+      return null;
+    },
+  },
+  {
+    // 두 사이트를 동시에 찍으면 비교도 같은 페이지에서 동시에 돈다. 그림을 끊어 넘길 때
+    // 같은 열쇠를 쓰면 한쪽이 비운 자리에 다른 쪽이 push 해 터졌다 (케이싹 홈 실패).
+    name: '비교를 여러 개 동시에 돌려도 서로 섞이지 않는다',
+    unit: async ({ host, getDiffPage }) => {
+      const b = await host.get();
+      const ctx = await b.newContext({ viewport: { width: 320, height: 200 } });
+      const pg = await ctx.newPage();
+      const bufs = [];
+      for (const bg of ['#ff00aa', '#00aaff', '#aaff00', '#222']) {
+        await pg.setContent(`<body style="margin:0;background:${bg}">`);
+        bufs.push(await pg.screenshot());
+      }
+      await ctx.close();
+      const page = await getDiffPage();
+      const jobs = [];
+      for (let i = 0; i < 6; i++) jobs.push(compareCaptures(page, [bufs[i % 4]], [bufs[(i + 1) % 4]]));
+      jobs.push(compareCaptures(page, [bufs[0]], [bufs[0]]));
+      let rs;
+      try { rs = await Promise.all(jobs); } catch (e) { return `동시 비교가 터졌다: ${e.message.split('\n')[0]}`; }
+      if (rs.slice(0, 6).some((r) => r.verdict !== VERDICT.DIFF)) return '다른 그림을 같다고 했다';
+      if (!same(rs[6].verdict)) return '같은 그림을 다르다고 했다';
+      return null;
+    },
+  },
+  {
     // 정보구조는 헤더 목록의 중첩을 그대로 읽는다. 숨긴 드롭다운도 읽고,
     // 모바일 메뉴에 반복된 링크는 한 번만 세고, 외부·앵커·파일은 표시한다.
     name: '정보구조: 메뉴 트리를 읽고 중복·외부·앵커를 가른다',

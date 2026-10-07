@@ -1,0 +1,16 @@
+<!doctype html><meta charset=utf-8><title>공지 팝업이 덮인 페이지</title>
+<style>
+body{margin:0;font:16px/1.6 system-ui}
+header{height:80px;background:#eee;display:flex;align-items:center;padding:0 24px}
+/* 아임웹 팝업 마크업: 절대 위치 pop-container, 클래스에 _popup_ */
+.popup-banner-wrap{position:absolute;top:0;left:0;width:100%;height:0}
+.pop-container{position:absolute;top:120px;left:40px;width:420px;height:320px;background:#ff00aa;z-index:1001}
+/* 섹션 배경은 절대 위치로 섹션을 다 덮는다 — 팝업이 아니다. 지우면 히어로가 사라진다 */
+.hero{position:relative;height:900px}
+.hero .section_bg{position:absolute;inset:0;background:#3a7}
+section{height:900px;background:#eef}
+</style>
+<header>GNB · About · Product</header>
+<div class="popup-banner-wrap"><div class="pop-container _popup_S2026 " data-pop="S2026">공지 팝업</div></div>
+<div class="hero"><div class="section_bg"></div><h1 style="position:relative;color:#fff;padding:40px">히어로</h1></div>
+<section>1</section><section>2</section>

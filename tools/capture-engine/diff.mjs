@@ -43,12 +43,17 @@ const heightTolerance = (h) => Math.min(Math.round(h * 0.01), 300);
  * 4MB 씩 끊어 넘기고 페이지 안에서 합친다.
  */
 const CHUNK = 4 * 1024 * 1024;
-export async function pushBuffer(page, buf, key) {
+// 열쇠는 부를 때마다 새로 만든다. 두 사이트를 동시에 비교하면서 같은 열쇠('a')를 쓰다가
+// 한쪽이 비운 자리에 다른 쪽이 push 해 "Cannot read properties of undefined (reading 'push')"
+let seq = 0;
+export async function pushBuffer(page, buf) {
+  const key = 'k' + (seq++);
   const b64 = buf.toString('base64');
   await page.evaluate((k) => { window.__cap = window.__cap || {}; window.__cap[k] = []; }, key);
   for (let i = 0; i < b64.length; i += CHUNK) {
     await page.evaluate(({ k, s }) => { window.__cap[k].push(s); }, { k: key, s: b64.slice(i, i + CHUNK) });
   }
+  return key;
 }
 async function inPageDiff(job) {
   const take = (k) => { const s = window.__cap[k].join(''); delete window.__cap[k]; return s; };
@@ -65,7 +70,7 @@ async function inPageDiff(job) {
     }
     return opts ? createImageBitmap(blob, opts) : createImageBitmap(blob);
   };
-  const [ia, ib] = await Promise.all([load('a'), load('b')]);
+  const [ia, ib] = await Promise.all([load(job.ka), load(job.kb)]);
   if (ia.width !== ib.width || ia.height !== ib.height) {
     return { shape: true, aw: ia.width, ah: ia.height, bw: ib.width, bh: ib.height };
   }
@@ -114,7 +119,7 @@ async function inPageStrip(job) {
   const load = (key) => fetch('data:image/png;base64,' + take(key))
     .then((r) => r.blob())
     .then((bl) => createImageBitmap(bl, job.x, job.y, job.w, job.h));
-  const [ia, ib] = await Promise.all([load('a'), load('b')]);
+  const [ia, ib] = await Promise.all([load(job.ka), load(job.kb)]);
 
   const LABEL = 20, GAP = 6;
   const cv = new OffscreenCanvas(job.w, LABEL + (job.h + LABEL + GAP) * 2 + job.h);
@@ -179,10 +184,9 @@ export async function renderDiffStrip(page, a, b, region) {
   const y = Math.max(0, region.y - margin);
   const h = Math.min(STRIP_MAX_H, size.height - y, region.h + margin * 2);
   if (h <= 0) return null;
-  await pushBuffer(page, a, 'a');
-  await pushBuffer(page, b, 'b');
+  const ka = await pushBuffer(page, a), kb = await pushBuffer(page, b);
   const b64 = await page.evaluate(inPageStrip, {
-    x: 0, y, w: size.width, h,
+    ka, kb, x: 0, y, w: size.width, h,
     bg: '#141219', fg: '#EEEBF3',
   });
   return Buffer.from(b64, 'base64');
@@ -224,9 +228,8 @@ export async function comparePngs(page, a, b) {
     rh = Math.max(1, Math.round(cmpH * k));
   }
 
-  await pushBuffer(page, a, 'a');
-  await pushBuffer(page, b, 'b');
-  const r = await page.evaluate(inPageDiff, { rw, rh, cropW: sa.width, cropH });
+  const ka = await pushBuffer(page, a), kb = await pushBuffer(page, b);
+  const r = await page.evaluate(inPageDiff, { ka, kb, rw, rh, cropW: sa.width, cropH });
   const heightNote = dh ? `높이 ${dh}px 차이(겹치는 부분만 비교)` : '';
   if (r.shape) {
     return { verdict: VERDICT.SHAPE, ratio: 1, note: `디코딩 크기가 다름 ${r.aw}x${r.ah} vs ${r.bw}x${r.bh}` };

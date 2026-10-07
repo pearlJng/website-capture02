@@ -21,6 +21,7 @@
   .mute { color: var(--mute); font-size: 13px; }
   .tree { font-size: 14px; }
   .tree label { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+  label.dep { margin-left: 6px; font-size: 13px; }
   .tree .d1 { padding-left: 28px; } .tree .d2 { padding-left: 56px; } .tree .d3 { padding-left: 84px; }
   .tree .path { color: var(--mute); font-size: 12px; margin-left: 4px; }
   .tree .skip { color: var(--mute); }
@@ -91,11 +92,16 @@
   </section>
 
   <section class="step" id="s2" hidden>
-    <h2><span class="n">2</span>정보구조 — 찍을 페이지 고르기</h2>
+    <h2><span class="n">2</span>메뉴구조 — 찍을 페이지 고르기</h2>
     <p class="mute" id="m2"></p>
     <div class="row" style="margin-bottom:8px">
       <button id="all">전체 선택</button>
       <button id="none">전체 해제</button>
+      <span class="mute" style="margin-left:10px">깊이:</span>
+      <label class="dep"><input type="radio" name="dep" value="1"> 1depth 까지</label>
+      <label class="dep"><input type="radio" name="dep" value="2"> 2depth 까지</label>
+      <label class="dep"><input type="radio" name="dep" value="3"> 3depth 까지</label>
+      <label class="dep"><input type="radio" name="dep" value="99" checked> 전체</label>
       <span class="mute" id="count"></span>
     </div>
     <div class="tree" id="tree"></div>
@@ -197,7 +203,7 @@
     const pageByUrl = new Map(r.pages.map((p) => [norm(p.url), p]));
     const rows = [];
     // 홈은 항상 맨 위
-    rows.push(`<label class="d0"><input type="checkbox" class="pg" data-url="${esc(r.pages[0].url)}" data-label="홈" checked> 홈 <span class="path">${esc(shortUrl(r.pages[0].url))}</span></label>`);
+    rows.push(`<label class="d0"><input type="checkbox" class="pg" data-depth="0" data-url="${esc(r.pages[0].url)}" data-label="홈" checked> 홈 <span class="path">${esc(shortUrl(r.pages[0].url))}</span></label>`);
     const seen = new Set([norm(r.pages[0].url)]);
     const walk = (items, depth, path) => {
       for (const it of items) {
@@ -206,7 +212,7 @@
         const capturable = (it.kind === '페이지' || it.home) && it.href;
         if (capturable && !seen.has(k)) {
           seen.add(k);
-          rows.push(`<label class="d${Math.min(depth, 3)}"><input type="checkbox" class="pg" data-url="${esc(it.href)}" data-label="${esc(p.join(' > '))}" checked> ${esc(it.label)} <span class="path">${esc(shortUrl(it.href))}</span></label>`);
+          rows.push(`<label class="d${Math.min(depth, 3)}"><input type="checkbox" class="pg" data-depth="${depth + 1}" data-url="${esc(it.href)}" data-label="${esc(p.join(' > '))}" checked> ${esc(it.label)} <span class="path">${esc(shortUrl(it.href))}</span></label>`);
         } else {
           const why = !it.href ? '눌러야 열림' : seen.has(k) ? '위와 같은 페이지' : it.kind === '외부' ? '외부 링크' : it.kind === '앵커' ? '페이지 안 위치' : it.kind === '파일' ? '파일' : it.kind;
           rows.push(`<div class="d${Math.min(depth, 3)} skip">${esc(it.label)}<span class="why">(${esc(why)} — 캡처 대상 아님)</span></div>`);
@@ -216,7 +222,8 @@
     };
     walk(r.menu, 0, []);
     $('#tree').innerHTML = rows.join('');
-    $('#m2').textContent = (r.languages && r.languages.length ? `언어 선택(${r.languages.join(', ')})은 정보구조에서 뺐습니다. ` : '') + '체크한 페이지만 찍습니다.';
+    $('#m2').textContent = (r.languages && r.languages.length ? `언어 선택(${r.languages.join(', ')})은 메뉴구조에서 뺐습니다. ` : '') + '체크한 페이지만 찍습니다.';
+    document.querySelector('input[name=dep][value="99"]').checked = true;
     const sec = (r.main && r.main.sections) || [];
     $('#sections').innerHTML = sec.length
       ? `<summary>메인페이지 구성 — ${sec.length}개 구간 (문서 ${r.main.docHeight.toLocaleString('en-US')}px)</summary><ol>${sec.map((s) => `<li><b>${esc(s.type)}</b> ${esc(s.heading || s.text.slice(0, 40))}${s.gnb ? ' ← GNB 항목' : ''}${s.parts.length ? ` <span>(${esc(s.parts.join(' · '))})</span>` : ''}</li>`).join('')}</ol>`
@@ -228,7 +235,13 @@
   const shortUrl = (h) => { try { const u = new URL(h); return (u.pathname + u.search) || '/'; } catch { return h; } };
   const selected = () => [...document.querySelectorAll('.pg:checked')].map((c) => ({ url: c.dataset.url, path: c.dataset.label.split(' > ') }));
   function updateCount() { const n = selected().length; $('#count').textContent = `${n}개 선택`; $('#b3').disabled = n === 0; $('#b3').textContent = `${n}개 페이지 캡처 시작`; }
-  $('#all').onclick = () => { document.querySelectorAll('.pg').forEach((c) => { c.checked = true; }); updateCount(); };
+  // 깊이로 고르기: 1depth = 홈 + 1차 메뉴, 2depth = 2차 메뉴까지 … 그보다 깊은 것은 체크를 푼다
+  document.querySelectorAll('input[name=dep]').forEach((rd) => { rd.onchange = () => {
+    const max = Number(rd.value);
+    document.querySelectorAll('.pg').forEach((c) => { c.checked = Number(c.dataset.depth || 0) <= max; });
+    updateCount();
+  }; });
+  $('#all').onclick = () => { document.querySelectorAll('.pg').forEach((c) => { c.checked = true; }); document.querySelector('input[name=dep][value="99"]').checked = true; updateCount(); };
   $('#none').onclick = () => { document.querySelectorAll('.pg').forEach((c) => { c.checked = false; }); updateCount(); };
 
   /* ── 3·4. 캡처 ── */

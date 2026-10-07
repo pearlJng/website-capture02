@@ -416,23 +416,29 @@ function inPageHideAllFixed() {
  */
 function inPageClosePopups() {
   const vw = window.innerWidth, vh = window.innerHeight;
-  let n = 0;
+  const removed = [];
+  // 이름은 토막으로 본다 — 'layer' 가 'player' 에, 'dim' 이 'dimension' 에 걸리면 안 된다.
+  const WORDS = /^(popup|pop|modal|layer|dim|dimmed|overlay|lightbox)$/i;
+  const named = (el) => ((el.getAttribute('class') || '') + ' ' + (el.id || '')).split(/[^a-z0-9]+/i).some((t) => WORDS.test(t));
   for (const el of [...document.querySelectorAll('body *')]) {
     if (!el.isConnected) continue;
+    if (el.closest('[data-cap-header]') || el.querySelector('[data-cap-header]')) continue;   // 헤더는 건드리지 않는다
     const cs = getComputedStyle(el);
     if (cs.display === 'none' || cs.visibility === 'hidden') continue;
-    const floating = cs.position === 'fixed' || cs.position === 'absolute';
-    if (!floating) continue;
+    if (cs.position !== 'fixed' && cs.position !== 'absolute') continue;
     const r = el.getBoundingClientRect();
-    const covers = r.width * r.height >= vw * vh * 0.4;
-    const named = /popup|modal|layer|dim|overlay|dimmed/i.test((el.className || '') + ' ' + (el.id || ''));
-    if (covers || (named && r.width >= 200 && r.height >= 120)) { el.remove(); n++; }
+    // 화면의 4할 넘게 덮는 것은 fixed 일 때만 팝업(딤)이다 — absolute 는 섹션 배경일 수 있다
+    const covers = cs.position === 'fixed' && r.width * r.height >= vw * vh * 0.4;
+    if (covers || (named(el) && r.width >= 200 && r.height >= 120)) {
+      removed.push(el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + ((el.getAttribute('class') || '').trim() ? '.' + (el.getAttribute('class') || '').trim().split(/\s+/).slice(0, 2).join('.') : ''));
+      el.remove();
+    }
   }
   for (const el of [document.documentElement, document.body]) {
     el.style.setProperty('overflow', 'auto', 'important');
     if (getComputedStyle(el).position === 'fixed') el.style.setProperty('position', 'static', 'important');
   }
-  return n;
+  return removed;
 }
 
 /**
@@ -911,11 +917,6 @@ export async function captureSite(context, url, opts = {}) {
       await page.waitForTimeout(150);
     }
 
-    if (tweaks.closePopups) {
-      const n = await page.evaluate(inPageClosePopups);
-      notes.push(n ? `수정 요청: 팝업·모달 ${n}개 지움` : '수정 요청: 지울 팝업을 못 찾았습니다');
-      await page.waitForTimeout(300);
-    }
 
     if (steps.has('sticky')) {
       const r = await page.evaluate(inPageTameFixed, vw);
@@ -926,6 +927,15 @@ export async function captureSite(context, url, opts = {}) {
       }
       if (r.unstuck) notes.push(`스티키 요소 ${r.unstuck}개는 제자리에 한 번만 (따라오지 않게)`);
       await page.waitForTimeout(200);
+    }
+
+    // 팝업·모달·딤은 기본으로 지운다 (스냅샷에 공지 팝업이 덮여 있으면 안 된다). 헤더 정리 뒤에.
+    if (tweaks.closePopups !== false && steps.has('sticky')) {
+      const removed = await page.evaluate(inPageClosePopups).catch(() => []);
+      if (removed.length) {
+        notes.push(`팝업·모달 ${removed.length}개 지움 (${removed.slice(0, 3).join(', ')}${removed.length > 3 ? '…' : ''})`);
+        await page.waitForTimeout(300);
+      }
     }
 
     // 스크롤 위치에 따라 밝아지는 항목이 바뀌는 페이지(연혁의 연도 목록)는 첫 항목에 고정한다.
