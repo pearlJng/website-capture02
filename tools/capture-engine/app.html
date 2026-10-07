@@ -280,6 +280,11 @@
         <div class="r"><button class="rt go" title="직접 찍기 — 이 페이지를 새 탭에 연다" aria-label="직접 찍기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button><span class="mute">직접 찍기</span>
         <button class="rt up" title="직접 찍은 그림으로 바꾸기 — 여러 장을 고르면 순서대로 이어 붙입니다" aria-label="직접 찍은 그림으로 바꾸기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><polyline points="6 10 12 4 18 10"/><path d="M4 20h16"/></svg></button><span class="mute">직접 찍은 그림으로 바꾸기 <small>(여러 장이면 이어 붙임)</small></span>
         <input type="file" class="upf" accept="image/png,image/jpeg" multiple hidden></div>
+        <div class="man" hidden>
+          <div class="mute mhint">크롬 창이 열렸어요. 그 창에서 스크롤해 원하는 화면을 만든 뒤 <b>이 화면 찍기</b>를 누르세요. 위에서부터 차례로 찍고, 다 찍으면 <b>완성</b>.</div>
+          <div class="r"><button class="ms">이 화면 찍기</button><button class="mn">한 화면 아래로</button><button class="mu">마지막 취소</button><button class="mf">완성</button><button class="mc">그만두기</button></div>
+          <div class="mute mlist"></div>
+        </div>
       </div></div>`;
     // 자동 캡처가 못 잡는 페이지는 사람이 크롬에서 전체 페이지를 찍어 올린다 (PNG·JPG).
     const upf = card.querySelector('.upf');
@@ -312,10 +317,40 @@
       w.document.close();
     };
     if (parts.length > 1) { card.querySelector('.thumb').onclick = openStacked; card.querySelector('.stack').onclick = openStacked; }
-    // 직접 찍기: 그 페이지를 새 탭에 연다. 거기서 원하는 상태로 만들고 크롬 전체 페이지 캡처
-    // (개발자 도구 Cmd+Shift+P → "Capture full size screenshot", 또는 GoFullPage)로 찍은 뒤
-    // 옆의 올리기 버튼으로 바꾼다.
-    card.querySelector('.go').onclick = () => { window.open(row.url, '_blank', 'noopener'); };
+    // 직접 찍기: 앱이 크롬 창을 띄운다. 사용자가 그 창에서 화면을 만들고 "이 화면 찍기"를 누르면
+    // 앱이 스크롤 위치까지 알고 찍어 정확히 잇는다. 이 컴퓨터가 아니면(터널) 새 탭만 연다.
+    const man = card.querySelector('.man');
+    const q = (c) => card.querySelector(c);
+    let key = null;
+    const fmt = (n) => Number(n).toLocaleString('en-US');
+    const showState = (st) => {
+      if (!st || !st.ok) return;
+      const parts = [`찍은 화면 ${st.shots.length}장` + (st.shots.length ? `: ${st.shots.map((s) => `${fmt(s.y)}~${fmt(s.y + s.height)}`).join(' · ')}` : '')];
+      if (st.gaps && st.gaps.length) parts.push(`<span class="err">빈틈 ${st.gaps.map(([a, b]) => `${fmt(a)}~${fmt(b)}px`).join(', ')}</span>`);
+      if (st.at) parts.push(`지금 창은 ${fmt(st.at.y)}px (문서 ${fmt(st.at.height)}px)` + (st.tail ? ` · 아직 ${fmt(st.tail[0])}px 아래가 남았어요` : st.shots.length ? ' · 끝까지 찍었어요' : ''));
+      q('.mlist').innerHTML = parts.join('<br>');
+    };
+    const call = async (action, extra) => { const r = await api(`/api/manual/${action}`, { key, id, url: row.url, ...(extra || {}) }); if (!r.ok) { alert(r.error); if (/닫혔|없습니다/.test(r.error || '')) { man.hidden = true; key = null; } } return r; };
+    q('.go').onclick = async () => {
+      if (key) { man.hidden = false; return; }
+      const r = await api('/api/manual/start', { id, url: row.url });
+      if (!r.ok) {
+        if (r.local === false) { window.open(row.url, '_blank', 'noopener'); return; }
+        alert(r.error); return;
+      }
+      key = r.key; man.hidden = false; q('.mlist').textContent = `크롬 창: ${r.width}px 폭. 맨 위부터 찍어 보세요.`;
+    };
+    q('.ms').onclick = async () => { q('.ms').disabled = true; try { showState(await call('shot')); } finally { q('.ms').disabled = false; } };
+    q('.mn').onclick = async () => showState(await call('scroll', { page: 1 }));   // 창 높이만큼 내려간다 — 이어서 찍으면 딱 맞물린다
+    q('.mu').onclick = async () => showState(await call('undo'));
+    q('.mc').onclick = async () => { await call('cancel'); man.hidden = true; key = null; };
+    q('.mf').onclick = async () => {
+      q('.mf').disabled = true; card.querySelector('.t').innerHTML = '이어 붙이는 중';
+      const r = await call('finish');
+      q('.mf').disabled = false;
+      if (!r.ok) { card.dataset.stamp = ''; poll(id); return; }
+      man.hidden = true; key = null; card.dataset.stamp = ''; poll(id);
+    };
   }
 
   /* ── 내보내기 ── */

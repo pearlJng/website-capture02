@@ -24,6 +24,7 @@ import { shootAll, writeOutputs } from './shoot.mjs';
 import { writeFileSync, copyFileSync, readFileSync as readBytes } from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
 import { mergePngsVertically, stitchUserShots } from './png.mjs';
+import { startManual, stateManual, scrollManual, shotManual, undoManual, finishManual, closeManual, closeAllManual } from './manual.mjs';
 import AdmZip from 'adm-zip';
 
 /* 브라우저로 내려받기 — 서버에 올렸을 때(맥 저장 창을 못 띄울 때) 쓰는 길.
@@ -440,6 +441,53 @@ const server = createServer(async (req, res) => {
       try { writeOutputs(job.rows, { ...job.meta, when: new Date().toLocaleString('ko-KR') }, job.outDir); } catch { /* 무시 */ }
       return json(res, 200, { ok: true, file: name });
     }
+    // ── 직접 찍기: 앱이 크롬 창을 띄우고, 사용자가 만든 화면을 "이 화면 찍기"로 찍어 위치대로 잇는다 ──
+    if (req.method === 'POST' && u.pathname.startsWith('/api/manual/')) {
+      const action = u.pathname.slice('/api/manual/'.length);
+      const body = await readBody(req);
+      if (action === 'start') {
+        // 창은 이 컴퓨터에 뜬다. 터널·다른 컴퓨터에서 온 요청이면 그 사람은 창을 못 본다.
+        if (PUBLIC || !isLocalRequest(req)) return json(res, 200, { ok: false, local: false, error: '크롬 창은 앱을 띄운 컴퓨터에만 뜹니다 — 이 컴퓨터에서 연 화면에서 눌러 주세요' });
+        const job = jobs.get(body.id);
+        if (!job) return json(res, 404, { ok: false, error: '없는 작업' });
+        const row = job.rows.find((r) => normUrl(r.url) === normUrl(body.url || ''));
+        if (!row) return json(res, 404, { ok: false, error: '그 페이지의 결과가 없습니다' });
+        await ensureBrowser();
+        const device = DEVICES[job.width] || DEVICES[1920];
+        try {
+          const r = await startManual({ url: row.url, device, scale: device.scale, channel: pick && pick.channel, headless: process.env.CAP_MANUAL_HEADLESS === '1' });
+          return json(res, 200, { ok: true, ...r });
+        } catch (e) { return json(res, 500, { ok: false, error: `크롬 창을 못 띄웠습니다: ${e.message.split('\n')[0]}` }); }
+      }
+      try {
+        if (action === 'state') return json(res, 200, await stateManual(body.key));
+        if (action === 'scroll') return json(res, 200, await scrollManual(body.key, { delta: body.delta, y: body.y, page: body.page }));
+        if (action === 'shot') return json(res, 200, await shotManual(body.key));
+        if (action === 'undo') return json(res, 200, await undoManual(body.key));
+        if (action === 'cancel') { await closeManual(body.key); return json(res, 200, { ok: true }); }
+        if (action === 'finish') {
+          const job = jobs.get(body.id);
+          if (!job) return json(res, 404, { ok: false, error: '없는 작업' });
+          const row = job.rows.find((r) => normUrl(r.url) === normUrl(body.url || ''));
+          if (!row) return json(res, 404, { ok: false, error: '그 페이지의 결과가 없습니다' });
+          const r = await finishManual(body.key);
+          row.manual = (row.manual || 0) + 1;
+          const base = (row.name || 'page').replace(/ \((다시|직접) \d+\)$/, '');
+          const files = r.slices.map((buf, i) => {
+            const f = r.slices.length === 1 ? `${base} (직접 ${row.manual}).png` : `${base} (직접 ${row.manual}) (${i + 1}).png`;
+            writeFileSync(join(job.outDir, f), buf);
+            return f;
+          });
+          row.previous = [...(row.previous || []), ...(row.files || [])];
+          Object.assign(row, { files, status: '직접 찍음', error: '', gaps: [], diffFile: '', pieceFiles: [], docHeight: r.height,
+            notes: r.notes, manualNote: r.notes.join(' · ') });
+          job.log.push(`  ✎ ${row.path || row.name} 크롬 창에서 직접 찍음 (${files.join(', ')})`);
+          try { writeOutputs(job.rows, { ...job.meta, when: new Date().toLocaleString('ko-KR') }, job.outDir); } catch { /* 무시 */ }
+          return json(res, 200, { ok: true, files, notes: r.notes });
+        }
+        return json(res, 404, { ok: false, error: '없는 동작' });
+      } catch (e) { return json(res, 200, { ok: false, error: e.message.split('\n')[0] }); }
+    }
     if (req.method === 'GET' && u.pathname.startsWith('/download/')) {
       const d = downloads.get(u.pathname.slice('/download/'.length));
       if (!d || !existsSync(d.filePath)) { res.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }).end('없거나 만료된 파일'); return; }
@@ -534,6 +582,7 @@ server.listen(PORT, HOST, () => {
 process.on('SIGINT', async () => {
   console.log('\n정리하고 끝냅니다…');
   server.close();
+  await closeAllManual().catch(() => {});
   if (host) await host.close().catch(() => {});
   process.exit(0);
 });
