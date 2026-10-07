@@ -217,6 +217,17 @@ screenshot", 또는 GoFullPage 같은 확장) PNG·JPG 를 올리면 그 카드�
 sticky 요소(스크롤하면 따라오는 옆 목록·소제목)는 숨기지 않고 **흐름 자리에 한 번만** 둔다.
 숨기면 내용이 사라지고(연혁의 연도 목록이 그랬다), 그대로 두면 조각마다 반복된다.
 
+## 팀원에게 나눠주기 — 각자 맥에 설치
+
+받는 사람은 터미널에 한 줄만 붙여 넣는다(저장소 접근 권한 필요). `install.sh` 가 git·Node·크롬을
+확인하고 코드를 받아 라이브러리를 깔고, 바탕화면에 **웹사이트 스냅샷.command** 를 만든다.
+그 뒤로는 그 파일을 더블클릭하면 최신 코드를 받고 앱이 열린다. 받는 사람용 설명은
+`받는사람-안내.md` 에 있다.
+
+```
+git clone https://github.com/pearlJng/website-capture02.git ~/website-capture02 && bash ~/website-capture02/tools/capture-engine/install.sh
+```
+
 ## 서버에 올려 어디서든 주소로 쓰기
 
 앱은 크롬을 띄워 찍는 프로그램이라 **크롬이 돌 수 있는 서버**가 필요하다. Dockerfile 이 그 그릇이다
