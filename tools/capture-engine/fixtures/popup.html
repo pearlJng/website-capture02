@@ -9,8 +9,11 @@ header{height:80px;background:#eee;display:flex;align-items:center;padding:0 24p
 .hero{position:relative;height:900px}
 .hero .section_bg{position:absolute;inset:0;background:#3a7}
 section{height:900px;background:#eef}
+/* 카드 안의 푸른 딤(.dim) — 이름은 팝업스럽지만 디자인이다. 지우면 사진이 맨살로 나온다 (유강) */
+.card{position:relative;width:400px;height:300px;margin:40px;background:#888}
+.card .dim{position:absolute;inset:0;background:#00113e;opacity:.85}
 </style>
 <header>GNB · About · Product</header>
 <div class="popup-banner-wrap"><div class="pop-container _popup_S2026 " data-pop="S2026">공지 팝업</div></div>
 <div class="hero"><div class="section_bg"></div><h1 style="position:relative;color:#fff;padding:40px">히어로</h1></div>
-<section>1</section><section>2</section>
+<section>1<div class="card"><div class="dim"></div></div></section><section>2</section>

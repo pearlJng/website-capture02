@@ -429,7 +429,12 @@ function inPageClosePopups() {
     const r = el.getBoundingClientRect();
     // 화면의 4할 넘게 덮는 것은 fixed 일 때만 팝업(딤)이다 — absolute 는 섹션 배경일 수 있다
     const covers = cs.position === 'fixed' && r.width * r.height >= vw * vh * 0.4;
-    if (covers || (named(el) && r.width >= 200 && r.height >= 120)) {
+    // 이름이 팝업스러워도, 카드 **안**에 앉은 absolute(사진 위 푸른 딤 .dim)는 디자인이다.
+    // 페이지 층위에 뜬 것만 팝업이다: fixed 이거나, 자리 기준(offsetParent)이 body 이거나 fixed 포장.
+    const op = el.offsetParent;
+    const pageLevel = cs.position === 'fixed' || !op || op === document.body || op === document.documentElement
+      || getComputedStyle(op).position === 'fixed';
+    if (covers || (named(el) && pageLevel && r.width >= 200 && r.height >= 120)) {
       removed.push(el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + ((el.getAttribute('class') || '').trim() ? '.' + (el.getAttribute('class') || '').trim().split(/\s+/).slice(0, 2).join('.') : ''));
       el.remove();
     }
