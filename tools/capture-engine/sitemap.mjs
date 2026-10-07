@@ -70,11 +70,22 @@ function inPageReadNav(aliasList) {
     if (/search/i.test(h)) return '검색';
     return '';
   };
+  // 주소도 글자도 없는 아이콘 버튼(사람·장바구니·돋보기)은 클래스 이름으로 무엇인지 짐작한다
+  const guessByClass = (el) => {
+    const names = [el, el.parentElement].filter(Boolean).map((n) => `${typeof n.className === 'string' ? n.className : ''} ${n.id || ''}`).join(' ');
+    const has = (re) => new RegExp(`(?:^|[\\s_-])(?:${re})(?:$|[\\s_-])`, 'i').test(names);
+    if (has('cart|basket|bag|shopping-?bag')) return '장바구니';
+    if (has('search|srch')) return '검색';
+    if (has('my|mypage|myshop|my-?page|member|members|user|person|account|login|logins|mymenu')) return '마이페이지';
+    if (has('wish|wishlist|like')) return '위시리스트';
+    return '';
+  };
   const linkOf = (a) => {
     const raw = a.getAttribute('href');
     if (raw == null) return null;
     // "#", "index.html#" 처럼 자리만 잡은 링크는 눌러야 열리는 항목이다 — 주소는 없지만 메뉴에는 있다
-    if (/^javascript:/i.test(raw) || raw === '#' || raw === '' || /#$/.test(raw)) {
+    // 카페24는 "#none" 을 자리 잡는 링크로 쓴다 — 페이지 안 위치가 아니다
+    if (/^javascript:/i.test(raw) || raw === '#' || raw === '' || /#$/.test(raw) || /^#(none|void|;|!|0)?$/i.test(raw)) {
       return { label: labelOf(a), href: '', kind: '없음' };
     }
     let u = null;
@@ -159,6 +170,66 @@ function inPageReadNav(aliasList) {
   const diag = { headerRoots: headerRoots.slice(0, 12).map((el) => `${el.tagName.toLowerCase()}${el.id ? '#' + el.id : ''}${el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\s+/).slice(0, 2).join('.') : ''} h${Math.round(el.getBoundingClientRect().height)}${shown(el) ? '' : ' (숨김)'}`), lists: [] };
   const footerRoots = pick(FOOTERISH).filter((el) => small(el, 2));
 
+  /**
+   * 아이콘 버튼 아래 숨은 드롭다운(사람 아이콘 → LOGIN·JOIN US·ORDER·RECENT VIEWS,
+   * 장바구니 아이콘 → CART·WISH LIST). 아이콘에서 위로 세 칸까지 올라가며, 아이콘과 나란히 놓인
+   * **숨은** 상자 하나에 링크가 모여 있으면 그게 아이콘의 하위 화면이다. 보이는 글자 링크가
+   * 옆에 있는 것(LOGIN·JOIN 이 나란히 선 유틸리티 바)은 드롭다운이 아니다 — 숨어 있어야 한다.
+   * 다른 아이콘을 만나면 멈춘다(아이콘 줄 전체를 한 아이콘의 하위로 잡지 않게).
+   */
+  const hiddenBox = (el) => {
+    for (let n = el; n && n !== document.body; n = n.parentElement) {
+      const cs = getComputedStyle(n);
+      if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) < 0.05) return true;
+      const r = n.getBoundingClientRect();
+      if ((r.height === 0 || r.width === 0) && (cs.overflow !== 'visible' || n === el)) return true;
+    }
+    return false;
+  };
+  const textOf = (el) => clean(el.innerText || el.textContent);
+  const isIconTrigger = (el) => !textOf(el) && Boolean(el.querySelector('svg, img, i, span, em')) || (!textOf(el) && el.tagName === 'BUTTON');
+  const iconMenus = [];
+  const iconDiag = [];
+  for (const root of headerRoots) {
+    for (const t of root.querySelectorAll('a, button')) {
+      if (t.__icon || !isIconTrigger(t) || hiddenBox(t)) continue;
+      t.__icon = true;
+      let box = null;
+      for (let p = t.parentElement, k = 0; p && k < 3 && p !== root.parentElement; p = p.parentElement, k++) {
+        const others = [...p.querySelectorAll('a, button')].filter((x) => x !== t && !t.contains(x));
+        if (!others.length) continue;
+        // 아이콘과 같은 갈래가 아닌 자식 중 링크를 가진 것
+        const branches = [...p.children].filter((c) => !c.contains(t) && c.querySelector('a[href]'));
+        const shownIcons = others.filter((x) => isIconTrigger(x) && !hiddenBox(x));
+        if (shownIcons.length) break;             // 아이콘 줄에 닿았다
+        if (branches.length === 1 && hiddenBox(branches[0])) box = branches[0];
+        break;
+      }
+      if (!box) continue;
+      // 계정·장바구니·위시리스트 아이콘만 본다. ≡·⋮ 버튼 뒤의 숨은 메뉴는 진짜 메뉴다(오띠) — 여기서 가져가면 안 된다.
+      const own0 = t.tagName === 'A' ? linkOf(t) : null;
+      const what = (own0 && own0.href && guessLabel(own0.href)) || guessByClass(t) || clean(t.getAttribute('aria-label') || t.getAttribute('title'));
+      if (!/^(장바구니|로그인|회원가입|마이페이지|위시리스트|my ?page|my ?account|account|log ?in|cart|bag|basket|member|user|wish ?list|마이|회원|내 정보)$/i.test(what)) continue;
+      const kids = [];
+      for (const a of box.querySelectorAll('a')) {
+        const l = linkOf(a);
+        if (!l || !l.label || l.kind === '없음') continue;
+        if (kids.some((x) => x.href === l.href && x.label === l.label)) continue;
+        kids.push({ ...l, depth: 1, children: [] });
+      }
+      if (!kids.length || kids.length > 10) continue;
+      for (const li of box.querySelectorAll('li')) li.__read = true;   // 아래 목록 읽기에서 또 읽지 않게
+      const own = own0;
+      const label = (own && own.label) || clean(t.getAttribute('aria-label') || t.getAttribute('title')) || guessByClass(t) || what;
+      const item = own && own.href ? { ...own, label, depth: 0, children: kids } : { label, href: '', kind: '없음', depth: 0, children: kids };
+      item.icon = true;
+      iconMenus.push(item);
+      for (const x of [item, ...kids]) seen.add(key(x));
+      iconDiag.push(`${label}: ${kids.map((x) => x.label).join(', ')}`);
+    }
+  }
+  diag.iconMenus = iconDiag;
+
   // 헤더 안의 목록을 전부 읽고, GNB 와 유틸리티(알림·마이페이지·언어)를 가른다.
   // 사이트 안 페이지로 가는 항목이 3개 이상인 목록이 GNB 다. 하나도 없으면
   // 가장 긴 목록을 GNB 로 본다.
@@ -174,8 +245,8 @@ function inPageReadNav(aliasList) {
   let gnbLists = lists.filter((items) => countPages(items) >= 3 && !allLang(items));
   if (!gnbLists.length && lists.filter((l) => !allLang(l)).length) gnbLists = [lists.filter((l) => !allLang(l)).reduce((a, b) => (b.length > a.length ? b : a))];
   const menu = gnbLists.flat();
-  const utility = lists.filter((l) => !gnbLists.includes(l)).flat()
-    .filter((x) => x.kind !== '없음');
+  const utility = [...iconMenus, ...lists.filter((l) => !gnbLists.includes(l)).flat()
+    .filter((x) => x.kind !== '없음')];
 
   // 목록 밖에 있는 헤더 링크(로고·로그인·언어 등). 주소 없는 버튼은 뺀다.
   const loose = [];
@@ -208,6 +279,8 @@ function inPageReadNav(aliasList) {
     h1: clean((document.querySelector('h1') || {}).textContent),
     description: clean((document.querySelector('meta[name="description"]') || {}).content),
     menu, utility, loose, footer, diag,
+    // 카페24 쇼핑몰이면 아이콘 뒤의 기본 화면(로그인·회원가입·주문조회…)을 채워 넣을 수 있다
+    platform: (window.CAFE24 || document.querySelector('[class*="xans-"]')) ? 'cafe24' : '',
     // 판정이 틀렸을 때 들여다볼 수 있게 헤더 원문을 남긴다
     headerHtml: headerRoots.slice(0, 4).map((el) => el.outerHTML).join('\n\n').slice(0, 300000),
   };
@@ -247,10 +320,11 @@ function inPageAliasOrigins() {
 
 /** 모든 링크·버튼에 번호표를 붙인다. 밖에서 hover 할 때 이 번호로 집는다. */
 function inPageTagItems() {
-  let n = 0;
+  let n = window.__iaN || 0;
   for (const el of document.querySelectorAll('a, button, [role="menuitem"], li > span, li > div')) {
     if (!el.hasAttribute('data-ia')) el.setAttribute('data-ia', String(n++));
   }
+  window.__iaN = n;
   return n;
 }
 
@@ -261,6 +335,12 @@ function inPageTagItems() {
 function inPageVisibleItems() {
   const clean = (t) => (t || '').replace(/\s+/g, ' ').trim();
   const out = [];
+  // 마우스를 올릴 때 스크립트가 새로 그린 드롭다운(장바구니 아이콘)도 볼 수 있게 새 요소에 번호를 단다
+  let n = window.__iaN || 0;
+  for (const el of document.querySelectorAll('a, button, [role="menuitem"], li > span, li > div')) {
+    if (!el.hasAttribute('data-ia')) el.setAttribute('data-ia', String(n++));
+  }
+  window.__iaN = n;
   for (const el of document.querySelectorAll('[data-ia]')) {
     const r = el.getBoundingClientRect();
     if (r.width < 8 || r.height < 8) continue;
@@ -287,10 +367,16 @@ function inPageVisibleItems() {
     let href = '';
     const a = el.tagName === 'A' ? el : el.querySelector('a');
     const raw = a && a.getAttribute('href');
-    if (raw && !/^javascript:/i.test(raw) && raw !== '#' && !/#$/.test(raw)) { try { href = new URL(raw, location.href).href; } catch { /* 무시 */ } }
+    if (raw && !/^javascript:/i.test(raw) && raw !== '#' && !/#$/.test(raw) && !/^#(none|void|;|!|0)?$/i.test(raw)) { try { href = new URL(raw, location.href).href; } catch { /* 무시 */ } }
     if (!label && href) {   // 아이콘만 있는 링크 — 주소로 이름을 짓는다
       label = /basket|cart/i.test(href) ? '장바구니' : /login/i.test(href) ? '로그인' : /join|signup|sign-up|register/i.test(href) ? '회원가입'
         : /myshop|mypage|my-page|account/i.test(href) ? '마이페이지' : /wish/i.test(href) ? '위시리스트' : /search/i.test(href) ? '검색' : '';
+    }
+    if (!label && !text && img) {   // 주소도 없는 아이콘 버튼 — 클래스 이름으로 (사람·장바구니·돋보기)
+      const names = [el, el.parentElement].filter(Boolean).map((n) => `${typeof n.className === 'string' ? n.className : ''} ${n.id || ''}`).join(' ');
+      const has = (re) => new RegExp(`(?:^|[\\s_-])(?:${re})(?:$|[\\s_-])`, 'i').test(names);
+      label = has('cart|basket|bag|shopping-?bag') ? '장바구니' : has('search|srch') ? '검색'
+        : has('my|mypage|myshop|my-?page|member|members|user|person|account|login|logins|mymenu') ? '마이페이지' : has('wish|wishlist|like') ? '위시리스트' : '';
     }
     if (!label) continue;
     out.push({ id: el.getAttribute('data-ia'), label: label.length > 50 ? label.slice(0, 47) + '…' : label, href, img,
@@ -565,7 +651,7 @@ async function discoverByHover(page, origin, progress, aliases = new Set()) {
     return now;
   };
 
-  const children = async (path, depth, known) => {
+  const children = async (path, depth, known, maxDepth = 3) => {
     const it = path[path.length - 1];
     await hoverPath(path);
     let now = await settled();
@@ -592,7 +678,7 @@ async function discoverByHover(page, origin, progress, aliases = new Set()) {
     for (const f of fresh) {
       if (f.label === it.label && f.href === it.href) continue;    // 자기 자신의 복사본
       const node = { label: f.label, href: f.href, kind: kindOfHref(f.href, origins), depth, children: [], id: f.id };
-      if (depth < 3) node.children = await children([...path, f], depth + 1, nextKnown);
+      if (depth < maxDepth) node.children = await children([...path, f], depth + 1, nextKnown, maxDepth);
       out.push(node);
     }
     return out;
@@ -621,8 +707,23 @@ async function discoverByHover(page, origin, progress, aliases = new Set()) {
     if (isLang(m)) languages.push(m.label);
     else gnb.push(m);
   }
-  const utility = utilityRow.filter((it) => it.href && !isLogo(it))
-    .map((it) => ({ label: it.label, href: it.href, kind: kindOfHref(it.href, origins), depth: 0, children: [] }));
+  // 사람·장바구니 아이콘에도 마우스를 올려 본다 — 드롭다운(LOGIN·JOIN US·ORDER·RECENT VIEWS)이
+  // 열리면 그게 아이콘의 하위 화면이다. 돋보기(검색)는 화면이 아니라 검색창이 열릴 뿐이라 건너뛴다.
+  const utility = [];
+  for (const it of utilityRow) {
+    if (isLogo(it)) continue;
+    const node = { label: it.label, href: it.href, kind: kindOfHref(it.href, origins), depth: 0, children: [] };
+    if (it.img && /^(장바구니|마이페이지|로그인|회원가입|위시리스트)$/.test(it.label)) {
+      progress(`아이콘 메뉴 확인 — ${it.label}`);
+      node.children = await children([it], 1, seenId, 1).catch(() => []);
+      strip(node.children);
+      await away();
+      await page.keyboard.press('Escape').catch(() => {});
+      await page.waitForTimeout(250);
+      if (node.children.length) node.icon = true;
+    }
+    if (node.href || node.children.length) utility.push(node);
+  }
   return { menu: gnb, languages, utility };
 }
 
@@ -631,6 +732,32 @@ async function discoverByHover(page, origin, progress, aliases = new Set()) {
 const normUrl = (href) => {
   try { const u = new URL(href); u.hash = ''; u.search = ''; return u.href.replace(/\/$/, ''); } catch { return href; }
 };
+
+/**
+ * 유틸리티를 하나로 모은다. 주소가 같으면(주소가 없으면 이름이 같으면) 하나이고, 하위 화면은 합친다.
+ * 아이콘 드롭다운 안에 있는 화면(LOGIN 등)이 맨 위에도 따로 있으면 맨 위의 것은 뺀다.
+ */
+export function mergeUtility(list) {
+  const same = (a, b) => (a.href && b.href ? normUrl(a.href) === normUrl(b.href) && (a.children.length === 0 || b.children.length === 0 || a.label === b.label) : !a.href && !b.href && a.label === b.label);
+  const out = [];
+  for (const x0 of list) {
+    const x = { ...x0, children: [...(x0.children || [])] };
+    const cur = out.find((o) => same(o, x));
+    if (!cur) { out.push(x); continue; }
+    for (const c of x.children) if (!cur.children.some((o) => same(o, c))) cur.children.push(c);
+    if (x.icon) cur.icon = true;
+  }
+  const inside = new Set();
+  for (const x of out) for (const c of x.children) if (c.href) inside.add(normUrl(c.href));
+  return out.filter((x) => x.children.length || !x.href || !inside.has(normUrl(x.href)));
+}
+
+/** 카페24 쇼핑몰이 기본으로 가진 회원·주문 화면. 아이콘 뒤에 숨어 메뉴에서 안 보여도 주소는 늘 같다. */
+const CAFE24_PAGES = [
+  ['로그인', '/member/login.html'], ['회원가입', '/member/agreement.html'], ['마이페이지', '/myshop/index.html'],
+  ['주문조회', '/myshop/order/list.html'], ['최근 본 상품', '/product/recent_view_product.html'],
+  ['장바구니', '/order/basket.html'], ['관심상품', '/myshop/wish_list.html'],
+];
 
 /**
  * 첫 페이지의 메뉴를 읽고, 최상위 메뉴 페이지에 들어가 그 페이지에만 있는
@@ -694,14 +821,15 @@ export async function extractSitemap(context, url, opts = {}) {
       const inHover = new Set();
       const collect = (items) => { for (const x of items) { inHover.add(`${x.href}|${x.label}`); collect(x.children); } };
       collect(hovered);
+      collect(found.utility || []);
+      collect(home.utility || []);
       const flat = [];
       const flatten = (items) => { for (const x of items) { flat.push(x); flatten(x.children); } };
       flatten(home.menu);
       const leftovers = flat.filter((x) => x.kind !== '없음' && !inHover.has(`${x.href}|${x.label}`))
         .map((x) => ({ ...x, depth: 0, children: [] }));
       // 유틸리티는 주소가 같으면 하나다 (EN 과 English 가 같은 곳으로 간다)
-      home.utility = [...(found.utility || []), ...(home.utility || []), ...leftovers]
-        .filter((x, i, arr) => arr.findIndex((o) => (x.href ? o.href === x.href : o.label === x.label)) === i);
+      home.utility = [...(found.utility || []), ...(home.utility || []), ...leftovers];
       // 유틸리티로 간 것은 "헤더의 다른 링크"에 다시 안 나온다
       const inUtil = new Set(home.utility.map((x) => normUrl(x.href)));
       home.loose = home.loose.filter((x) => !inUtil.has(normUrl(x.href)));
@@ -711,8 +839,32 @@ export async function extractSitemap(context, url, opts = {}) {
       method = 'hover';
     }
 
+    // 메뉴는 DOM 으로 읽었어도, 아이콘에 마우스를 올려 찾은 하위 화면(스크립트가 그리는 드롭다운)은 쓴다
+    if (method !== 'hover' && found && found.utility && found.utility.length) {
+      home.utility = [...found.utility, ...(home.utility || [])];
+    }
+
     // 연결한 도메인으로 적힌 링크를 들어온 주소로 (hover·DOM 어느 쪽이든)
     for (const k of ['menu', 'utility', 'loose', 'footer']) rehost(home[k]);
+    home.utility = mergeUtility(home.utility || []);
+
+    // 카페24: 사람·장바구니 아이콘 뒤의 기본 화면을 채운다. 메뉴·유틸리티 어디에도 없는 것만
+    // "카페24 기본 화면"으로 덧붙인다 — 드롭다운이 스크립트로만 그려져 못 읽었을 때를 위해서다.
+    if (home.platform === 'cafe24') {
+      const have = new Set();
+      const collectAll = (items) => { for (const x of items || []) { if (x.href) { try { have.add(new URL(x.href).pathname); } catch { /* 무시 */ } } collectAll(x.children); } };
+      collectAll(home.menu); collectAll(home.utility); collectAll(home.loose);
+      const extra = CAFE24_PAGES.filter(([, path]) => !have.has(path))
+        .map(([label, path]) => ({ label, href: origin + path, kind: '페이지', depth: 1, children: [], std: true }));
+      if (extra.length) home.utility.push({ label: '카페24 기본 화면', href: '', kind: '없음', depth: 0, children: extra, std: true });
+    }
+    // 유틸리티로 간 것은 "헤더의 다른 링크"에 다시 안 나온다
+    {
+      const inUtil = new Set();
+      const collectU = (items) => { for (const x of items) { if (x.href) inUtil.add(normUrl(x.href)); collectU(x.children || []); } };
+      collectU(home.utility);
+      home.loose = (home.loose || []).filter((x) => !inUtil.has(normUrl(x.href)));
+    }
     home.aliases = [...aliases];
 
     // 언어 선택은 어디서 나오든 정보구조에서 뺀다 (GNB·유틸리티·헤더·푸터 전부)
@@ -836,7 +988,10 @@ export function renderTree(r) {
   if (r.utility && r.utility.length) {
     L.push('');
     L.push('  유틸리티 메뉴 (알림·마이페이지 등)');
-    for (const l of r.utility) L.push(`    · ${l.label}  ${short(l.href, origin)}${l.kind === '외부' ? '  (외부)' : ''}`);
+    for (const l of r.utility) {
+      L.push(`    · ${l.label}  ${short(l.href, origin)}${l.kind === '외부' ? '  (외부)' : ''}${l.icon ? '  (아이콘 메뉴)' : ''}`);
+      for (const c of l.children || []) L.push(`        └ ${c.label}  ${short(c.href, origin)}`);
+    }
   }
   if (r.loose.length) {
     L.push('');
@@ -848,7 +1003,7 @@ export function renderTree(r) {
     const inMenu = new Set();
     const collect = (items) => { for (const x of items) { if (x.href) inMenu.add(normUrl(x.href)); collect(x.children); } };
     collect(r.menu);
-    for (const u of (r.utility || [])) if (u.href) inMenu.add(normUrl(u.href));
+    for (const u of (r.utility || [])) { if (u.href) inMenu.add(normUrl(u.href)); for (const c of u.children || []) if (c.href) inMenu.add(normUrl(c.href)); }
     const rest = r.footer.filter((l) => !l.href || !inMenu.has(normUrl(l.href)));
     const dup = r.footer.length - rest.length;
     L.push('');
@@ -880,7 +1035,10 @@ export function flattenRows(r) {
     }
   };
   walk(r.menu, []);
-  for (const l of (r.utility || [])) rows.push({ '깊이': 0, '경로': l.label, '이름': l.label, 'URL': l.href, '종류': l.kind, '출처': '유틸리티' });
+  for (const l of (r.utility || [])) {
+    rows.push({ '깊이': 0, '경로': l.label, '이름': l.label, 'URL': l.href, '종류': l.kind, '출처': '유틸리티' });
+    for (const c of l.children || []) rows.push({ '깊이': 1, '경로': `${l.label} > ${c.label}`, '이름': c.label, 'URL': c.href, '종류': c.kind, '출처': c.std ? '카페24 기본 화면' : '유틸리티' });
+  }
   for (const l of r.loose) rows.push({ '깊이': 0, '경로': l.label, '이름': l.label, 'URL': l.href, '종류': l.kind, '출처': '헤더' });
   for (const l of r.footer) rows.push({ '깊이': 0, '경로': l.label, '이름': l.label, 'URL': l.href, '종류': l.kind, '출처': '푸터' });
   return rows;

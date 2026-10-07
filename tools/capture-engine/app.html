@@ -225,14 +225,22 @@
     // 장바구니·로그인·마이페이지 같은 유틸리티 페이지도 고를 수 있게 — 기본은 체크 안 함
     const utilRows = [];
     const utilSeen = new Set();
-    for (const it of [...(r.utility || []), ...(r.loose || [])]) {
-      if (!it.href || it.kind !== '페이지') continue;
+    // 사람·장바구니 아이콘의 드롭다운(LOGIN·JOIN US·ORDER…)은 아이콘 아래 한 칸 들여 보여 준다
+    const utilRow = (it, d, path) => {
+      if (!it.href || it.kind !== '페이지') return false;
       const k = norm(it.href);
-      if (seen.has(k) || utilSeen.has(k)) continue;
+      if (seen.has(k) || utilSeen.has(k)) return false;
       utilSeen.add(k);
-      utilRows.push(`<label class="d1"><input type="checkbox" class="pg" data-depth="1" data-util="1" data-url="${esc(it.href)}" data-label="${esc(it.label)}"> ${esc(it.label)} <span class="path">${esc(shortUrl(it.href))}</span></label>`);
+      utilRows.push(`<label class="d${d}"><input type="checkbox" class="pg" data-depth="${d}" data-util="1" data-url="${esc(it.href)}" data-label="${esc(path)}"> ${esc(it.label)} <span class="path">${esc(shortUrl(it.href))}</span></label>`);
+      return true;
+    };
+    for (const it of [...(r.utility || []), ...(r.loose || [])]) {
+      const kids = it.children || [];
+      const shown = utilRow(it, 1, it.label);
+      if (!shown && kids.length) utilRows.push(`<div class="d1 skip">${esc(it.label)}<span class="why">(${it.std ? '메뉴에 안 보여도 카페24 쇼핑몰에 늘 있는 화면' : '아이콘 메뉴'})</span></div>`);
+      for (const c of kids) utilRow(c, 2, `${it.label} > ${c.label}`);
     }
-    if (utilRows.length) rows.push(`<div class="d0 skip" style="margin-top:8px">유틸리티 <span class="why">(장바구니·로그인·마이페이지 — 필요하면 체크)</span></div>`, ...utilRows);
+    if (utilRows.length) rows.push(`<div class="d0 skip" style="margin-top:8px">유틸리티 <span class="why">(장바구니·로그인·마이페이지·아이콘 메뉴 — 필요하면 체크)</span></div>`, ...utilRows);
     // 메뉴를 하나도 못 찾았으면 왜 그런지 보여 준다 — 이걸 보내 주면 바로 고칠 수 있다
     if (!r.menu || !r.menu.length) {
       const d = r.diag || {};

@@ -589,6 +589,37 @@ const CASES = [
       if (cs.children.map((x) => x.label).join('|') !== '자주 묻는 질문|1:1 문의') return `고객센터 하위가 ${cs.children.map((x) => x.label).join(' / ') || '(없음)'}`;
       const util = [...(r.utility || []), ...(r.loose || [])].map((x) => x.label);
       for (const w of ['장바구니', '로그인', '마이페이지']) if (!util.includes(w)) return `유틸리티에 ${w} 가 없다 (${util.join(', ') || '없음'})`;
+      // 카페24 표시(xans-)가 있으니 메뉴에 안 보이는 기본 화면을 채운다 — 이미 있는 건 또 안 넣는다
+      const std = (r.utility || []).find((x) => x.label === '카페24 기본 화면');
+      if (!std) return '카페24 기본 화면(회원가입·주문조회…)을 채우지 않았다';
+      const names = std.children.map((c) => c.label).join('|');
+      if (names !== '회원가입|주문조회|최근 본 상품|관심상품') return `카페24 기본 화면이 ${names}`;
+      return null;
+    },
+  },
+  {
+    // 카페24 쇼핑몰의 사람·장바구니 아이콘 뒤에는 하위 화면이 있다 — 사람 아이콘은 CSS 드롭다운
+    // (LOGIN·JOIN US·ORDER·RECENT VIEWS), 장바구니는 마우스를 올릴 때 스크립트가 그리는 드롭다운.
+    // 돋보기는 화면이 없고, ≡ 버튼 뒤의 숨은 메뉴는 아이콘 메뉴가 아니다.
+    name: '메뉴구조: 카페24 사람·장바구니 아이콘의 하위 화면을 고를 수 있다',
+    file: 'cafe24icons.html', sitemap: true,
+    check: (r) => {
+      if (!r.ok) return `실패: ${r.error}`;
+      const top = r.menu.map((x) => x.label);
+      if (top.join('|') !== 'SHOP|NEW|커뮤니티') return `최상위가 ${top.join(' / ')} (method ${r.method})`;
+      if (r.menu[2].children.map((x) => x.label).join('|') !== 'Notice|Review|Q&A') return `커뮤니티 하위가 ${r.menu[2].children.map((x) => x.label).join(' / ') || '(없음)'}`;
+      const util = r.utility || [];
+      const desc = util.map((x) => `${x.label}[${(x.children || []).map((c) => c.label).join(',')}]`).join(' ');
+      const my = util.find((x) => (x.children || []).some((c) => c.label === 'LOGIN'));
+      if (!my) return `사람 아이콘 하위(LOGIN…)가 없다: ${desc}`;
+      if (my.children.map((c) => c.label).join('|') !== 'LOGIN|JOIN US|ORDER|RECENT VIEWS') return `사람 아이콘 하위가 ${my.children.map((c) => c.label).join(' / ')}`;
+      const cart = util.find((x) => (x.children || []).some((c) => c.label === 'CART'));
+      if (!cart) return `장바구니 아이콘 하위(CART…)가 없다: ${desc}`;
+      if (cart.children.map((c) => c.label).join('|') !== 'CART|WISH LIST') return `장바구니 하위가 ${cart.children.map((c) => c.label).join(' / ')}`;
+      if (util.some((x) => x.label === 'LOGIN' || x.label === 'CART')) return `드롭다운 항목이 맨 위에도 따로 나왔다: ${desc}`;
+      if (util.some((x) => x.label === '검색' && (x.children || []).length)) return `돋보기에 하위가 붙었다: ${desc}`;
+      if (util.some((x) => (x.children || []).some((c) => c.label === 'SHOP'))) return `≡ 버튼 뒤의 메뉴를 아이콘 메뉴로 가져갔다: ${desc}`;
+      if (util.some((x) => x.label === '카페24 기본 화면')) return `드롭다운에 다 있는데 카페24 기본 화면을 또 붙였다: ${desc}`;
       return null;
     },
   },

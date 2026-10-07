@@ -1,0 +1,63 @@
+<!doctype html><meta charset=utf-8><title>카페24 쇼핑몰 — 아이콘 드롭다운</title>
+<style>
+body{margin:0;font:16px/1.6 system-ui}
+#header{display:flex;align-items:center;gap:40px;padding:16px 24px;border-bottom:1px solid #ddd;position:relative}
+.gnb ul{list-style:none;margin:0;padding:0;display:flex;gap:24px}
+.gnb li{position:relative}
+.gnb .sub{display:none;position:absolute;left:0;top:100%;background:#fff;padding:8px;min-width:140px;flex-direction:column}
+.gnb li:hover > .sub{display:flex}
+.util{margin-left:auto;display:flex;gap:16px;align-items:center}
+.util a,.util button{display:inline-block;width:24px;height:24px;border:0;padding:0;background:none;cursor:pointer}
+.util svg{width:24px;height:24px}
+.my_wrap,.cart_wrap{position:relative}
+.my_drop{display:none;position:absolute;right:0;top:100%;background:#fff;border:1px solid #ddd;padding:8px 12px;min-width:140px}
+.my_wrap:hover .my_drop{display:block}
+.my_drop ul{list-style:none;margin:0;padding:0}
+.my_drop a,.cart_drop a{display:block;width:auto;height:auto;white-space:nowrap}
+.cart_drop{position:absolute;right:0;top:100%;background:#fff;border:1px solid #ddd;padding:8px 12px;min-width:140px}
+.side_menu{display:none}
+section{height:900px}
+</style>
+<header id="header" class="xans-element- xans-layout xans-layout-header">
+  <h1><a href="/index.html"><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="BRAND" style="width:110px;height:28px"></a></h1>
+  <nav class="gnb"><ul>
+    <li><a href="/product/list.html?cate_no=24">SHOP</a></li>
+    <li><a href="/product/list.html?cate_no=25">NEW</a></li>
+    <li><a href="#none">커뮤니티</a><ul class="sub"><li><a href="/board/notice/list.html">Notice</a></li><li><a href="/board/review/list.html">Review</a></li><li><a href="/board/qna/list.html">Q&amp;A</a></li></ul></li>
+  </ul></nav>
+  <div class="util">
+    <!-- 돋보기: 화면이 아니라 검색창이 열린다 -->
+    <button class="btn_search" type="button"><svg viewBox="0 0 24 24"><circle cx="10" cy="10" r="7" stroke="#000" fill="none"/></svg></button>
+    <!-- 사람 아이콘: 마우스를 올리면 LOGIN·JOIN US·ORDER·RECENT VIEWS -->
+    <div class="my_wrap">
+      <a class="my" href="/myshop/index.html"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" fill="#000"/></svg></a>
+      <div class="my_drop"><ul>
+        <li><a href="/member/login.html">LOGIN</a></li>
+        <li><a href="/member/agreement.html">JOIN US</a></li>
+        <li><a href="/myshop/order/list.html">ORDER</a></li>
+        <li><a href="/product/recent_view_product.html">RECENT VIEWS</a></li>
+      </ul></div>
+    </div>
+    <!-- 장바구니 아이콘: 주소 없는 버튼. 드롭다운은 마우스를 올릴 때 스크립트가 그린다 -->
+    <div class="cart_wrap">
+      <button class="cart_btn" type="button"><svg viewBox="0 0 24 24"><rect x="4" y="6" width="16" height="12" fill="#000"/></svg></button>
+    </div>
+    <!-- ≡ 버튼: 뒤에 숨은 건 진짜 메뉴(모바일 메뉴)다 — 아이콘 메뉴로 가져가면 안 된다 -->
+    <div class="menu_wrap">
+      <button class="btn_menu" type="button"><svg viewBox="0 0 24 24"><rect y="5" width="24" height="2"/><rect y="11" width="24" height="2"/></svg></button>
+      <nav class="side_menu"><ul><li><a href="/product/list.html?cate_no=24">SHOP</a></li><li><a href="/product/list.html?cate_no=25">NEW</a></li><li><a href="/board/notice/list.html">Notice</a></li></ul></nav>
+    </div>
+  </div>
+</header>
+<main><section><h1>히어로</h1></section><section><h2>BEST</h2></section></main>
+<script>
+const wrap = document.querySelector('.cart_wrap');
+wrap.addEventListener('mouseenter', () => {
+  if (wrap.querySelector('.cart_drop')) return;
+  const d = document.createElement('div');
+  d.className = 'cart_drop';
+  d.innerHTML = '<a href="/order/basket.html">CART</a><a href="/myshop/wish_list.html">WISH LIST</a>';
+  wrap.appendChild(d);
+});
+wrap.addEventListener('mouseleave', () => { const d = wrap.querySelector('.cart_drop'); if (d) d.remove(); });
+</script>
