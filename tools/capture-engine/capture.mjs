@@ -431,9 +431,16 @@ function inPageClosePopups() {
     const covers = cs.position === 'fixed' && r.width * r.height >= vw * vh * 0.4;
     // 이름이 팝업스러워도, 카드 **안**에 앉은 absolute(사진 위 푸른 딤 .dim)는 디자인이다.
     // 페이지 층위에 뜬 것만 팝업이다: fixed 이거나, 자리 기준(offsetParent)이 body 이거나 fixed 포장.
-    const op = el.offsetParent;
-    const pageLevel = cs.position === 'fixed' || !op || op === document.body || op === document.documentElement
-      || getComputedStyle(op).position === 'fixed';
+    // 자리 기준을 body 까지 거슬러 오르며, 중간에 흐름 안의 상자(relative·sticky — 카드)가
+    // 있으면 디자인이고, 전부 absolute·fixed 포장이면(아임웹 popup-banner-wrap) 페이지 층위다.
+    const pageLevel = (() => {
+      if (cs.position === 'fixed') return true;
+      for (let p = el.offsetParent; p && p !== document.body && p !== document.documentElement; p = p.offsetParent) {
+        const pp = getComputedStyle(p).position;
+        if (pp !== 'absolute' && pp !== 'fixed') return false;
+      }
+      return true;
+    })();
     if (covers || (named(el) && pageLevel && r.width >= 200 && r.height >= 120)) {
       removed.push(el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') + ((el.getAttribute('class') || '').trim() ? '.' + (el.getAttribute('class') || '').trim().split(/\s+/).slice(0, 2).join('.') : ''));
       el.remove();
