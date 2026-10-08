@@ -417,8 +417,8 @@ export async function shootAll({ args = {}, urls, host, pick, device, scale, out
     // 아임웹에서 실제로 그 일이 났다. 화면에 있어야 할 것이 없는지 따로 본다.
     const rd = last.ready || {};
     const gaps = [];
-    if (rd.loading) gaps.push(`안 뜬 이미지 ${rd.loading}개`);
-    if (rd.broken) gaps.push(`깨진 이미지 ${rd.broken}개`);
+    if (rd.loading) gaps.push(`다 받아지지 않은 이미지 ${rd.loading}개 — 그 자리가 비어 찍혔을 수 있어요`);
+    if (rd.broken) gaps.push(`주소가 깨진 이미지 ${rd.broken}개 — 사이트에서도 안 보이는 그림이에요`);
     // 투명한 요소는 이어붙이기에서는 정상이다. 마지막 스크롤 위치 기준으로
     // 화면 밖이라 숨은 것뿐이고, 그 칸은 화면에 있었을 때 이미 찍었다.
     // 한 방 캡처(fullpage)에서만 진짜 문제다.

@@ -945,7 +945,24 @@ function inPageScrollTo(y) {
  * 이건 픽셀이 아니라 DOM 을 보는 검사라, 캡처를 직접 하는 쪽만 할 수 있다.
  */
 function inPageReadiness() {
-  const imgs = [...document.images];
+  // 그림에 실제로 나오는 이미지만 센다. 숨긴 모바일용 그림·슬라이드 뒤쪽 장·팝업 안 그림은
+  // 지연 로딩이라 끝까지 안 받아지는 게 정상인데, 다 세면 멀쩡한 페이지도 "안 뜬 이미지"로 걸렸다.
+  const docW = document.documentElement.clientWidth;
+  const onPage = (im) => {
+    const r = im.getBoundingClientRect();
+    if (r.width < 16 || r.height < 16) return false;
+    if (r.right <= 0 || r.left >= docW) return false;                 // 옆으로 밀려난 슬라이드
+    for (let n = im; n && n.nodeType === 1; n = n.parentElement) {
+      const cs = getComputedStyle(n);
+      if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) < 0.05) return false;
+      if (n !== im && cs.overflow !== 'visible') {                    // 잘라 보이는 상자(슬라이더) 밖이면 안 보인다
+        const b = n.getBoundingClientRect();
+        if (r.right <= b.left || r.left >= b.right || r.bottom <= b.top || r.top >= b.bottom) return false;
+      }
+    }
+    return true;
+  };
+  const imgs = [...document.images].filter(onPage);
   const loading = imgs.filter((im) => !im.complete).length;
   const broken = imgs.filter((im) => im.complete && im.naturalWidth === 0).length;
 

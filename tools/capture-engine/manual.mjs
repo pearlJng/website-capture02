@@ -53,46 +53,55 @@ function inPageFloatingUi() {
     const host = document.createElement('div');
     host.id = 'cap-fab';
     host.setAttribute('data-cap-ui', '');
-    host.style.cssText = 'position:fixed!important;right:24px!important;bottom:24px!important;z-index:2147483647!important;all:initial;position:fixed;right:24px;bottom:24px;z-index:2147483647';
+    // 화면 위 가운데. 페이지를 창에 맞춰 줄여 보일 때도 버튼은 원래 크기로 보이게 거꾸로 키운다.
+    host.style.cssText = 'all:initial;position:fixed;top:12px;left:50%;z-index:2147483647;transform-origin:50% 0;';
+    const setScale = (k) => { host.style.transform = `translateX(-50%) scale(${k || 1})`; };
+    setScale(window.__capUiScale || 1);
+    window.__capSetScale = setScale;
+    if (window.__capAction) window.__capAction('ui').then((r) => { if (r && r.scale) { window.__capUiScale = r.scale; setScale(r.scale); } }).catch(() => {});
     const sh = host.attachShadow({ mode: 'open' });
     sh.innerHTML = `
 <style>
   :host { all: initial; }
   * { box-sizing: border-box; font-family: -apple-system, "Apple SD Gothic Neo", "Pretendard", system-ui, sans-serif; }
-  .wrap { width: 300px; background: rgba(20, 18, 26, .96); color: #fff; border-radius: 16px; box-shadow: 0 12px 40px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,.08); padding: 14px 14px 12px; backdrop-filter: blur(10px); }
-  .top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-  .title { font-size: 13px; font-weight: 700; letter-spacing: -.01em; display: flex; align-items: center; gap: 8px; }
+  .wrap { background: rgba(20, 18, 26, .95); color: #fff; border-radius: 16px; box-shadow: 0 10px 36px rgba(0,0,0,.35), 0 0 0 1px rgba(255,255,255,.08); padding: 8px 8px 8px 14px; backdrop-filter: blur(10px); min-width: 640px; }
+  .line { display: flex; align-items: center; gap: 8px; }
+  .title { font-size: 13px; font-weight: 700; display: flex; align-items: center; gap: 8px; white-space: nowrap; margin-right: 4px; }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: #ff5a5f; box-shadow: 0 0 0 3px rgba(255,90,95,.25); }
-  .count { font-size: 12px; color: #c9c4d4; }
+  .count { font-size: 12px; color: #c9c4d4; white-space: nowrap; margin-right: 6px; }
   .count b { color: #fff; }
-  .main { width: 100%; height: 52px; border: 0; border-radius: 12px; background: #ff5a5f; color: #fff; font-size: 16px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 10px; cursor: pointer; transition: transform .08s, background .15s; }
+  .main { height: 40px; padding: 0 18px; border: 0; border-radius: 11px; background: #ff5a5f; color: #fff; font-size: 14.5px; font-weight: 700; display: flex; align-items: center; gap: 8px; cursor: pointer; white-space: nowrap; transition: transform .08s, background .15s; }
   .main:hover { background: #ff6f73; } .main:active { transform: scale(.98); }
   .main:disabled { background: #6b6675; cursor: default; }
-  .main svg { width: 20px; height: 20px; }
-  .row { display: flex; gap: 8px; margin-top: 8px; }
-  .row button { flex: 1; height: 36px; border: 0; border-radius: 10px; background: rgba(255,255,255,.09); color: #fff; font-size: 12.5px; font-weight: 600; cursor: pointer; }
-  .row button:hover { background: rgba(255,255,255,.16); }
-  .row button.done { background: #2ec27e; color: #04140b; }
-  .row button.done:hover { background: #45d290; }
-  .row button.done:disabled { background: rgba(46,194,126,.25); color: rgba(255,255,255,.4); cursor: default; }
-  .row button.quit { flex: 0 0 72px; color: #e9b4b6; }
-  .status { margin-top: 10px; font-size: 12px; line-height: 1.5; color: #c9c4d4; min-height: 18px; }
+  .main svg { width: 18px; height: 18px; }
+  .line > button:not(.main) { height: 40px; padding: 0 12px; border: 0; border-radius: 11px; background: rgba(255,255,255,.09); color: #fff; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .line > button:not(.main):hover { background: rgba(255,255,255,.16); }
+  .line > button.done { background: #2ec27e; color: #04140b; }
+  .line > button.done:hover { background: #45d290; }
+  .line > button.done:disabled { background: rgba(46,194,126,.25); color: rgba(255,255,255,.4); cursor: default; }
+  .line > button.quit { color: #e9b4b6; background: transparent; }
+  .line > button.fold { width: 30px; padding: 0; background: transparent; color: #8d879a; }
+  .sub { display: flex; align-items: center; gap: 10px; margin-top: 7px; padding-right: 6px; }
+  .status { flex: 1; font-size: 12px; line-height: 1.45; color: #c9c4d4; min-height: 17px; }
   .status .warn { color: #ffcc66; } .status .ok { color: #7fe0b0; }
-  .bar { height: 4px; border-radius: 2px; background: rgba(255,255,255,.12); margin-top: 8px; overflow: hidden; position: relative; }
+  .bar { width: 140px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.12); overflow: hidden; position: relative; flex: none; }
   .bar i { position: absolute; top: 0; height: 100%; background: #7fe0b0; }
   .bar i.gap { background: #ffcc66; }
-  .hint { margin-top: 6px; font-size: 11px; color: #8d879a; }
+  .hint { font-size: 11px; color: #8d879a; white-space: nowrap; }
   kbd { font: inherit; padding: 1px 5px; border-radius: 4px; background: rgba(255,255,255,.12); }
+  .wrap.mini .sub, .wrap.mini .opt { display: none; }
+  .wrap.mini { min-width: 0; }
   .flash { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; transition: opacity .25s; }
 </style>
 <div class="wrap" role="group" aria-label="웹사이트 스냅샷 직접 찍기">
-  <div class="top"><div class="title"><span class="dot"></span>직접 찍기</div><div class="count"><b class="n">0</b>장</div></div>
-  <button class="main" id="shot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg><span>${T.shot}</span></button>
-  <div class="row"><button id="next">↓ ${T.next}</button><button id="undo">↶ ${T.undo}</button></div>
-  <div class="row"><button id="done" class="done" disabled>✓ ${T.done}</button><button id="quit" class="quit">${T.quit}</button></div>
-  <div class="bar" id="bar"></div>
-  <div class="status" id="status">맨 위부터 차례로 찍어 주세요. 스크롤해서 원하는 화면을 만든 뒤 찍습니다.</div>
-  <div class="hint">단축키 <kbd>⇧</kbd>+<kbd>S</kbd> 찍기 · <kbd>⇧</kbd>+<kbd>N</kbd> 한 화면 아래로</div>
+  <div class="line">
+    <div class="title"><span class="dot"></span>직접 찍기</div><div class="count"><b class="n">0</b>장</div>
+    <button class="main" id="shot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg><span>${T.shot}</span></button>
+    <button id="next" class="opt">↓ ${T.next}</button><button id="undo" class="opt">↶ ${T.undo}</button>
+    <button id="done" class="done" disabled>✓ ${T.done}</button><button id="quit" class="quit opt">${T.quit}</button>
+    <button id="fold" class="fold" title="작게 접기 / 펼치기">–</button>
+  </div>
+  <div class="sub"><div class="status" id="status">맨 위부터 차례로 찍어 주세요. 스크롤해서 원하는 화면을 만든 뒤 찍습니다.</div><div class="bar" id="bar"></div><div class="hint"><kbd>⇧</kbd>+<kbd>S</kbd> 찍기 · <kbd>⇧</kbd>+<kbd>N</kbd> 아래로</div></div>
 </div><div class="flash" id="flash"></div>`;
     document.documentElement.appendChild(host);
     const $ = (id) => sh.getElementById(id);
@@ -132,6 +141,7 @@ function inPageFloatingUi() {
     $('undo').onclick = () => act('undo');
     $('done').onclick = () => act('done');
     $('quit').onclick = () => { if (confirm('찍은 것을 버리고 그만둘까요?')) act('quit'); };
+    $('fold').onclick = () => { const w = sh.querySelector('.wrap'); w.classList.toggle('mini'); $('fold').textContent = w.classList.contains('mini') ? '+' : '–'; };
     window.addEventListener('keydown', (e) => {
       if (!e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) return;
       const t = e.target; if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;
@@ -173,16 +183,59 @@ const get = (key) => {
   return s;
 };
 
+/**
+ * 페이지를 고른 폭(1920 등)으로 그리고 창에 맞춰 줄여 보인다.
+ * 창의 실제 안쪽 크기를 재서(덮어쓰기를 잠깐 풀고) 줄일 비율을 정한다. 창 크기가 그대로면 아무것도 안 한다.
+ * real 을 주면(화면 없는 시험) 그 크기를 창 크기로 쓴다.
+ */
+async function fitView(s, real = null) {
+  let bounds = null;
+  if (!real) {
+    try { bounds = (await s.cdp.send('Browser.getWindowForTarget')).bounds; } catch { /* 화면 없는 브라우저 */ }
+    const sig = bounds ? `${bounds.width}x${bounds.height}x${bounds.windowState}` : 'none';
+    if (s.fitSig === sig) return;
+    s.fitSig = sig;
+    await s.cdp.send('Emulation.clearDeviceMetricsOverride').catch(() => {});
+    real = await s.page.evaluate(() => ({ w: window.innerWidth, h: window.innerHeight })).catch(() => null);
+    if (!real || !real.w) return;
+  }
+  const W = s.device.width;
+  const fit = Math.min(1, real.w / W);
+  const H = Math.max(400, Math.round(real.h / fit));
+  s.fit = fit; s.viewH = H;
+  await applyMetrics(s, fit);
+  await s.page.evaluate((k) => { window.__capUiScale = k; if (window.__capSetScale) window.__capSetScale(k); }, 1 / fit).catch(() => {});
+}
+async function applyMetrics(s, scaleView) {
+  await s.cdp.send('Emulation.setDeviceMetricsOverride', {
+    width: s.device.width, height: s.viewH, deviceScaleFactor: s.scale || 1, mobile: false,
+    scale: scaleView, screenWidth: s.device.width, screenHeight: s.viewH,
+  });
+}
+
 export async function startManual({ url, device, scale, channel, headless = false, onFinish }) {
   const key = 'm' + (++seq) + '-' + Math.random().toString(36).slice(2, 8);
+  // 데스크탑(1440·1920)은 노트북 화면보다 넓다. 그 폭의 창을 띄우면 맥이 화면에 맞춰 줄이면서
+  // 페이지도 버튼도 아주 작아졌다. 창은 화면을 꽉 채워 열고, 페이지는 고른 폭 그대로 그리되
+  // 창에 맞게 줄여 보인다(크롬 개발자 도구의 "화면에 맞추기"와 같은 방식). 찍을 때만 원래 크기로.
+  // 모바일(375)은 화면보다 작으니 그 크기의 창 그대로.
+  const fitMode = !device.mobile;
   const win = { width: device.width, height: device.height + 120 };
   const browser = await chromium.launch({
     headless, channel: channel || undefined,
-    args: ['--disable-dev-shm-usage', `--window-size=${win.width},${win.height}`],
+    args: ['--disable-dev-shm-usage', fitMode && !headless ? '--start-maximized' : `--window-size=${win.width},${win.height}`],
   });
-  const ctx = await browser.newContext(contextOptionsFor(device, scale));
+  const opts = contextOptionsFor(device, scale);
+  if (fitMode) { opts.viewport = null; delete opts.deviceScaleFactor; delete opts.isMobile; delete opts.hasTouch; }
+  const ctx = await browser.newContext(opts);
   const page = await ctx.newPage();
-  const s = { key, url, device, scale, browser, ctx, page, shots: [], pinned: null, closed: false, onFinish, finishing: false };
+  const s = { key, url, device, scale, browser, ctx, page, shots: [], pinned: null, closed: false, onFinish, finishing: false, fitMode, fit: 1 };
+  if (fitMode) {
+    s.cdp = await ctx.newCDPSession(page);
+    await fitView(s, headless ? { w: Math.round(device.width * 0.75), h: Math.round(device.height * 0.75) } : null);
+    // 창 크기를 바꾸면 다시 맞춘다
+    s.fitTimer = setInterval(() => { if (!s.closed && !s.shooting) fitView(s).catch(() => {}); }, 1500);
+  }
   sessions.set(key, s);
   page.on('close', () => { s.closed = true; });
   browser.on('disconnected', () => { s.closed = true; });
@@ -190,6 +243,7 @@ export async function startManual({ url, device, scale, channel, headless = fals
   await page.exposeBinding('__capAction', async (_src, name) => {
     try {
       if (name === 'state') return await stateManual(key);
+      if (name === 'ui') return { ok: true, scale: 1 / (s.fit || 1) };
       if (name === 'shot') return await shotManual(key);
       if (name === 'next') return await scrollManual(key, { page: 1 });
       if (name === 'undo') return await undoManual(key);
@@ -254,7 +308,13 @@ export async function shotManual(key) {
   const at = await s.page.evaluate(inPageWhere);
   await s.page.evaluate(inPageUiVisible, false);
   let buf;
-  try { buf = await s.page.screenshot({ timeout: 30000 }); } finally { await s.page.evaluate(inPageUiVisible, true).catch(() => {}); }
+  try {
+    if (s.fitMode && s.fit < 1) { s.shooting = true; await applyMetrics(s, 1); await s.page.waitForTimeout(80); }
+    buf = await s.page.screenshot({ timeout: 30000 });
+  } finally {
+    if (s.fitMode && s.fit < 1) { await applyMetrics(s, s.fit).catch(() => {}); s.shooting = false; }
+    await s.page.evaluate(inPageUiVisible, true).catch(() => {});
+  }
   s.shots.push({ y: at.y, height: at.innerHeight, buf });
   const cov = coverage(s.shots, at.height);
   return { ok: true, at, hidden: s.pinned ? s.pinned.hidden : 0, shots: s.shots.map((x) => ({ y: x.y, height: x.height })), ...cov };
@@ -313,9 +373,13 @@ export async function closeManual(key) {
   const s = sessions.get(key);
   if (!s) return;
   sessions.delete(key);
+  if (s.fitTimer) clearInterval(s.fitTimer);
   await s.browser.close().catch(() => {});
 }
 
 export async function closeAllManual() {
   for (const k of [...sessions.keys()]) await closeManual(k);
 }
+
+/** 시험용: 세션 들여다보기 */
+export const __debugSession = (key) => sessions.get(key);
