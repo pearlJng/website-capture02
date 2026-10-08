@@ -16,7 +16,7 @@ import { createServer } from 'node:http';
 import { readFileSync, existsSync, mkdirSync, statSync, createReadStream } from 'node:fs';
 import { dirname, join, resolve, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { DEVICES, contextOptionsFor } from './capture.mjs';
 import { createBrowserHost, pickBrowser } from './browser.mjs';
 import { extractSitemap, renderTree } from './sitemap.mjs';
@@ -26,7 +26,7 @@ import { PDFDocument } from 'pdf-lib';
 import { mergePngsVertically, stitchUserShots } from './png.mjs';
 import { startManual, stateManual, scrollManual, shotManual, undoManual, finishManual, closeManual, closeAllManual, pressManual } from './manual.mjs';
 import AdmZip from 'adm-zip';
-import { applyLauncherIconOnce } from './icon.mjs';
+import { applyLauncherIconOnce, syncLauncher } from './icon.mjs';
 
 /* 브라우저로 내려받기 — 서버에 올렸을 때(맥 저장 창을 못 띄울 때) 쓰는 길.
  * 만든 파일을 잠깐 들고 있다가 한 번 내려주고 지운다. */
@@ -365,9 +365,17 @@ const isLocalRequest = (req) => {
     && (host === '127.0.0.1' || host === 'localhost');
 };
 
+// 지금 켜진 앱이 어느 코드로 켜졌는지. 실행 파일이 이걸 보고, 예전 코드로 켜져 있으면 끄고 새로 켠다.
+const HEAD = (() => { try { return execFileSync('git', ['rev-parse', 'HEAD'], { cwd: HERE, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { return ''; } })();
+
 const server = createServer(async (req, res) => {
   const u = new URL(req.url, 'http://127.0.0.1');
   try {
+    // 비밀번호와 상관없이 이 컴퓨터에서만 — 코드 버전과 캡처 중인지
+    if (req.method === 'GET' && u.pathname === '/api/version' && isLocalRequest(req)) {
+      const busy = [...jobs.values()].some((j) => j.status === '진행 중' || j.status === '대기');
+      return json(res, 200, { ok: true, head: HEAD, busy, pid: process.pid });
+    }
     // 비밀번호가 걸려 있으면 ?key= 로 한 번 들어온 뒤 쿠키로 통과한다.
     if (PASSWORD) {
       const cookie = (req.headers.cookie || '').split(';').map((c) => c.trim()).find((c) => c.startsWith('key='));
@@ -598,7 +606,7 @@ server.listen(PORT, HOST, () => {
   console.log('  끝내려면 Ctrl+C\n');
   if (process.platform === 'darwin' && !PUBLIC) spawn('open', [url], { stdio: 'ignore', detached: true }).unref();
   // 바탕화면의 실행 파일에 카메라 아이콘을 (한 번) 입힌다
-  if (process.platform === 'darwin' && !PUBLIC) applyLauncherIconOnce();
+  if (process.platform === 'darwin' && !PUBLIC) { syncLauncher(); applyLauncherIconOnce(); }
 });
 
 process.on('SIGINT', async () => {

@@ -7,7 +7,7 @@
  *   node icon.mjs           바탕화면·저장소의 실행 파일에 아이콘을 입힌다 (이미 입혔어도 다시)
  */
 import { execFile } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -39,6 +39,23 @@ export function setIcons(paths) {
       resolve(err ? 0 : Number(String(out).trim()) || 0);
     });
   });
+}
+
+/**
+ * 바탕화면의 실행 파일은 설치할 때 복사해 둔 것이라, 저장소의 실행 파일이 나아져도 그대로다.
+ * 앱이 켜질 때 내용이 다르면 새 내용으로 덮는다 — 같은 파일에 덮어써서 아이콘은 그대로 남는다.
+ */
+export function syncLauncher() {
+  try {
+    const src = join(HERE, '웹사이트 스냅샷.command');
+    const dst = join(homedir(), 'Desktop', '웹사이트 스냅샷.command');
+    if (!existsSync(src) || !existsSync(dst)) return false;
+    const next = readFileSync(src);
+    if (readFileSync(dst).equals(next)) return false;
+    writeFileSync(dst, next);
+    chmodSync(dst, 0o755);
+    return true;
+  } catch { return false; }
 }
 
 /** 앱이 켜질 때 부른다. 이 그림을 이미 입혔으면 건너뛴다. 실패해도 앱은 그대로 켜진다. */
