@@ -892,15 +892,26 @@ async function inPageHoldVideos() {
       }).observe(document.documentElement, { childList: true, subtree: true });
     }
   } catch { /* 못 바꾸면 그냥 간다 */ }
+  // 멈출 자리: 0초가 아니라 앞부분이 지난 같은 자리. 히어로 동영상은 검은 화면에서 서서히 밝아지며
+  // 시작하는 게 많아 0초에 멈추면 까맣게 찍혔다(추성고을 — 비메오 배경 영상). 두 번 찍어도 같은
+  // 장면이어야 하므로 늘 같은 자리(길이의 30%, 길어도 2초)로. 아직 안 불러왔으면 그 장면이 뜰 때까지 기다린다.
+  const at = (el) => { const d = el.duration; return Number.isFinite(d) && d > 0 ? Math.min(2, d * 0.3) : 2; };
   let fixed = 0;
   const waits = [];
   for (const el of document.querySelectorAll('video')) {
     try {
       el.autoplay = false; el.loop = false; el.removeAttribute('autoplay');
       if (!el.paused) { el.pause(); fixed++; }
-      if (el.currentTime > 0.05 && el.seekable && el.seekable.length) {
-        waits.push(new Promise((r) => { const on = () => { el.removeEventListener('seeked', on); r(); }; el.addEventListener('seeked', on); setTimeout(on, 800); }));
-        el.currentTime = 0; fixed++;
+      const t = at(el);
+      if (Math.abs(el.currentTime - t) > 0.05 || el.readyState < 2) {
+        if (el.preload === 'none') el.preload = 'auto';
+        waits.push(new Promise((r) => {
+          const on = () => { el.removeEventListener('seeked', on); el.removeEventListener('loadeddata', on2); r(); };
+          const on2 = () => { if (Math.abs(el.currentTime - t) <= 0.05 && el.readyState >= 2) on(); };
+          el.addEventListener('seeked', on); el.addEventListener('loadeddata', on2);
+          setTimeout(on, 4000);
+        }));
+        el.currentTime = t; fixed++;
       }
     } catch { /* 크로스오리진 */ }
   }
@@ -1106,7 +1117,7 @@ async function holdVideosEverywhere(page) {
     if (f.isDetached()) continue;
     if (f !== page.mainFrame() && (!f.url() || f.url() === 'about:blank')) continue;
     try {
-      const n = await withTimeout(f.evaluate(inPageHoldVideos).catch(() => null), 2000, null);
+      const n = await withTimeout(f.evaluate(inPageHoldVideos).catch(() => null), 5000, null);
       if (n === null) continue;
       if (f !== page.mainFrame()) frames++;
       fixed += n || 0;
@@ -1376,7 +1387,7 @@ export async function captureSite(context, url, opts = {}) {
         stalled = stalled || { at: y, of: height };
       }
       if (hiddenLater) notes.push(`${tweaks.hideHeader ? '첫' : '두 번째'} 조각부터 고정 요소 ${hiddenLater}개 숨김`);
-      if (videosHeld) notes.push(`다시 돌기 시작한 비디오를 ${videosHeld}번 붙잡아 첫 프레임에 뒀습니다`);
+      if (videosHeld) notes.push(`다시 돌기 시작한 비디오를 ${videosHeld}번 붙잡아 같은 장면(앞부분이 지난 자리)에 뒀습니다`);
       scrolled = { reachedBottom: !stalled, height };
       lap('찍기');
       progress(`${shotCount}칸 이어 붙이는 중`);

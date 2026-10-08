@@ -291,14 +291,12 @@ const CASES = [
   {
     // 테라클 히어로 이음새에서 영상이 어긋났다. 캡처기가 비디오를 멈춰도 사이트가
     // 스크롤마다 play() 를 다시 불러, 조각마다 다른 프레임이 찍혔다.
-    // 비디오 아래 자홍색 진행 막대: 첫 프레임이면 길이가 0 이라 자홍색이 거의 없어야 한다.
-    name: '사이트가 다시 재생시켜도 비디오는 첫 프레임에 멈춰 있다',
-    file: 'videoplay.html', mode: 'stitch', steps: ['sticky', 'motion', 'anim'], color: true,
-    check: (r, cmp, shots, extra) => {
-      if (!extra || !extra.rows) return '색을 못 셌다';
-      const { top, below } = extra.rows;
-      // 막대는 비디오 맨 아래 10px(360px 중) — 첫 프레임이면 길이 0. 조금이라도 돌았으면 줄이 생긴다.
-      if (top + below > 0) return `자홍색 진행 막대가 ${top + below}줄 보인다 — 비디오가 첫 프레임에 멈춰 있지 않다`;
+    // 멈추는 자리는 0초가 아니라 앞부분이 지난 같은 자리다(처음이 까만 히어로 영상 때문에).
+    // 영상이 시간에 따라 바뀌므로, 두 번 찍어 같으면 같은 자리에 멈춘 것이다.
+    name: '사이트가 다시 재생시켜도 비디오는 같은 장면에 멈춰 있다',
+    file: 'videoplay.html', mode: 'stitch', steps: ['sticky', 'motion', 'anim'], twice: true,
+    check: (r, cmp) => {
+      if (!cmp || (cmp.verdict !== VERDICT.SAME && cmp.verdict !== VERDICT.SAME_PIXELS)) return `두 번 찍은 그림이 다르다 (${cmp && cmp.verdict}) — 비디오가 돌았다`;
       if (!(r.notes || []).some((n) => /비디오/.test(n))) return '비디오를 멈춘 기록이 없다';
       return null;
     },
@@ -306,12 +304,10 @@ const CASES = [
   {
     // 임베드(iframe) 안의 비디오. 바깥 문서만 멈추면 안의 영상은 계속 돌아 조각마다
     // 다른 프레임이 찍힌다. 모든 프레임에서 붙잡아야 한다.
-    name: 'iframe 임베드 안의 비디오도 첫 프레임에 멈춰 있다',
-    file: 'videoframe.html', mode: 'stitch', steps: ['sticky', 'motion', 'anim'], color: true,
-    check: (r, cmp, shots, extra) => {
-      if (!extra || !extra.rows) return '색을 못 셌다';
-      const { top, below } = extra.rows;
-      if (top + below > 0) return `자홍색 띠가 ${top + below}줄 보인다 — 임베드 안 비디오가 돌았다`;
+    name: 'iframe 임베드 안의 비디오도 같은 장면에 멈춰 있다',
+    file: 'videoframe.html', mode: 'stitch', steps: ['sticky', 'motion', 'anim'], twice: true,
+    check: (r, cmp) => {
+      if (!cmp || (cmp.verdict !== VERDICT.SAME && cmp.verdict !== VERDICT.SAME_PIXELS)) return `두 번 찍은 그림이 다르다 (${cmp && cmp.verdict}) — 임베드 안 비디오가 돌았다`;
       if (!(r.notes || []).some((n) => /임베드/.test(n))) return '임베드 안 비디오를 멈춘 기록이 없다';
       return null;
     },
@@ -432,6 +428,18 @@ const CASES = [
       const other = Object.keys(L.counts).filter((k) => k !== 'ko');
       if (other.length) return `국문 말고 ${other.join(',')} 도 걸렸다`;
       return (L.counts.ko || 0) === 3 ? null : `국문 ${L.counts.ko || 0}곳 (기대 3)`;
+    },
+  },
+  {
+    // 추성고을: 히어로 동영상이 까만 화면에서 밝아지며 시작한다. 0초로 되감아 멈추면 까맣게 찍혔다.
+    // 앞부분이 지난 같은 자리에 멈춰야 장면이 보인다 (영상: 0.6초까지 검정, 그 뒤 분홍).
+    name: '처음이 까만 히어로 동영상도 장면이 보이게 찍힌다',
+    file: 'herovideo.html', mode: 'stitch', steps: ['sticky', 'motion', 'anim'], twice: true, color: 640, colorFrac: 0.9,
+    check: (r, cmp, shots, extra) => {
+      if (!extra || !extra.rows) return '색을 못 셌다';
+      if (extra.rows.top < 400) return `히어로에 영상 장면이 ${extra.rows.top}줄뿐이다 — 까만 첫 장면에 멈췄다`;
+      if (cmp && cmp.verdict !== VERDICT.SAME && cmp.verdict !== VERDICT.SAME_PIXELS) return `두 번 찍은 그림이 다르다 (${cmp.verdict})`;
+      return null;
     },
   },
   {
@@ -825,7 +833,16 @@ function makeServer() {
           .replaceAll('__CROSS_ORIGIN__', CROSS)
           .replaceAll('__JITTER__', String(10 + (jitter++ % 40) * 2));
       }
-      res.writeHead(200, { 'content-type': MIME[extname(name)] || 'application/octet-stream' }).end(body);
+      const type = MIME[extname(name)] || (extname(name) === '.webm' ? 'video/webm' : 'application/octet-stream');
+      // 동영상은 일부만 달라는 요청(Range)에 답한다 — 실제 서버처럼. 안 하면 브라우저가 동영상을 넘기지(seek) 못한다.
+      const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
+      if (range && extname(name) !== '.html') {
+        const start = range[1] ? Number(range[1]) : 0;
+        const end = range[2] ? Math.min(Number(range[2]), body.length - 1) : body.length - 1;
+        res.writeHead(206, { 'content-type': type, 'accept-ranges': 'bytes', 'content-range': `bytes ${start}-${end}/${body.length}`, 'content-length': end - start + 1 }).end(body.subarray(start, end + 1));
+        return;
+      }
+      res.writeHead(200, { 'content-type': type, 'accept-ranges': 'bytes' }).end(body);
     } catch {
       res.writeHead(404).end('not found');
     }

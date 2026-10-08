@@ -199,11 +199,14 @@ async function fitView(s, real = null) {
     real = await s.page.evaluate(() => ({ w: window.innerWidth, h: window.innerHeight })).catch(() => null);
     if (!real || !real.w) return;
   }
-  const W = s.device.width;
-  const fit = Math.min(1, real.w / W);
-  const H = Math.max(400, Math.round(real.h / fit));
+  // 고른 화면 크기(예: 1920×1080) 그대로 그린다 — 화면 높이로 그리는 히어로(100vh)가 자동 캡처와 같아야 한다.
+  // 창에는 가로·세로 비율을 지켜 들어가게 줄인다.
+  const W = s.device.width, H = s.device.height;
+  const fit = Math.min(1, real.w / W, real.h / H);
   s.fit = fit; s.viewH = H;
   await applyMetrics(s, fit);
+  // 스크롤바가 그림에 찍히지 않게 (자동 캡처에도 없다)
+  await s.cdp.send('Emulation.setScrollbarsHidden', { hidden: true }).catch(() => {});
   await s.page.evaluate((k) => { window.__capUiScale = k; if (window.__capSetScale) window.__capSetScale(k); }, 1 / fit).catch(() => {});
 }
 async function applyMetrics(s, scaleView) {
@@ -309,10 +312,22 @@ export async function shotManual(key) {
   await s.page.evaluate(inPageUiVisible, false);
   let buf;
   try {
-    if (s.fitMode && s.fit < 1) { s.shooting = true; await applyMetrics(s, 1); await s.page.waitForTimeout(80); }
-    buf = await s.page.screenshot({ timeout: 30000 });
+    if (s.fitMode) {
+      // 창에 맞춰 줄여 보이는 중이다. 원래 크기로 되돌려 찍으면 실제 창(노트북 화면)보다 커서
+      // 창에 보이는 만큼만 찍혀 오른쪽이 잘렸다(맥). 크롬에게 지금 화면 자리(고른 폭 × 화면 높이)를
+      // 화면 밖까지 원래 크기로 그려 달라고 직접 청한다 — 창 크기와 상관없다.
+      s.shooting = true;
+      const vp = await s.page.evaluate(() => ({ x: window.scrollX, y: window.scrollY, w: window.innerWidth, h: window.innerHeight }));
+      const { data } = await s.cdp.send('Page.captureScreenshot', {
+        format: 'png', captureBeyondViewport: true, fromSurface: true,
+        clip: { x: vp.x, y: vp.y, width: vp.w, height: vp.h, scale: 1 },
+      });
+      buf = Buffer.from(data, 'base64');
+    } else {
+      buf = await s.page.screenshot({ timeout: 30000 });
+    }
   } finally {
-    if (s.fitMode && s.fit < 1) { await applyMetrics(s, s.fit).catch(() => {}); s.shooting = false; }
+    s.shooting = false;
     await s.page.evaluate(inPageUiVisible, true).catch(() => {});
   }
   s.shots.push({ y: at.y, height: at.innerHeight, buf });
