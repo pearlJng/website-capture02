@@ -83,7 +83,7 @@ async function exportPdf(job, rows, { baseDir, name }) {
   let pages = 0;
   for (const row of rows) {
     for (const f of row.files || []) {
-      const bytes = readBytes(join(job.outDir, f));
+      const bytes = new Uint8Array(readBytes(join(job.outDir, f)));   // 공유 풀 Buffer 를 피한다 (보드 PDF 참고)
       const png = /\.jpe?g$/i.test(f) ? await pdf.embedJpg(bytes) : await pdf.embedPng(bytes);
       // 화면 픽셀을 그대로 pt 로 쓴다 (1px = 1pt). 배율 2 면 절반으로 줄여 실제 크기를 맞춘다.
       // 직접 올린 그림은 배율을 모른다 — 레티나로 찍어 폭이 1.5배 넘게 크면 작업 폭에 맞춘다.
@@ -102,13 +102,10 @@ async function exportPdf(job, rows, { baseDir, name }) {
 
 /* ───────────── 보드: 큰 대지 한 장에 페이지를 늘어놓는다 ─────────────
  * 팀장님이 피그마처럼 큰 대지에서 한눈에 보도록. 1depth 메뉴마다 한 줄, 그 안의 페이지를 가로로.
- * 페이지마다 위에 이름, 줄마다 왼쪽 위에 메뉴 이름. 두 가지로 낸다:
- *   board — PDF 한 쪽(미리보기·Acrobat 에서 확대해 본다). 그림은 원래 해상도로 들어간다.
- *   figma — SVG(피그마에 끌어다 놓으면 페이지마다 이름 붙은 묶음이 된다). 피그마는 4096px 넘는
- *           그림을 줄여 흐려지므로, 긴 페이지는 4000px 조각으로 잘라 넣는다.
+ * 페이지마다 위에 이름, 줄마다 왼쪽 위에 메뉴 이름. PDF 한 쪽으로 낸다(미리보기·Acrobat·일러스트에서
+ * 확대해 본다). 그림은 원래 해상도로, 긴 페이지는 4000px 조각으로 나눠 넣는다.
  * 그림은 이 앱의 /files 주소로 브라우저에 불러와 캔버스로 자른다(큰 그림을 CDP 로 넘기지 않는다). */
-const xmlEsc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-async function exportBoard(job, rows, { baseDir, name, kind }) {
+async function exportBoard(job, rows, { baseDir, name }) {
   await ensureBrowser();
   const browser = await host.get();
   const ctx = await browser.newContext({ viewport: { width: 800, height: 600 } });
@@ -134,23 +131,30 @@ async function exportBoard(job, rows, { baseDir, name, kind }) {
       for (const f of g.frames) {
         const urls = (f.row.files || []).map((file) => `${origin}/files/${encodeURIComponent(job.id)}/${encodeURIComponent(file)}`);
         const r = await page.evaluate(async ({ urls, outW, tileH }) => {
-          const imgs = await Promise.all(urls.map((u) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('그림을 못 불러옴: ' + u)); i.src = u; })));
+          const imgs = await Promise.all(urls.map((u) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('그림을 못 불러옴: ' + decodeURIComponent(u.split('/').pop()))); i.src = u; })));
           const k = outW / imgs[0].naturalWidth;
           const H = Math.round(imgs.reduce((n, i) => n + i.naturalHeight * k, 0));
+          // 캔버스 하나를 돌려 쓴다 — 조각마다 새로 만들면 페이지가 많을 때 메모리가 모자라
+          // 브라우저가 빈 그림("data:,")을 돌려준다(보드 PDF 의 "SOI not found in JPEG").
+          const cv = window.__boardCanvas || (window.__boardCanvas = document.createElement('canvas'));
           const tiles = [];
           for (let y = 0; y < H; y += tileH) {
             const h = Math.min(tileH, H - y);
-            const cv = document.createElement('canvas'); cv.width = outW; cv.height = h;
+            cv.width = outW; cv.height = h;
             const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, outW, h);
             let off = 0;
             for (const im of imgs) { const ih = im.naturalHeight * k; if (off + ih > y && off < y + h) cx.drawImage(im, 0, off - y, outW, ih); off += ih; }
-            tiles.push({ y, h, data: cv.toDataURL('image/jpeg', 0.86).split(',')[1] });
+            let url = cv.toDataURL('image/jpeg', 0.86), type = 'jpg';
+            if (!url.startsWith('data:image/jpeg')) { url = cv.toDataURL('image/png'); type = 'png'; }
+            if (!url.startsWith('data:image/')) throw new Error(`그림을 만들지 못했습니다 (${outW}×${h})`);
+            tiles.push({ y, h, type, data: url.split(',')[1] });
           }
+          cv.width = 1; cv.height = 1;   // 메모리를 돌려준다
           return { H, tiles };
-        }, { urls, outW: px, tileH: TILE });
+        }, { urls, outW: px, tileH: TILE }).catch((e) => { throw new Error(`"${f.label}" 페이지를 보드에 넣지 못했습니다 — ${e.message.split('\n')[0]}`); });
         const k = FW / px;                                           // 그림 px → 대지 단위
         f.h = Math.round(r.H * k);
-        f.tiles = r.tiles.map((t) => ({ y: t.y * k, h: t.h * k, data: t.data }));
+        f.tiles = r.tiles.map((t) => ({ y: t.y * k, h: t.h * k, type: t.type, data: t.data }));
       }
     }
     // 배치
@@ -165,28 +169,6 @@ async function exportBoard(job, rows, { baseDir, name, kind }) {
     }
     const H = y - RG + M;
     const title = `${(() => { try { return new URL(rows[0].url).hostname; } catch { return 'site'; } })()} · ${job.device || FW + 'px'} · ${rows.length}페이지`;
-
-    if (kind === 'figma') {
-      const font = "Pretendard, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif";
-      const out = [`<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`,
-        `<rect id="배경" width="${W}" height="${H}" fill="#F3F4F6"/>`,
-        `<text id="제목" x="${M}" y="${Math.round(M * 0.6)}" font-family="${font}" font-size="${Math.round(GH * 0.45)}" fill="#6B7280">${xmlEsc(title)}</text>`];
-      const idOf = (t) => xmlEsc(String(t).replace(/\s*>\s*/g, '-').replace(/\s+/g, '_'));
-      for (const g of groups) {
-        out.push(`<g id="${idOf('메뉴 ' + g.name)}">`, `<text x="${M}" y="${g.y + Math.round(GH * 0.7)}" font-family="${font}" font-size="${Math.round(GH * 0.55)}" font-weight="700" fill="#111827">${xmlEsc(g.name)} <tspan fill="#9CA3AF" font-weight="400">${g.frames.length}</tspan></text>`);
-        for (const f of g.frames) {
-          out.push(`<g id="${idOf(f.label)}">`, `<text x="${f.x}" y="${f.y - Math.round(LH * 0.35)}" font-family="${font}" font-size="${Math.round(LH * 0.5)}" fill="#374151">${xmlEsc(f.label)}</text>`,
-            `<rect x="${f.x}" y="${f.y}" width="${FW}" height="${f.h}" fill="#fff"/>`);
-          for (const t of f.tiles) out.push(`<image x="${f.x}" y="${(f.y + t.y).toFixed(2)}" width="${FW}" height="${t.h.toFixed(2)}" preserveAspectRatio="none" xlink:href="data:image/jpeg;base64,${t.data}"/>`);
-          out.push(`<rect x="${f.x}" y="${f.y}" width="${FW}" height="${f.h}" fill="none" stroke="#D1D5DB" stroke-width="2"/>`, '</g>');
-        }
-        out.push('</g>');
-      }
-      out.push('</svg>');
-      const file = join(baseDir, `${name}.svg`);
-      writeFileSync(file, out.join('\n'));
-      return { file, pages: rows.length, width: W, height: H };
-    }
 
     // PDF 한 쪽 — 보통 뷰어가 14,400pt 까지 연다. 넘으면 전체를 줄인다(그림 해상도는 그대로).
     const s = Math.min(1, 14400 / Math.max(W, H));
@@ -204,7 +186,7 @@ async function exportBoard(job, rows, { baseDir, name, kind }) {
         cx.font = font; cx.fillStyle = color; cx.textBaseline = 'top'; cx.fillText(text, 2, Math.round(size * 0.12));
         return { w: cv.width, h: cv.height, data: cv.toDataURL('image/png').split(',')[1] };
       }, { text, size: size * 2, color, bold });
-      return { img: await pdf.embedPng(Buffer.from(r.data, 'base64')), w: r.w / 2, h: r.h / 2 };
+      return { img: await pdf.embedPng(new Uint8Array(Buffer.from(r.data, 'base64'))), w: r.w / 2, h: r.h / 2 };
     };
     const put = (img, x, yTop, w, h) => pg.drawImage(img, { x: x * s, y: (H - yTop - h) * s, width: w * s, height: h * s });
     const t0 = await textPng(title, Math.round(GH * 0.45), '#6B7280', false);
@@ -216,7 +198,9 @@ async function exportBoard(job, rows, { baseDir, name, kind }) {
         const lt = await textPng(f.label, Math.round(LH * 0.5), '#374151', false);
         put(lt.img, f.x, f.y - Math.round(LH * 0.85), Math.min(lt.w, FW), lt.h);
         pg.drawRectangle({ x: f.x * s, y: (H - f.y - f.h) * s, width: FW * s, height: f.h * s, color: rgb(1, 1, 1), borderColor: rgb(0.82, 0.835, 0.86), borderWidth: Math.max(0.5, 2 * s) });
-        for (const t of f.tiles) put(await pdf.embedJpg(Buffer.from(t.data, 'base64')), f.x, f.y + t.y, FW, t.h);
+        // 작은 Buffer 는 Node 가 공유 풀에 담아 byteOffset 이 0 이 아니다. pdf-lib 는 그 풀의 맨 앞부터 읽어
+        // "SOI not found in JPEG" 가 났다(긴 페이지의 마지막 작은 조각). 따로 떨어진 Uint8Array 로 넘긴다.
+        for (const t of f.tiles) { const bytes = new Uint8Array(Buffer.from(t.data, 'base64')); put(t.type === 'png' ? await pdf.embedPng(bytes) : await pdf.embedJpg(bytes), f.x, f.y + t.y, FW, t.h); }
       }
     }
     const file = join(baseDir, `${name}.pdf`);
@@ -236,9 +220,9 @@ const reveal = (path) => { if (process.platform === 'darwin') spawn('open', ['-R
  */
 function pickSavePath({ defaultName, format }) {
   if (process.platform !== 'darwin' || PUBLIC) return Promise.resolve({ ok: true, native: false });
-  const ext = format === 'pdf' || format === 'board' ? '.pdf' : format === 'figma' ? '.svg' : '';
-  const name = safeName(defaultName) + (format === 'board' ? ' 보드' : format === 'figma' ? ' 피그마' : '') + ext;
-  const prompt = { pdf: 'PDF 로 저장', board: '보드 PDF 로 저장', figma: '피그마용 SVG 로 저장' }[format] || '이미지 폴더로 저장';
+  const ext = format === 'pdf' || format === 'board' ? '.pdf' : '';
+  const name = safeName(defaultName) + (format === 'board' ? ' 보드' : '') + ext;
+  const prompt = { pdf: 'PDF 로 저장', board: '보드 PDF 로 저장' }[format] || '이미지 폴더로 저장';
   const script = [
     'tell application "System Events" to activate',
     `set f to choose file name with prompt "${prompt}" default name "${name.replace(/"/g, '\\"')}" default location (path to downloads folder)`,
@@ -709,7 +693,7 @@ const server = createServer(async (req, res) => {
       let hostName = 'site';
       try { hostName = new URL(job.requested[0].url).hostname; } catch { /* 무시 */ }
       const baseDir = resolve(String(dir || '').trim().replace(/^~(?=$|\/)/, process.env.HOME || '') || join(job.outDir, '내보내기'));
-      const outName = safeName(name) === 'page' && !String(name || '').trim() ? `${hostName} ${job.width}` : safeName(name);
+      const outName = safeName(name) === 'page' && !String(name || '').trim() ? `${hostName} ${job.width}${format === 'board' ? ' 보드' : ''}` : safeName(name);
       try { mkdirSync(baseDir, { recursive: true }); } catch (e) { return json(res, 400, { ok: false, error: `저장 위치를 만들 수 없습니다: ${e.message}` }); }
       const want = Array.isArray(urls) && urls.length ? new Set(urls.map(normUrl)) : null;
       // 정보구조 순서(요청 순서)대로
@@ -719,10 +703,10 @@ const server = createServer(async (req, res) => {
         .sort((a, b) => (order.get(normUrl(a.url)) ?? 999) - (order.get(normUrl(b.url)) ?? 999));
       if (!rows.length) return json(res, 400, { ok: false, error: '내보낼 그림이 없습니다' });
       const viaBrowser = PUBLIC || process.platform !== 'darwin' || !isLocalRequest(req);
-      if (format === 'board' || format === 'figma') {
-        const r = await exportBoard(job, rows, { baseDir, name: outName, kind: format });
-        const fname = `${outName}.${format === 'figma' ? 'svg' : 'pdf'}`;
-        if (viaBrowser) return json(res, 200, { ok: true, format, pages: r.pages, count: rows.length, download: offerDownload(r.file, fname, format === 'figma' ? 'image/svg+xml' : 'application/pdf') });
+      if (format === 'board') {
+        let r;
+        try { r = await exportBoard(job, rows, { baseDir, name: outName }); } catch (e) { return json(res, 200, { ok: false, error: e.message.split('\n')[0] }); }
+        if (viaBrowser) return json(res, 200, { ok: true, format, pages: r.pages, count: rows.length, download: offerDownload(r.file, `${outName}.pdf`, 'application/pdf') });
         reveal(r.file);
         return json(res, 200, { ok: true, format, path: r.file, pages: r.pages, count: rows.length, size: [r.width, r.height] });
       }

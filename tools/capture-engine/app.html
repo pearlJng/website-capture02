@@ -128,7 +128,7 @@
   .opts .chk input { width: 16px; height: 16px; accent-color: var(--accent); }
   .go-row { display: flex; align-items: center; gap: 12px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line2); }
   #b3 { padding: 12px 22px; font-size: 15px; }
-  .langrow { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
+  .langrow { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
   .langrow .lt { font-size: 14px; font-weight: 600; }
   .langrow .mute { flex: 1 1 280px; }
   .lang-ok { font-size: 12px; color: var(--ok); margin-top: 4px; }
@@ -141,6 +141,50 @@
   .langbox .see { margin-left: auto; }
 
   /* 4. 결과 */
+  .prog { display: flex; align-items: center; gap: 12px; margin: 4px 0 14px; font-size: 13px; color: var(--mute); }
+  .prog .bar { flex: 1; height: 8px; background: var(--line2); border-radius: 99px; overflow: hidden; }
+  .prog .bar i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 99px; transition: width .4s; }
+  .prog.done .bar i { background: var(--ok); }
+  .filters { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
+  .flt { font-size: 13px; padding: 6px 12px; border-radius: 99px; background: #fff; }
+  .flt b { font-weight: 600; color: var(--faint); margin-left: 2px; font-variant-numeric: tabular-nums; }
+  .flt.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .flt.on b { color: #fff; opacity: .7; }
+  .flt[data-f="warn"]:not(.on) b { color: var(--warn); } .flt[data-f="bad"]:not(.on) b { color: var(--bad); }
+  .logbox { margin-top: 18px; font-size: 13px; color: var(--mute); }
+  .logbox summary { cursor: pointer; }
+  .logbox .log { margin-top: 8px; }
+  .card { display: flex; flex-direction: column; transition: box-shadow .15s, border-color .15s; }
+  .card:hover { border-color: #d3d9e2; box-shadow: 0 2px 4px rgba(16,24,40,.05), 0 10px 24px rgba(16,24,40,.08); }
+  .card .t { position: relative; height: 220px; border-bottom: 1px solid var(--line2); }
+  .card .thumb { display: block; height: 100%; }
+  .card .thumb img { width: 100%; display: block; }
+  .card .zoom { position: absolute; right: 10px; bottom: 10px; font-size: 12px; color: #fff; background: rgba(17,24,39,.72); padding: 4px 10px; border-radius: 99px; opacity: 0; transition: opacity .15s; }
+  .card:hover .zoom { opacity: 1; }
+  .card .err.fail { padding: 16px; font-size: 13px; }
+  .card .b { padding: 12px 14px 8px; font-size: 13px; flex: 1; }
+  .card .ttl { display: flex; align-items: center; gap: 8px; }
+  .card .ttl b { display: inline; margin: 0; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .ttl .badge { flex: none; }
+  .card .u { color: var(--faint); font-size: 12px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card .why { font-size: 12px; color: var(--mute); margin-top: 6px; line-height: 1.45; }
+  .card .why.warn { color: var(--warn); } .card .why.bad { color: var(--bad); }
+  .card .acts { display: flex; gap: 6px; padding: 8px 10px 10px; border-top: 1px solid var(--line2); }
+  .card .act { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 12.5px; padding: 7px 8px; border-radius: 8px; color: var(--ink2); }
+  .card .act svg { width: 15px; height: 15px; }
+  .card .man { padding: 0 12px 12px; font-size: 12px; color: var(--mute); }
+  .card .man .r { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
+  .card .pick { position: absolute; left: 10px; top: 10px; z-index: 2; width: 28px; height: 28px; border-radius: 8px; background: rgba(255,255,255,.92); box-shadow: 0 1px 3px rgba(0,0,0,.18); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+  .card .pick input { width: 17px; height: 17px; margin: 0; accent-color: var(--accent); cursor: pointer; }
+  .card:has(.sel:not(:checked)) .t img { opacity: .45; }
+  .card .sk { display: flex; height: 100%; align-items: center; justify-content: center; color: var(--faint); font-size: 13px; background: linear-gradient(90deg, #eef0f3 0%, #f6f7f9 50%, #eef0f3 100%); background-size: 200% 100%; }
+  .card .sk.on { color: var(--accent); animation: shimmer 1.2s infinite linear; }
+  @keyframes shimmer { from { background-position: 200% 0 } to { background-position: -200% 0 } }
+  .card .doing { font-size: 12px; color: var(--accent); margin-top: 6px; min-height: 16px; }
+  .export[hidden] { display: none; }
+  .export { position: sticky; bottom: 14px; z-index: 15; background: rgba(255,255,255,.96); backdrop-filter: blur(8px); box-shadow: 0 6px 24px rgba(16,24,40,.12); }
+  .export .et { font-weight: 700; font-size: 14px; margin-right: 4px; }
+  .export #selCount b { color: var(--accent); }
   .log { background: #14161b; color: #cfd3da; font: 12px/1.5 ui-monospace, Menlo, monospace; padding: 12px 14px; border-radius: 10px; max-height: 200px; overflow: auto; white-space: pre-wrap; }
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; margin-top: 16px; }
   .card { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: #fff; position: relative; box-shadow: var(--shadow); }
@@ -157,7 +201,6 @@
   @keyframes pulse { 0%, 100% { transform: scale(.6); opacity: .4 } 50% { transform: scale(1); opacity: 1 } }
   .busy .txt { min-width: 0; }
   .busy .t { color: #999; }
-  .card .act { font-size: 12px; color: var(--accent); margin-top: 4px; min-height: 16px; }
   .card .retake { border-top: 1px solid var(--line); margin-top: 8px; padding-top: 8px; }
   .card .retake textarea { width: 100%; font: inherit; font-size: 13px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; resize: vertical; min-height: 52px; }
   .card .retake .r { display: flex; gap: 6px; margin-top: 6px; align-items: center; }
@@ -166,7 +209,6 @@
   .card .retake .rt:hover svg { transform: translate(1px, -1px); transition: transform .2s; }
   .card .retake .rt.up { margin-left: 10px; }
   .card .retake .rt.up:hover svg { transform: translateY(-2px); }
-  .card .sel { position: absolute; left: 10px; top: 10px; width: 20px; height: 20px; accent-color: var(--accent); }
   .export { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 16px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: #fafbfc; }
   .export .right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
   .export .msg { flex-basis: 100%; font-size: 13px; color: var(--mute); }
@@ -190,6 +232,16 @@
       <input type="url" id="url" placeholder="https://example.com/" required autofocus>
       <button class="primary" id="b1" type="submit">분석하기</button>
     </form>
+    <div class="langrow">
+      <span class="lt">사이트 언어</span>
+      <span class="seg" id="langSeg">
+        <label><input type="radio" name="lang" value="ko" checked>국문</label>
+        <label><input type="radio" name="lang" value="en">영문</label>
+        <label><input type="radio" name="lang" value="ja">일문</label>
+        <label><input type="radio" name="lang" value="zh">중문</label>
+      </span>
+      <span class="mute" id="langHint">외국어 사이트면 골라 주세요. 다른 언어가 보이는지 검수합니다.</span>
+    </div>
     <div class="busy" id="busy1"></div>
     <p class="mute" id="m1"></p>
   </section>
@@ -227,16 +279,7 @@
       <label class="w"><input type="radio" name="w" value="375"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="6.5" y="2" width="11" height="20" rx="2.5"/><path d="M11 18.5h2"/></svg><span><b>모바일 375</b><small>휴대폰 화면</small></span></label>
       <label class="chk"><input type="checkbox" id="check" checked> 두 번 찍어 검사 <span class="mute">(느리지만 움직이는 것을 잡아냅니다)</span></label>
     </div>
-    <div class="langrow">
-      <span class="lt">사이트 언어</span>
-      <span class="seg" id="langSeg">
-        <label><input type="radio" name="lang" value="ko" checked>국문</label>
-        <label><input type="radio" name="lang" value="en">영문</label>
-        <label><input type="radio" name="lang" value="ja">일문</label>
-        <label><input type="radio" name="lang" value="zh">중문</label>
-      </span>
-      <span class="mute" id="langHint">외국어 사이트를 고르면 다른 언어가 보이는지 검수합니다 — 국문은 어디서도 안 되고, 영문 사이트는 영문만, 일문·중문은 그 언어와 영문까지</span>
-    </div>
+
     <div class="go-row">
       <button class="primary" id="b3">캡처 시작</button>
       <span class="mute" id="m3"></span>
@@ -244,12 +287,23 @@
   </section>
 
   <section class="step" id="s4" hidden>
-    <h2><span class="n">4</span>스크린샷</h2>
+    <h2><span class="n">4</span>스크린샷 확인·출력</h2>
     <p class="lead" id="m4"></p>
-    <div class="log" id="log"></div>
+    <div class="prog" id="prog"><div class="bar"><i id="progBar"></i></div><span id="progTxt"></span></div>
+    <div class="filters" id="filters">
+      <button class="flt on" data-f="all">전체 <b></b></button>
+      <button class="flt" data-f="ok">확인됨 <b></b></button>
+      <button class="flt" data-f="warn">검수 필요 <b></b></button>
+      <button class="flt" data-f="bad">실패 <b></b></button>
+      <button class="flt" data-f="lang" hidden>언어 걸림 <b></b></button>
+      <span class="sp" style="flex:1"></span>
+      <span class="mute" id="where"></span>
+    </div>
     <div class="grid" id="grid"></div>
+    <details class="logbox"><summary>작업 기록 보기</summary><div class="log" id="log"></div></details>
     <div class="export" id="export" hidden>
-      <span class="seg"><label><input type="radio" name="fmt" value="img" checked>이미지 폴더</label><label><input type="radio" name="fmt" value="pdf">PDF 한 권</label><label title="큰 대지 한 장에 메뉴구조대로 늘어놓은 PDF — 확대해서 봅니다"><input type="radio" name="fmt" value="board">보드 PDF</label><label title="피그마에 끌어다 놓으면 페이지마다 이름 붙은 묶음이 됩니다"><input type="radio" name="fmt" value="figma">피그마 SVG</label></span>
+      <span class="et">출력</span>
+      <span class="seg"><label><input type="radio" name="fmt" value="img" checked>이미지 폴더</label><label><input type="radio" name="fmt" value="pdf">PDF 한 권</label><label title="큰 대지 한 장에 메뉴구조대로 늘어놓은 PDF — 확대해서 봅니다"><input type="radio" name="fmt" value="board">보드 PDF</label></span>
       <span class="right">
         <button id="selToggle">전체 해제</button>
         <span class="mute" id="selCount"></span>
@@ -403,16 +457,17 @@
       ? `<summary>메인페이지 구성 — ${sec.length}개 구간 (문서 ${r.main.docHeight.toLocaleString('en-US')}px)</summary><ol>${sec.map((s) => `<li><b>${esc(s.type)}</b> ${esc(s.heading || s.text.slice(0, 40))}${s.gnb ? ' ← GNB 항목' : ''}${s.parts.length ? ` <span>(${esc(s.parts.join(' · '))})</span>` : ''}</li>`).join('')}</ol>`
       : '<summary>메인페이지 구성 — 구간을 못 나눴습니다</summary>';
     refreshTree();
-    // 사이트 언어 — 분석이 짐작한 것을 기본으로 (주소 /en, <html lang> …)
-    const lg = ['en', 'ja', 'zh'].includes(r.lang) ? r.lang : 'ko';
-    document.querySelector(`input[name=lang][value="${lg}"]`).checked = true;
-    $('#langHint').textContent = lg === 'ko' ? '외국어 사이트를 고르면 다른 언어가 보이는지 검수합니다 — 국문은 어디서도 안 되고, 영문 사이트는 영문만, 일문·중문은 그 언어와 영문까지'
-      : `이 사이트를 ${({ en: '영문', ja: '일문', zh: '중문' })[lg]} 사이트로 보고 검수합니다 — ${({ en: '국문·일문·한자가 보이면 표시', ja: '국문이 보이면 표시 (영문은 괜찮음)', zh: '국문·일문(가나)이 보이면 표시 (영문은 괜찮음)' })[lg]}`;
+    // 사이트 언어를 직접 고르지 않았고 주소가 외국어 사이트로 보이면(/en, <html lang>) 그쪽으로 맞춰 둔다
+    const lg = ['en', 'ja', 'zh'].includes(r.lang) ? r.lang : null;
+    if (!langTouched && lg) { document.querySelector(`input[name=lang][value="${lg}"]`).checked = true; langHintFor(lg, true); }
   }
-  document.querySelectorAll('input[name=lang]').forEach((rd) => { rd.onchange = () => {
-    const lg = rd.value;
-    $('#langHint').textContent = lg === 'ko' ? '국문 사이트는 언어 검수를 하지 않습니다' : `${({ en: '영문', ja: '일문', zh: '중문' })[lg]} 사이트로 검수합니다 — ${({ en: '국문·일문·한자가 보이면 표시', ja: '국문이 보이면 표시 (영문은 괜찮음)', zh: '국문·일문(가나)이 보이면 표시 (영문은 괜찮음)' })[lg]}`;
-  }; });
+  let langTouched = false;
+  const LANG_RULE = { en: '국문·일문·한자가 보이면 표시', ja: '국문이 보이면 표시 (영문은 괜찮음)', zh: '국문·일문(가나)이 보이면 표시 (영문은 괜찮음)' };
+  function langHintFor(lg, auto) {
+    $('#langHint').textContent = lg === 'ko' ? '국문 사이트는 언어 검수를 하지 않습니다'
+      : `${auto ? '주소를 보고 ' : ''}${({ en: '영문', ja: '일문', zh: '중문' })[lg]} 사이트로 ${auto ? '맞췄어요 — ' : '검수합니다 — '}${LANG_RULE[lg]}`;
+  }
+  document.querySelectorAll('input[name=lang]').forEach((rd) => { rd.onchange = () => { langTouched = true; langHintFor(rd.value, false); }; });
 
   // 체크 상태를 묶음·하위 단추·개수에 반영한다
   const pgsIn = (el) => [...el.querySelectorAll('input.pg')];
@@ -510,6 +565,15 @@
   /* ── 3·4. 캡처 ── */
   let timer = null;
   let jobWidth = 1920;
+  let total = 0, curFilter = 'all';
+  function setFilter(f) { curFilter = f; document.querySelectorAll('#filters .flt').forEach((b) => b.classList.toggle('on', b.dataset.f === f)); applyFilter(); }
+  function applyFilter() {
+    for (const c of document.querySelectorAll('#grid .card')) {
+      const show = curFilter === 'all' || (curFilter === 'lang' ? Boolean(c.dataset.lang) : c.dataset.st === curFilter);
+      c.hidden = !show;
+    }
+  }
+  document.getElementById('filters').addEventListener('click', (e) => { const b = e.target.closest('.flt'); if (b) setFilter(b.dataset.f); });
   const LANG_NAME = { ko: '국문', ja: '일문', zh: '한자' };
   // 언어 검수 위치 보기 — 새 탭에 전체 그림을 깔고 걸린 곳에 빨간 상자
   function openLangView(row, parts) {
@@ -537,8 +601,10 @@
     jobWidth = width;
     if (!r.ok) { $('#m3').innerHTML = `<span class="err">${esc(r.error)}</span>`; $('#b3').disabled = false; return; }
     $('#s4').hidden = false;
-    $('#grid').innerHTML = pages.map((p) => `<div class="card pending" data-url="${esc(norm(p.url))}"><div class="t">기다리는 중</div><div class="b"><b>${esc(p.path.join(' > '))}</b><span class="mute">${esc(shortUrl(p.url))}</span><div class="act"></div></div></div>`).join('');
-    $('#m4').textContent = `저장 위치: ${r.outDir}`;
+    $('#grid').innerHTML = pages.map((p) => `<div class="card pending" data-url="${esc(norm(p.url))}" data-st="wait"><div class="t"><span class="sk">기다리는 중</span></div><div class="b"><div class="ttl"><b>${esc(p.path.join(' > '))}</b></div><div class="u">${esc(shortUrl(p.url))}</div><div class="doing"></div></div></div>`).join('');
+    $('#m4').textContent = '찍는 동안 다 된 페이지부터 카드에 나옵니다. 카드를 눌러 크게 보고, 출력할 것만 체크해 두세요.';
+    $('#where').textContent = '';
+    total = pages.length; setFilter('all');
     $('#s4').scrollIntoView({ behavior: 'smooth', block: 'start' });
     clearInterval(timer);
     timer = setInterval(() => poll(r.id), 1500);
@@ -552,22 +618,30 @@
     const parts = (row.files || []).map((f) => fileUrl(id, f));
     // 아주 긴 페이지는 20,000px 씩 여러 장이다. 첫 장만 보여 주면 "잘렸다"고 보인다 —
     // 클릭하면 전부 이어서 보여 주고, 장마다 따로 열 수도 있게 한다.
-    card.innerHTML = `${file ? `<input type="checkbox" class="sel" title="출력에 넣기" checked>` : ''}<div class="t">${file ? `<a href="${parts.length > 1 ? '#' : file}" target="_blank" class="thumb"><img src="${file}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'err',style:'padding:12px;font-size:12px',textContent:'그림을 못 불러왔어요: ' + decodeURIComponent(this.src.split('/').pop())}))"></a>` : `<div class="err" style="padding:12px">${esc(row.error || '이미지 없음')}</div>`}</div>
-      <div class="b"><b>${esc(row.path || row.name)}</b>${row.status === '실패' || row.status === '직접 찍음' ? `<span class="badge ${cls}">${esc(row.status)}</span>` : ''}
-      ${row.manualNote ? `<div class="mute">${esc(row.manualNote)}</div>` : ''}
-      ${row.lang ? (row.lang.total ? `<details class="langbox"><summary>${Object.entries(row.lang.counts).map(([k, v]) => `<span class="badge ${k === 'ko' ? 'bad' : 'warn'}">${LANG_NAME[k] || k} ${v}곳</span>`).join('')}<a href="#" class="see">위치 보기</a></summary><ul>${row.lang.items.slice(0, 40).map((it) => `<li>${esc(it.text)}<span class="y">${it.y.toLocaleString('en-US')}px</span></li>`).join('')}${row.lang.items.length > 40 ? `<li class="mute">… ${row.lang.items.length - 40}곳 더</li>` : ''}</ul></details>` : `<div class="lang-ok">언어 검수 통과 — 다른 언어가 안 보입니다</div>`) : ''}
-      ${parts.length > 1 ? `<div class="mute">너무 길어 ${parts.length}장으로 나뉨 (출력하면 한 장으로 붙습니다) · ${parts.map((p, i) => `<a href="${p}" target="_blank">${i + 1}</a>`).join(' · ')} · <a href="#" class="stack">이어서 보기</a></div>` : ''}
-      ${row.pieceFiles && row.pieceFiles.length ? `<div class="mute">조각: ${row.pieceFiles.map((f, i) => `<a href="${fileUrl(id, f)}" target="_blank">${i + 1}</a>`).join(' · ')}</div>` : ''}
-      ${row.previous && row.previous.length ? `<div class="prev">이전: ${row.previous.map((f) => `<a href="${fileUrl(id, f)}" target="_blank">${esc(f)}</a>`).join(', ')}</div>` : ''}
-      <div class="retake">
-        <div class="r"><button class="rt go" title="직접 찍기 — 이 페이지를 새 탭에 연다" aria-label="직접 찍기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></button><span class="mute">직접 찍기</span>
-        <button class="rt up" title="직접 찍은 그림으로 바꾸기 — 여러 장을 고르면 순서대로 이어 붙입니다" aria-label="직접 찍은 그림으로 바꾸기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><polyline points="6 10 12 4 18 10"/><path d="M4 20h16"/></svg></button><span class="mute">직접 찍은 그림으로 바꾸기 <small>(여러 장이면 이어 붙임)</small></span>
-        <input type="file" class="upf" accept="image/png,image/jpeg" multiple hidden></div>
-        <div class="man" hidden>
-          <div class="mute mhint">크롬 창이 열렸어요. <b>그 창 오른쪽 아래의 버튼</b>으로 화면을 하나씩 찍고, 다 찍으면 창의 <b>완성</b>을 누르세요. 결과는 이 카드로 돌아옵니다.</div>
-          <div class="r"><button class="mc">창 닫기</button><span class="mute mlist"></span></div>
-        </div>
-      </div></div>`;
+    const st = row.status === '확인됨' ? 'ok' : row.status === '직접 찍음' ? 'ok' : row.status === '검수 필요' ? 'warn' : 'bad';
+    card.dataset.st = st;
+    card.dataset.lang = row.lang && row.lang.total ? '1' : '';
+    const why = row.status === '실패' ? (row.error || '') : row.status === '검수 필요' ? ((row.gaps && row.gaps.length ? row.gaps.join(' · ') : '') || '두 번 찍은 그림이 조금 달라요 — 움직이는 부분이 있는지 확인해 주세요') : '';
+    const badge = row.status === '직접 찍음' ? '<span class="badge ok">직접 찍음</span>' : row.status === '검수 필요' ? '<span class="badge warn">검수 필요</span>' : row.status === '실패' ? '<span class="badge bad">실패</span>' : '';
+    card.innerHTML = `${file ? `<label class="pick" title="출력에 넣기"><input type="checkbox" class="sel" checked></label>` : ''}
+      <div class="t">${file ? `<a href="${parts.length > 1 ? '#' : file}" target="_blank" class="thumb" title="크게 보기"><img src="${file}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'err',style:'padding:12px;font-size:12px',textContent:'그림을 못 불러왔어요: ' + decodeURIComponent(this.src.split('/').pop())}))"><span class="zoom">크게 보기</span></a>` : `<div class="err fail">${esc(row.error || '이미지 없음')}</div>`}</div>
+      <div class="b">
+        <div class="ttl"><b>${esc(row.path || row.name)}</b>${badge}</div>
+        <div class="u">${esc(shortUrl(row.url))}${row.docHeight ? ` · ${Number(row.docHeight).toLocaleString('en-US')}px` : ''}${parts.length > 1 ? ` · ${parts.length}장으로 나뉨 <a href="#" class="stack">이어서 보기</a>` : ''}</div>
+        ${why ? `<div class="why ${st}">${esc(why)}</div>` : ''}
+        ${row.manualNote ? `<div class="why">${esc(row.manualNote)}</div>` : ''}
+        ${row.lang ? (row.lang.total ? `<details class="langbox"><summary>${Object.entries(row.lang.counts).map(([k, v]) => `<span class="badge ${k === 'ko' ? 'bad' : 'warn'}">${LANG_NAME[k] || k} ${v}곳</span>`).join('')}<a href="#" class="see">위치 보기</a></summary><ul>${row.lang.items.slice(0, 40).map((it) => `<li>${esc(it.text)}<span class="y">${it.y.toLocaleString('en-US')}px</span></li>`).join('')}${row.lang.items.length > 40 ? `<li class="mute">… ${row.lang.items.length - 40}곳 더</li>` : ''}</ul></details>` : `<div class="lang-ok">✓ 언어 검수 통과</div>`) : ''}
+        ${row.previous && row.previous.length ? `<div class="prev">이전 그림: ${row.previous.map((f, i) => `<a href="${fileUrl(id, f)}" target="_blank">${i + 1}</a>`).join(' · ')}</div>` : ''}
+      </div>
+      <div class="acts">
+        <button class="act go" title="이 페이지를 크롬 창에 열고, 화면을 하나씩 찍어 이어 붙입니다"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3.5"/></svg>직접 찍기</button>
+        <button class="act up" title="직접 찍은 그림으로 바꿉니다 — 여러 장을 고르면 순서대로 이어 붙입니다"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><polyline points="6 10 12 4 18 10"/><path d="M4 20h16"/></svg>그림 바꾸기</button>
+        <input type="file" class="upf" accept="image/png,image/jpeg" multiple hidden>
+      </div>
+      <div class="man" hidden>
+        <div class="mhint">크롬 창이 열렸어요. <b>그 창 오른쪽 아래의 버튼</b>으로 화면을 하나씩 찍고, 다 찍으면 <b>완성</b>을 누르세요. 결과는 이 카드로 돌아옵니다.</div>
+        <div class="r"><button class="mc sm">창 닫기</button><span class="mute mlist"></span></div>
+      </div>`;
     // 자동 캡처가 못 잡는 페이지는 사람이 크롬에서 전체 페이지를 찍어 올린다 (PNG·JPG).
     const upf = card.querySelector('.upf');
     card.querySelector('.up').onclick = () => upf.click();
@@ -630,15 +704,16 @@
   /* ── 내보내기 ── */
   let currentJob = null;
   const allSel = () => [...document.querySelectorAll('.card .sel')];
+  const shownSel = () => allSel().filter((c) => !c.closest('.card').hidden);
   const selCards = () => allSel().filter((c) => c.checked).map((c) => c.closest('.card').dataset.url);
   function updateSel() {
     const n = selCards().length, t = allSel().length;
-    $('#selCount').textContent = `${n}/${t}개`;
+    $('#selCount').innerHTML = `<b>${n}</b> / ${t}개 고름`;
     $('#selToggle').textContent = n === t && t > 0 ? '전체 해제' : '전체 선택';
     $('#exportBtn').disabled = n === 0;
   }
   document.addEventListener('change', (e) => { if (e.target.classList.contains('sel')) updateSel(); });
-  $('#selToggle').onclick = () => { const on = $('#selToggle').textContent === '전체 선택'; allSel().forEach((c) => { c.checked = on; }); updateSel(); };
+  $('#selToggle').onclick = () => { const on = $('#selToggle').textContent === '전체 선택'; shownSel().forEach((c) => { c.checked = on; }); updateSel(); };
   async function doExport() {
     const format = document.querySelector('input[name=fmt]:checked').value;
     const urls = selCards();
@@ -654,21 +729,20 @@
       if (pick.native) {
         const path = pick.path.replace(/\/$/, '');
         const i = path.lastIndexOf('/');
-        dir = path.slice(0, i); name = path.slice(i + 1).replace(/\.(pdf|svg)$/i, '');
+        dir = path.slice(0, i); name = path.slice(i + 1).replace(/\.pdf$/i, '');
       }
     } finally { $('#exportBtn').disabled = false; }
-    $('#exportMsg').textContent = { pdf: 'PDF 한 권으로 묶고 있어요…', board: '큰 대지 한 장에 늘어놓고 있어요… (페이지가 많으면 1~2분)', figma: '피그마용 SVG 를 만들고 있어요… (페이지가 많으면 1~2분)' }[format] || '폴더에 담고 있어요…';
+    $('#exportMsg').textContent = { pdf: 'PDF 한 권으로 묶고 있어요…', board: '큰 대지 한 장에 늘어놓고 있어요… (페이지가 많으면 1~2분)' }[format] || '폴더에 담고 있어요…';
     const r = await api('/api/export', { id: currentJob, urls, format, dir, name });
     if (!r.ok) { $('#exportMsg').innerHTML = `<span class="err">${esc(r.error)}</span>`; return; }
     if (r.download) {
       // 서버에 올려 쓰는 경우: 브라우저 내려받기 — 브라우저의 저장 창이 뜬다
-      $('#exportMsg').textContent = format === 'pdf' ? `PDF ${r.pages}쪽을 내려받아요` : format === 'board' ? `보드 PDF(${r.pages}페이지)를 내려받아요` : format === 'figma' ? `피그마용 SVG(${r.pages}페이지)를 내려받아요` : `${r.count}장을 zip 으로 내려받아요 (풀면 폴더가 돼요)`;
+      $('#exportMsg').textContent = format === 'pdf' ? `PDF ${r.pages}쪽을 내려받아요` : format === 'board' ? `보드 PDF(${r.pages}페이지)를 내려받아요` : `${r.count}장을 zip 으로 내려받아요 (풀면 폴더가 돼요)`;
       window.location.href = r.download;
       return;
     }
     $('#exportMsg').innerHTML = format === 'pdf' ? `PDF ${r.pages}쪽으로 묶었어요 → <code>${esc(r.path)}</code>`
       : format === 'board' ? `${r.pages}페이지를 보드 한 장에 늘어놓았어요 → <code>${esc(r.path)}</code> <span class="mute">(미리보기에서 확대해 보세요)</span>`
-      : format === 'figma' ? `피그마용 SVG 를 만들었어요 → <code>${esc(r.path)}</code> <span class="mute">(피그마 캔버스에 끌어다 놓으세요)</span>`
       : `${r.count}장을 폴더에 담았어요 → <code>${esc(r.path)}</code>`;
   }
   $('#exportBtn').onclick = doExport;
@@ -681,9 +755,9 @@
     // 기다리는 카드에는 지금 무엇을 하는지
     for (const card of document.querySelectorAll('.card.pending')) {
       const a = j.activity && j.activity[card.dataset.url];
-      const act = card.querySelector('.act');
-      if (act) act.textContent = a || '';
-      if (a) card.querySelector('.t').textContent = '찍는 중';
+      const act = card.querySelector('.doing');
+      if (act) act.textContent = a ? a.replace(/^\d+번째 · /, '') : '';
+      if (a) card.querySelector('.t').innerHTML = '<span class="sk on">찍는 중</span>';
     }
     for (const row of j.rows) {
       const card = document.querySelector(`.card[data-url="${CSS.escape(norm(row.url))}"]`);
@@ -694,11 +768,23 @@
       card.classList.remove('pending');
       if (row.status === '다시 찍는 중') {
         card.classList.add('pending');
-        card.querySelector('.t').innerHTML = '다시 찍는 중';
+        card.querySelector('.t').innerHTML = '<span class="sk on">다시 찍는 중</span>';
         continue;
       }
       renderCard(card, row, id);
     }
+    // 진행 막대와 거르기 개수
+    const doneN = j.rows.filter((r) => r.status !== '다시 찍는 중').length;
+    const tot = j.total || total || j.rows.length;
+    $('#progBar').style.width = `${Math.round((doneN / Math.max(1, tot)) * 100)}%`;
+    $('#progTxt').textContent = j.status === '완료' || j.status === '실패' ? `${tot}페이지 모두 찍었어요` : `${doneN} / ${tot} 페이지 찍음`;
+    $('#prog').classList.toggle('done', j.status === '완료' || j.status === '실패');
+    const cards = [...document.querySelectorAll('#grid .card')];
+    const cnt = { all: cards.length, ok: 0, warn: 0, bad: 0, lang: 0 };
+    for (const c of cards) { if (cnt[c.dataset.st] !== undefined) cnt[c.dataset.st]++; if (c.dataset.lang) cnt.lang++; }
+    for (const b of document.querySelectorAll('#filters .flt')) b.querySelector('b').textContent = cnt[b.dataset.f] || 0;
+    document.querySelector('#filters [data-f="lang"]').hidden = !j.lang;
+    applyFilter();
     if (j.status === '완료' || j.status === '실패') {
       clearInterval(timer); timer = null;
       $('#b3').disabled = false;
@@ -712,7 +798,8 @@
       const langBad = j.rows.filter((r) => r.lang && r.lang.counts && r.lang.counts.ko).length;
       const langWarn = j.rows.filter((r) => r.lang && r.lang.total && !r.lang.counts.ko).length;
       const langLine = j.lang ? ` · 언어 검수: ${langBad || langWarn ? `<span class="err">국문 노출 ${langBad}페이지</span>${langWarn ? ` · 다른 외국어 ${langWarn}페이지` : ''}` : '<span style="color:var(--ok)">모두 통과</span>'}` : '';
-      $('#m4').innerHTML = `${j.status} — 확인됨 ${ok} · 검수 필요 ${warn} · 실패 ${bad} · ${secs}초${langLine}${j.error ? ` <span class="err">${esc(j.error)}</span>` : ''}<br>저장 위치: <code>${esc(j.outDir)}</code>`;
+      $('#m4').innerHTML = `${secs}초 걸렸어요 — 확인됨 ${ok} · 검수 필요 ${warn} · 실패 ${bad}${langLine}${j.error ? ` <span class="err">${esc(j.error)}</span>` : ''}. ${warn || bad ? '검수 필요·실패 카드는 직접 찍기로 다시 찍을 수 있어요.' : '출력할 카드를 고르고 아래에서 출력하세요.'}`;
+      $('#where').innerHTML = `저장 위치 <code title="${esc(j.outDir)}">${esc(j.outDir.split('/').slice(-1)[0])}</code>`;
 
     }
   }
