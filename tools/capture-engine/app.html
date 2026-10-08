@@ -222,7 +222,7 @@
       }
     };
     walk(r.menu, 0, []);
-    // 장바구니·로그인·마이페이지 같은 유틸리티 페이지도 고를 수 있게 — 기본은 체크 안 함
+    // 장바구니·로그인·마이페이지 같은 유틸리티 페이지도 다른 페이지처럼 기본으로 체크한다 (전체 선택·깊이 선택에도 들어간다)
     const utilRows = [];
     const utilSeen = new Set();
     // 사람·장바구니 아이콘의 드롭다운(LOGIN·JOIN US·ORDER…)은 아이콘 아래 한 칸 들여 보여 준다
@@ -231,7 +231,7 @@
       const k = norm(it.href);
       if (seen.has(k) || utilSeen.has(k)) return false;
       utilSeen.add(k);
-      utilRows.push(`<label class="d${d}"><input type="checkbox" class="pg" data-depth="${d}" data-util="1" data-url="${esc(it.href)}" data-label="${esc(path)}"> ${esc(it.label)} <span class="path">${esc(shortUrl(it.href))}</span></label>`);
+      utilRows.push(`<label class="d${d}"><input type="checkbox" class="pg" data-depth="${d}" data-util="1" data-url="${esc(it.href)}" data-label="${esc(path)}" checked> ${esc(it.label)} <span class="path">${esc(shortUrl(it.href))}</span></label>`);
       return true;
     };
     // 카페24 기본 화면 묶음은 맨 끝에 — 화면에 보이는 아이콘·링크가 먼저다
@@ -242,7 +242,7 @@
       if (!shown && kids.length) utilRows.push(`<div class="d1 skip">${esc(it.label)}<span class="why">(${it.std ? '메뉴에 안 보여도 카페24 쇼핑몰에 늘 있는 화면' : '아이콘 메뉴'})</span></div>`);
       for (const c of kids) utilRow(c, 2, `${it.label} > ${c.label}`);
     }
-    if (utilRows.length) rows.push(`<div class="d0 skip" style="margin-top:8px">유틸리티 <span class="why">(장바구니·로그인·마이페이지·아이콘 메뉴 — 필요하면 체크)</span></div>`, ...utilRows);
+    if (utilRows.length) rows.push(`<div class="d0 skip" style="margin-top:8px">유틸리티 <span class="why">(장바구니·로그인·마이페이지·아이콘 메뉴 — 필요 없으면 체크 해제)</span></div>`, ...utilRows);
     // 메뉴를 하나도 못 찾았으면 왜 그런지 보여 준다 — 이걸 보내 주면 바로 고칠 수 있다
     if (!r.menu || !r.menu.length) {
       const d = r.diag || {};
@@ -270,10 +270,10 @@
   // 깊이로 고르기: 1depth = 홈 + 1차 메뉴, 2depth = 2차 메뉴까지 … 그보다 깊은 것은 체크를 푼다
   document.querySelectorAll('input[name=dep]').forEach((rd) => { rd.onchange = () => {
     const max = Number(rd.value);
-    document.querySelectorAll('.pg').forEach((c) => { if (!c.dataset.util) c.checked = Number(c.dataset.depth || 0) <= max; });
+    document.querySelectorAll('.pg').forEach((c) => { c.checked = Number(c.dataset.depth || 0) <= max; });
     updateCount();
   }; });
-  $('#all').onclick = () => { document.querySelectorAll('.pg').forEach((c) => { if (!c.dataset.util) c.checked = true; }); document.querySelector('input[name=dep][value="99"]').checked = true; updateCount(); };
+  $('#all').onclick = () => { document.querySelectorAll('.pg').forEach((c) => { c.checked = true; }); document.querySelector('input[name=dep][value="99"]').checked = true; updateCount(); };
   $('#none').onclick = () => { document.querySelectorAll('.pg').forEach((c) => { c.checked = false; }); updateCount(); };
 
   /* ── 3·4. 캡처 ── */
