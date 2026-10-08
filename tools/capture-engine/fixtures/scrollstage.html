@@ -1,0 +1,82 @@
+<!doctype html><meta charset=utf-8><title>스크롤하면 펼쳐지는 히어로 (윌리텍 구조)</title>
+<style>
+body{margin:0;font:16px/1.6 system-ui;background:#fff}
+#doz_header_wrap{position:fixed;top:0;left:0;right:0;height:80px;background:#fff;z-index:10;display:flex;align-items:center;padding:0 40px;box-sizing:border-box}
+#doz_header_wrap.wit-hd-overlay{background:transparent}
+#doz_header_wrap nav a{margin-right:24px;color:#222;text-decoration:none}
+#doz_header_wrap.wit-hd-light nav a{color:#fff}
+.after{height:1200px;background:#eef3ff;padding:80px 40px;box-sizing:border-box}
+</style>
+<header id="doz_header_wrap"><nav><a href="#">회사 소개</a><a href="#">사업 분야</a><a href="#">문의</a></nav></header>
+<!-- 아임웹 위젯 샌드박스처럼 shadow DOM 안에 그린다 -->
+<div class="js-custom-widget-container" id="host"></div>
+<div class="after"><h2>회사 연혁</h2><p>히어로 아래 본문</p></div>
+<script>
+const host = document.getElementById('host');
+const root = host.attachShadow({ mode: 'open' });
+root.innerHTML = `
+<style>
+.wit-ab{position:relative;height:calc(100vh + var(--ab-length) * 1vh);--ab-radius:32px;--ab-gap:40px}
+.wit-ab__stage{position:sticky;top:0;height:100vh;overflow:hidden}
+.wit-ab__media{position:absolute;inset:0}
+.wit-ab__img{display:block;width:100%;height:100%;object-fit:cover;transform:scale(var(--ab-zoom,1))}
+.wit-ab__text{position:absolute;left:0;right:0;top:0;text-align:center}
+.wit-ab__eyebrow{margin:0;color:var(--ab-c1)}
+.wit-ab__title{margin:8px 0 0;font-size:40px;color:var(--ab-c2)}
+</style>
+<section class="wit-ab" data-padx="160" data-imgh="600" data-pt="300" style="--ab-length: 150; --ab-padx: 160px;">
+  <div class="wit-ab__stage">
+    <div class="wit-ab__media"><img class="wit-ab__img" alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='9'%3E%3Crect width='16' height='9' fill='%23ff00aa'/%3E%3C/svg%3E"></div>
+    <div class="wit-ab__text"><p class="wit-ab__eyebrow">About Us</p><h2 class="wit-ab__title">정확한 기술력과 창조성으로</h2></div>
+  </div>
+</section>`;
+// ── 윌리텍 위젯 스크립트(요지 그대로) ──
+(function () {
+  function clamp(v, a, b) { return Math.min(b, Math.max(a, v)); }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function ease(t) { return t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+  const sec = root.querySelector('.wit-ab'), stage = sec.querySelector('.wit-ab__stage'), media = sec.querySelector('.wit-ab__media'),
+    text = sec.querySelector('.wit-ab__text'), img = sec.querySelector('.wit-ab__img');
+  let L = {};
+  function layout() {
+    const cs = getComputedStyle(sec);
+    const W = stage.clientWidth, H = stage.clientHeight, padx = parseFloat(cs.getPropertyValue('--ab-padx')) || 0;
+    const gap = parseFloat(cs.getPropertyValue('--ab-gap')) || 0, radius = parseFloat(cs.getPropertyValue('--ab-radius')) || 0;
+    const textH = text.offsetHeight, imgW = W - padx * 2;
+    const imgH = Math.max(Math.min(imgW * 600 / 1600, H - textH - gap - 80), 160);
+    const pt = clamp(H - textH - gap - imgH, 80, 300), imgTop = pt + textH + gap;
+    L = { H, padx, radius, textH, imgTop, imgBottom: Math.max(0, H - imgTop - imgH), textStart: pt, textEnd: H * 0.45 - textH / 2 };
+    update();
+  }
+  function update() {
+    const rect = sec.getBoundingClientRect(), range = sec.offsetHeight - L.H;
+    const p = range > 0 ? clamp(-rect.top / range, 0, 1) : 1, e = ease(clamp(p / 0.85, 0, 1));
+    const top = lerp(L.imgTop, 0, e), side = lerp(L.padx, 0, e), bottom = lerp(L.imgBottom, 0, e), r = lerp(L.radius, 0, e);
+    media.style.clipPath = `inset(${top}px ${side}px ${bottom}px ${side}px round ${r}px)`;
+    img.style.setProperty('--ab-zoom', lerp(1.15, 1, e).toFixed(4));
+    const ty = lerp(L.textStart, L.textEnd, e);
+    text.style.transform = `translate3d(0,${ty.toFixed(1)}px,0)`;
+    const c = clamp((ty + L.textH - top) / L.textH, 0, 1);
+    text.style.setProperty('--ab-c1', c > .5 ? '#f6f7f7' : '#5d5e5f');
+    text.style.setProperty('--ab-c2', c > .5 ? '#fff' : '#262628');
+  }
+  let ticking = false;
+  window.addEventListener('scroll', () => { if (ticking) return; ticking = true; requestAnimationFrame(() => { ticking = false; update(); }); }, { passive: true });
+  window.addEventListener('resize', layout);
+  layout();
+})();
+// ── 헤더 겹치기 스크립트 (shadow DOM 안까지 찾는다) ──
+(function () {
+  const header = document.getElementById('doz_header_wrap');
+  function update() {
+    const hb = header.getBoundingClientRect().bottom;
+    const w = root.querySelector('.wit-ab'), r = w.getBoundingClientRect();
+    const over = r.top < hb - 1 && r.bottom > hb;
+    const m = w.querySelector('.wit-ab__media');
+    header.classList.toggle('wit-hd-overlay', over);
+    header.classList.toggle('wit-hd-light', over && m.getBoundingClientRect().top < hb);
+  }
+  window.addEventListener('scroll', () => requestAnimationFrame(update), { passive: true });
+  update();
+})();
+</script>

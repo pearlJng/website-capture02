@@ -356,6 +356,22 @@ const CASES = [
     },
   },
   {
+    // 스크롤하면 이미지가 펼쳐지는 히어로(윌리텍). 2.5화면 높이의 구간에 화면 하나짜리 무대가
+    // 붙어 있고(sticky), 스크롤 진행만큼 이미지의 잘린 가장자리(clip-path)가 열린다. 그대로 찍으면
+    // 덜 펼쳐진 이미지 아래로 1.5화면이 비거나 무대가 조각마다 되풀이된다. 다 펼쳐진 모습 하나로,
+    // 빈자리 없이 나와야 한다. 무대는 아임웹 위젯처럼 shadow DOM 안에 있다.
+    name: '스크롤하면 펼쳐지는 히어로는 다 펼쳐진 모습 한 번으로 찍힌다',
+    file: 'scrollstage.html', mode: 'stitch', steps: ['sticky', 'motion', 'anim'], color: 900, colorFrac: 0.97,
+    check: (r, cmp, shots, extra) => {
+      if (!extra || !extra.rows) return '색을 못 셌다';
+      const { top, below } = extra.rows;
+      if (top < 760) return `가로 끝까지 펼쳐진 이미지가 ${top}줄뿐이다 (기대 760줄 이상) — 덜 펼쳐진 채로 찍혔다`;
+      if (below > 0) return `이미지가 첫 화면 아래에도 ${below}줄 있다 — 무대가 되풀이됐다`;
+      if (r.docHeight > 900 + 1200 + 40) return `문서가 ${r.docHeight}px — 펼쳐지는 구간의 빈자리(1.5화면)가 남았다`;
+      return null;
+    },
+  },
+  {
     // 둘째 조각 위에 흰 띠가 남았다. 맨 위에서는 없다가 스크롤하면 그때 생겨 스크롤
     // 위치를 따라오는 헤더는, 직전 조각과 견주는 방식으로는 처음 나타난 조각에서 못
     // 잡는다. 목표 자리 조금 위에 먼저 서서 자리를 재고 내려가면 잡힌다.

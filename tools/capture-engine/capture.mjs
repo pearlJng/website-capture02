@@ -292,6 +292,75 @@ async function inPageFreezeAnimations() {
  * 맨 위에 가로로 걸친 것 하나는 헤더로 보고 남긴다 — 스냅샷에 헤더는 있어야 한다.
  * 나머지(챗 위젯, 맨 위로 버튼, 쿠키 배너, 하단 고정바)는 콘텐츠를 가리므로 숨긴다.
  */
+/**
+ * 스크롤하면 펼쳐지는 무대(스크롤텔링 히어로)를 다 펼쳐진 모습 하나로 굳힌다.
+ *
+ * 화면 하나짜리 무대(sticky)가 그보다 훨씬 긴 구간 안에 붙어 있고, 스크롤 진행만큼 스크립트가
+ * 무대 안의 모양(clip-path·transform·글자색)을 바꾼다 — 윌리텍 회사 소개 히어로. 그대로 찍으면
+ * 덜 펼쳐진 이미지 아래로 구간 길이만큼 비거나, 조각마다 다른 단계의 무대가 되풀이된다.
+ *
+ * 1) 구간 끝까지 스크롤해 스크립트가 "다 펼쳐진" 상태를 그리게 하고
+ * 2) 무대를 제자리(흐름)로 되돌리고 구간을 무대 높이로 줄인 뒤
+ * 3) 무대 안의 인라인 스타일을 그 상태로 묶어 둔다(스크롤해도 스크립트가 되돌리지 못하게).
+ * 아임웹 위젯은 shadow DOM 안에 그려지므로 열린 shadow root 안까지 찾는다.
+ * 구간 안에 무대 말고 다른 내용이 있으면(무대 위로 본문이 지나가는 커버) 건드리지 않는다.
+ */
+async function inPageSettleScrollStages() {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const vh = window.innerHeight, vw = window.innerWidth;
+  const deep = (root, out = []) => { for (const el of root.querySelectorAll('*')) { out.push(el); if (el.shadowRoot) deep(el.shadowRoot, out); } return out; };
+  const parentOf = (el) => el.parentElement || ((el.getRootNode() || {}).host) || null;
+  const inFlow = (el) => { const cs = getComputedStyle(el); return cs.display !== 'none' && cs.position !== 'absolute' && cs.position !== 'fixed'; };
+  const stages = [];
+  for (const el of deep(document)) {
+    if (el.closest('[data-cap-ui]')) continue;
+    const cs = getComputedStyle(el);
+    if (cs.position !== 'sticky' || cs.display === 'none') continue;
+    const r = el.getBoundingClientRect();
+    if (r.height < vh * 0.7 || r.width < vw * 0.6) continue;     // 화면을 거의 채우는 무대만 (옆 목록 같은 작은 스티키는 아니다)
+    const track = parentOf(el);
+    if (!track || track === document.body || track === document.documentElement) continue;
+    if (track.offsetHeight < el.offsetHeight + vh * 0.3) continue; // 무대가 머물 구간이 있어야 스크롤 무대다
+    const others = [...track.children].filter((c) => c !== el && inFlow(c)).reduce((n, c) => n + c.offsetHeight, 0);
+    if (others > vh * 0.15) continue;                              // 무대 위로 본문이 지나가는 구간 — 줄이면 본문이 잘린다
+    if (stages.some((x) => x.el.contains(el) || x.track === track)) continue;
+    stages.push({ el, track });
+  }
+  const done = [];
+  for (const { el, track } of stages) {
+    const end = track.getBoundingClientRect().top + window.scrollY + track.offsetHeight - el.offsetHeight;
+    window.scrollTo(0, Math.max(0, end));
+    window.dispatchEvent(new Event('scroll'));
+    await frames(); await sleep(400); await frames();
+    // 제자리로 되돌리고 구간을 줄인다
+    el.style.setProperty('position', 'relative', 'important');
+    el.style.setProperty('top', 'auto', 'important');
+    el.style.setProperty('bottom', 'auto', 'important');
+    for (const [k, v] of [['height', 'auto'], ['min-height', '0px'], ['max-height', 'none']]) track.style.setProperty(k, v, 'important');
+    if (track.offsetHeight > el.offsetHeight + vh * 0.15) { track.style.setProperty('padding-top', '0px', 'important'); track.style.setProperty('padding-bottom', '0px', 'important'); }
+    // 이 상태로 묶는다 — 스크롤마다 스크립트가 고쳐 쓰는 style 을 되돌린다
+    const keep = new Map([track, el, ...deep(el)].slice(0, 4000).map((x) => [x, x.getAttribute('style')]));
+    const mo = new MutationObserver((muts) => {
+      for (const m of muts) {
+        const want = keep.get(m.target);
+        if (want === undefined || m.target.getAttribute('style') === want) continue;
+        if (want == null) m.target.removeAttribute('style'); else m.target.setAttribute('style', want);
+      }
+    });
+    for (const x of keep.keys()) mo.observe(x, { attributes: true, attributeFilter: ['style'] });
+    (window.__capStageObservers = window.__capStageObservers || []).push(mo);
+    const cls = (track.getAttribute('class') || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).join('.');
+    done.push(track.tagName.toLowerCase() + (cls ? '.' + cls : ''));
+  }
+  if (done.length) {
+    window.scrollTo(0, 0);
+    window.dispatchEvent(new Event('scroll'));
+    await frames(); await sleep(250);
+  }
+  return done;
+}
+
 export function inPageTameFixed(viewportWidth) {
   // 숨김 규칙. visibility 는 자식이 스스로 visible 로 정해 두면 부모를 숨겨도 그 자식은
   // 보인다 — 테라클 헤더가 그랬다(포장은 숨었는데 메뉴 글자만 조각마다 남았다).
@@ -933,6 +1002,12 @@ export async function captureSite(context, url, opts = {}) {
       await page.waitForTimeout(150);
     }
 
+
+    // 스크롤하면 펼쳐지는 히어로는 다 펼쳐진 모습으로 굳힌다 (구간의 빈자리도 없앤다)
+    if (steps.has('motion')) {
+      const settled = await page.evaluate(inPageSettleScrollStages).catch(() => []);
+      if (settled.length) notes.push(`스크롤하면 펼쳐지는 구간 ${settled.length}곳은 다 펼쳐진 모습으로 (${settled.slice(0, 3).join(', ')})`);
+    }
 
     if (steps.has('sticky')) {
       const r = await page.evaluate(inPageTameFixed, vw);
