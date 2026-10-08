@@ -16,7 +16,7 @@ import { captureSite, VIEWPORT, SAFE_PIXELS, DEVICES, contextOptionsFor } from '
 import { compareCaptures, renderDiffStrip, VERDICT } from './diff.mjs';
 import { createBrowserHost, isBrowserDeath } from './browser.mjs';
 import { extractSitemap } from './sitemap.mjs';
-import { mergePngsVertically, decodePng, stitchUserShots } from './png.mjs';
+import { mergePngsVertically, decodePng, stitchUserShots, cutRows, encodePng } from './png.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PORT = 8825;
@@ -369,6 +369,36 @@ const CASES = [
       if (below > 0) return `이미지가 첫 화면 아래에도 ${below}줄 있다 — 무대가 되풀이됐다`;
       if (r.docHeight > 900 + 1200 + 40) return `문서가 ${r.docHeight}px — 펼쳐지는 구간의 빈자리(1.5화면)가 남았다`;
       return null;
+    },
+  },
+  {
+    // 이퓨전아이 유지운영: GSAP pin 이 3000px 동안 구간을 고정하고 좌우 이미지를 올리며, 그림이
+    // 90% 보이면 괄호 안 이름을 한 글자씩 쓴다. 고정 구간이 "따라붙는 요소"로 숨겨져 3000px 가
+    // 하얗게 비고 이름은 "( )" 였다. 이미지가 보이는 한 장면으로 굳히고, 빈 여백은 그림에서
+    // 잘라 내되 페이지 배치는 그대로 둬야 아래 카드(처음에 계산한 자리에서 나타남)가 나온다.
+    name: '스크롤로 움직이는 고정 구간(GSAP pin)은 이미지가 보이는 장면 하나로, 빈 여백 없이',
+    file: 'gsappin.html', mode: 'stitch', steps: ['sticky', 'motion', 'anim'],
+    check: (r) => {
+      const imgs = r.slices.map(decodePng);
+      const H = imgs.reduce((n, x) => n + x.height, 0);
+      if (H > 1200 + 900 + 1200 + 40) return `그림 높이 ${H}px — 고정 구간의 빈 여백(3000px)이 남았다`;
+      const rows = (rgb, frac) => { let n = 0; for (const im of imgs) for (let y = 0; y < im.height; y++) { let hit = 0; for (let x = 0; x < im.width; x += 4) { const i = (y * im.width + x) * im.bpp; if (Math.abs(im.rows[i] - rgb[0]) < 20 && Math.abs(im.rows[i + 1] - rgb[1]) < 20 && Math.abs(im.rows[i + 2] - rgb[2]) < 20) hit++; } if (hit * 4 > im.width * frac) n++; } return n; };
+      const pink = rows([255, 0, 170], 0.08), green = rows([0, 170, 0], 0.01), blue = rows([0, 0, 255], 0.1);
+      if (pink < 400) return `좌우 이미지가 ${pink}줄뿐이다 — 고정 구간이 비었다`;
+      if (green < 20) return `괄호 안 이름이 안 보인다 (${green}줄) — "( )" 로 찍혔다`;
+      if (blue < 100) return `아래 카드가 ${blue}줄뿐이다 — 페이지를 줄여 카드가 나타날 자리가 어긋났다`;
+      return null;
+    },
+  },
+  {
+    // 여러 장으로 나뉜 그림에서도 문서 구간을 정확히 잘라 낸다 (장의 경계에 걸친 구간 포함)
+    name: '이어 붙인 그림에서 문서 구간을 잘라 낸다 (장 경계에 걸쳐도)',
+    unit: async () => {
+      const mk = (h, base) => { const rows = Buffer.alloc(4 * 3 * h); for (let y = 0; y < h; y++) rows.fill(base + y, y * 12, y * 12 + 12); return encodePng({ width: 4, height: h, bpp: 3, rows }); };
+      const out = cutRows([mk(10, 0), mk(10, 10)], [[3, 5], [8, 13]], 1).map(decodePng);
+      const vals = out.flatMap((im) => Array.from({ length: im.height }, (_, y) => im.rows[y * 12]));
+      const want = [0, 1, 2, 5, 6, 7, 13, 14, 15, 16, 17, 18, 19];
+      return vals.join(',') === want.join(',') ? null : `남은 줄이 ${vals.join(',')} (기대 ${want.join(',')})`;
     },
   },
   {

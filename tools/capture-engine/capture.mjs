@@ -13,6 +13,7 @@
  */
 
 import { stitchShots, repeatedTopBand } from './stitch.mjs';
+import { cutRows } from './png.mjs';
 
 export const VIEWPORT = { width: 1440, height: 900 };
 
@@ -359,6 +360,94 @@ async function inPageSettleScrollStages() {
     await frames(); await sleep(250);
   }
   return done;
+}
+
+/**
+ * GSAP ScrollTrigger 로 고정(pin)되는 구간을 "가장 잘 보이는 한 장면"으로 굳힌다.
+ *
+ * pin 은 구간을 .pin-spacer 로 감싸고 아래 여백(padding)으로 스크롤 길이를 만든 뒤, 그동안
+ * 구간을 position:fixed 로 붙여 두고 안의 것을 스크롤만큼 움직인다(이퓨전아이 유지운영:
+ * 3000px 동안 좌우 이미지가 올라가고 괄호 안 이름이 바뀐다). 그대로 찍으면 고정된 구간이
+ * "따라붙는 요소"로 숨겨져 3000px 가 하얗게 빈다.
+ *
+ * 1) 구간을 몇 군데(처음~끝) 스크롤해 보고, 화면에 이미지·영상이 가장 많이 보이는 자리를 고른다
+ *    (같으면 뒤쪽 — 펼쳐지는 효과는 끝이 완성된 모습이다).
+ * 2) 그 자리에서 움직임(scrub 지연)과 글자(타자 효과)가 멎을 때까지 기다린다.
+ * 3) 구간을 흐름 자리에 그 모습 그대로 묶는다(인라인 스타일 고정, 안쪽 옵저버 정지).
+ * 4) 아래 빈 여백은 페이지에서 줄이지 않는다 — 그 아래 스크롤 효과들의 시작 자리가 이미
+ *    계산돼 있어서, 줄이면 카드가 안 나타난다. 표만 해 두고 다 찍은 그림에서 잘라 낸다.
+ */
+async function inPageSettlePins() {
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  const vh = window.innerHeight, vw = window.innerWidth;
+  const deep = (root, out = []) => { for (const el of root.querySelectorAll('*')) { out.push(el); if (el.shadowRoot) deep(el.shadowRoot, out); } return out; };
+  const spacers = deep(document).filter((el) => typeof el.className === 'string' && /(^|\s)pin-spacer(\s|$)/.test(el.className) && el.firstElementChild);
+  const done = [];
+  for (const spacer of spacers) {
+    const pinned = spacer.firstElementChild;
+    const dur = spacer.offsetHeight - pinned.offsetHeight;
+    if (dur < vh * 0.3 || pinned.offsetHeight < vh * 0.5 || pinned.offsetWidth < vw * 0.6) continue;
+    const top0 = spacer.getBoundingClientRect().top + window.scrollY;
+    const shown = (el) => { for (let n = el; n && n !== spacer; n = n.parentElement) { const cs = getComputedStyle(n); if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) < 0.1) return false; } return true; };
+    const score = () => {
+      let a = 0;
+      for (const m of pinned.querySelectorAll('img, video, canvas')) {
+        const r = m.getBoundingClientRect();
+        const w = Math.min(r.right, vw) - Math.max(r.left, 0), h = Math.min(r.bottom, vh) - Math.max(r.top, 0);
+        if (w > 4 && h > 4 && shown(m)) a += w * h;
+      }
+      return a;
+    };
+    const sig = () => [pinned, ...pinned.querySelectorAll('*')].slice(0, 1500).map((x) => x.getAttribute('style') || '').join('|') + '#' + pinned.textContent;
+    // scrub 은 스크롤보다 늦게 따라온다(scrub:1 이면 1초). 스타일·글자가 두 번 연달아 같을 때까지.
+    const settle = async (max = 3000) => {
+      let prev = sig(), same = 0; const t0 = Date.now();
+      while (Date.now() - t0 < max) { await sleep(150); await frames(); const now = sig(); if (now === prev) { if (++same >= 2) break; } else same = 0; prev = now; }
+    };
+    const go = async (p) => { window.scrollTo(0, Math.round(top0 + p * dur)); window.dispatchEvent(new Event('scroll')); await frames(); await settle(); };
+    const tries = [];
+    for (let k = 0; k <= 6; k++) { const p = k / 6; await go(p); tries.push({ p, s: score() }); }
+    const best = Math.max(...tries.map((t) => t.s));
+    const pick = best > 0 ? tries.filter((t) => t.s >= best * 0.97).pop() : tries[tries.length - 1];
+    await go(pick.p);
+    await settle(4000);   // 글자 타자 효과까지 끝나게
+    // 그 모습으로 묶는다 — 고정을 풀어 흐름 자리(여백 위)에 두고, 스크롤해도 못 바꾸게
+    pinned.style.setProperty('position', 'relative', 'important');
+    for (const k of ['top', 'left', 'right', 'bottom']) pinned.style.setProperty(k, 'auto', 'important');
+    pinned.style.setProperty('transform', 'none', 'important');
+    pinned.style.setProperty('translate', 'none', 'important');
+    const keep = new Map([spacer, pinned, ...deep(pinned)].slice(0, 4000).map((x) => [x, x.getAttribute('style')]));
+    const mo = new MutationObserver((muts) => {
+      for (const m of muts) {
+        const want = keep.get(m.target);
+        if (want === undefined || m.target.getAttribute('style') === want) continue;
+        if (want == null) m.target.removeAttribute('style'); else m.target.setAttribute('style', want);
+      }
+    });
+    for (const x of keep.keys()) mo.observe(x, { attributes: true, attributeFilter: ['style'] });
+    (window.__capStageObservers = window.__capStageObservers || []).push(mo);
+    // 구간 안을 보던 옵저버(괄호 안 이름을 바꾸는 것)는 멈춘다 — 찍으며 스크롤할 때 이름이 바뀌지 않게
+    for (const st of window.__capIO || []) {
+      if (!st.frozen && st.targets.length && st.targets.every((t) => pinned.contains(t))) st.frozen = true;
+    }
+    spacer.setAttribute('data-cap-gap', String(pinned.offsetHeight));
+    const cls = (pinned.getAttribute('class') || '').trim().split(/\s+/).filter(Boolean).slice(0, 1).join('.');
+    done.push(`${pinned.tagName.toLowerCase()}${cls ? '.' + cls : ''} ${Math.round(pick.p * 100)}% 지점`);
+  }
+  if (done.length) { window.scrollTo(0, 0); window.dispatchEvent(new Event('scroll')); await frames(); await sleep(300); }
+  return done;
+}
+
+/** 굳힌 pin 구간 아래의 빈 여백 — 다 찍은 그림에서 잘라 낼 문서 좌표 [위, 아래) */
+function inPageGapRanges() {
+  const out = [];
+  for (const sp of document.querySelectorAll('[data-cap-gap]')) {
+    const top = sp.getBoundingClientRect().top + window.scrollY;
+    const keepH = Number(sp.getAttribute('data-cap-gap')) || 0;
+    if (sp.offsetHeight - keepH > 8) out.push([Math.round(top + keepH), Math.round(top + sp.offsetHeight)]);
+  }
+  return out;
 }
 
 export function inPageTameFixed(viewportWidth) {
@@ -1007,6 +1096,9 @@ export async function captureSite(context, url, opts = {}) {
     if (steps.has('motion')) {
       const settled = await page.evaluate(inPageSettleScrollStages).catch(() => []);
       if (settled.length) notes.push(`스크롤하면 펼쳐지는 구간 ${settled.length}곳은 다 펼쳐진 모습으로 (${settled.slice(0, 3).join(', ')})`);
+      progress('준비 중 — 스크롤로 움직이는 고정 구간 확인');
+      const pins = await page.evaluate(inPageSettlePins).catch(() => []);
+      if (pins.length) notes.push(`스크롤로 움직이는 고정 구간 ${pins.length}곳은 이미지가 가장 많이 보이는 장면으로 (${pins.slice(0, 3).join(', ')})`);
     }
 
     if (steps.has('sticky')) {
@@ -1060,6 +1152,7 @@ export async function captureSite(context, url, opts = {}) {
     if (overflowX > 2) notes.push(`가로로 ${overflowX}px 삐져나온 부분은 잘랐습니다 (뷰포트 폭 기준)`);
 
     let slices;
+    let cutPx = 0;
     let shotCount = 0;
     let stalled = null;
     let pieces = [];
@@ -1230,6 +1323,17 @@ export async function captureSite(context, url, opts = {}) {
       lap('찍기');
     }
 
+    // 굳힌 pin 구간 아래의 빈 여백을 그림에서 잘라 낸다
+    const gaps = steps.has('motion') ? await page.evaluate(inPageGapRanges).catch(() => []) : [];
+    if (gaps.length && slices && slices.length) {
+      try {
+        slices = cutRows(slices, gaps, scale);
+        const cut = gaps.reduce((n, [a, b]) => n + (b - a), 0);
+        notes.push(`고정 구간의 스크롤용 빈 여백 ${cut.toLocaleString('en-US')}px 를 잘라 냈습니다`);
+        cutPx = cut;
+      } catch (e) { notes.push('빈 여백 잘라 내기 실패: ' + e.message.split('\n')[0]); }
+    }
+
     const ready = await page.evaluate(inPageReadiness);
 
     if (ready.loading) notes.push(`아직 받아오는 중인 이미지 ${ready.loading}개`);
@@ -1242,7 +1346,7 @@ export async function captureSite(context, url, opts = {}) {
     if (steps.has('sticky')) await page.evaluate(inPageRestoreFixed);
 
     return {
-      ok: true, url, title: m.title, docHeight, scale, slices,
+      ok: true, url, title: m.title, docHeight: docHeight - cutPx, scale, slices,
       sliceCount: slices.length, notes, docWidth: m.docWidth, ready, mode, shotCount, stalled, pieces,
       motionLibs: motion.found,
       motionHandled: steps.has('motion'), reachedBottom: scrolled.reachedBottom,

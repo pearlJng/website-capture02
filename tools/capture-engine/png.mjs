@@ -208,3 +208,34 @@ export function stitchUserShots(bufs) {
   for (const p of pieces) { p.rows.copy(rows, off, p.from * stride, p.to * stride); off += (p.to - p.from) * stride; }
   return { png: encodePng({ width, height, bpp, rows }), notes, band };
 }
+
+/**
+ * 이어 붙인 그림(여러 장일 수 있다)에서 문서의 세로 구간들을 잘라 낸다.
+ * gaps 는 문서 좌표(CSS px)의 [위, 아래) 목록, scale 은 그림 px / CSS px.
+ * 스크롤로 펼쳐지는 구간(GSAP pin)이 남기는 빈자리를 뺄 때 쓴다 — 페이지 안에서 줄이면
+ * 그 아래 스크롤 효과들의 시작 자리가 어긋나 카드가 안 나타난다.
+ */
+export function cutRows(slices, gaps, scale = 1) {
+  const cuts = (gaps || []).map(([a, b]) => [Math.round(a * scale), Math.round(b * scale)]).filter(([a, b]) => b > a);
+  if (!cuts.length) return slices;
+  const out = [];
+  let offset = 0;   // 이 장이 문서에서 시작하는 자리 (그림 px)
+  for (const buf of slices) {
+    const img = decodePng(buf);
+    const top = offset, bottom = offset + img.height;
+    offset = bottom;
+    const mine = cuts.filter(([a, b]) => a < bottom && b > top);
+    if (!mine.length) { out.push(buf); continue; }
+    const stride = img.width * img.bpp;
+    const keep = [];
+    for (let y = 0; y < img.height; y++) {
+      const dy = top + y;
+      if (!mine.some(([a, b]) => dy >= a && dy < b)) keep.push(y);
+    }
+    if (!keep.length) continue;
+    const rows = Buffer.alloc(stride * keep.length);
+    keep.forEach((y, i) => img.rows.copy(rows, i * stride, y * stride, (y + 1) * stride));
+    out.push(encodePng({ width: img.width, height: keep.length, bpp: img.bpp, rows }));
+  }
+  return out;
+}

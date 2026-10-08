@@ -1,0 +1,62 @@
+<!doctype html><meta charset=utf-8><title>스크롤로 움직이는 고정 구간 (이퓨전아이 유지운영 구조)</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:system-ui}
+body{background:#fff}
+.intro{height:1200px;background:#f4f4f4;padding:120px 160px}
+.scrollSection{position:relative;height:900px;width:100%;overflow:hidden;background:#fff}
+.textArea{position:absolute;left:0;right:0;top:300px;text-align:center;font-size:48px;line-height:1.2;z-index:2}
+.mallName{color:#00aa00;font-size:64px;font-weight:700;min-height:80px}
+.imageAniArea{position:absolute;left:0;right:0;top:0}
+.imageAniArea figure{position:absolute;width:300px;height:420px;background:#ff00aa;border-radius:16px}
+.detail{height:1200px;padding:120px 160px;background:#fff}
+.card{display:inline-block;width:260px;height:260px;margin:20px;background:#0000ff;opacity:0;transform:translateY(-30%)}
+.detail.on .card{opacity:1;transform:none}
+</style>
+<section class="intro"><h1>Maintenance</h1></section>
+<section class="scrollSection" id="pin">
+  <div class="textArea">Delivering<br>Operational Excellence for<div class="mallName" id="name">( )</div></div>
+  <div class="imageAniArea" id="imgs">
+    <figure style="left:80px;top:950px"></figure><figure style="right:80px;top:1250px"></figure>
+    <figure style="left:120px;top:1650px"></figure><figure style="right:120px;top:1950px"></figure>
+    <figure style="left:80px;top:2350px"></figure><figure style="right:80px;top:2650px"></figure>
+  </div>
+</section>
+<section class="detail" id="detail"><h3>더 넓은 분야와 전문적인 운영</h3><div><span class="card"></span><span class="card"></span><span class="card"></span></div></section>
+<script>
+// ── GSAP ScrollTrigger pin 흉내: pin-spacer 로 감싸고 3000px 동안 고정, 안의 이미지를 -2000px 까지 (scrub 지연) ──
+const pin = document.getElementById('pin'), imgs = document.getElementById('imgs');
+const spacer = document.createElement('div');
+spacer.className = 'pin-spacer';
+pin.parentNode.insertBefore(spacer, pin); spacer.appendChild(pin);
+const DUR = 3000;
+spacer.style.cssText = `display:block;position:relative;padding:0 0 ${DUR}px;height:${pin.offsetHeight + DUR}px;width:100%`;
+const start = spacer.offsetTop;
+let cur = 0;
+function frame() {
+  const y = window.scrollY, p = Math.min(1, Math.max(0, (y - start) / DUR));
+  cur += (p - cur) * 0.12;                       // scrub: 1 처럼 늦게 따라온다
+  if (Math.abs(p - cur) < 0.0005) cur = p;
+  if (y >= start && y <= start + DUR) pin.style.cssText = `position:fixed;top:0px;left:0px;width:${spacer.offsetWidth}px;height:900px;transform:translate(0px,0px)`;
+  else if (y > start + DUR) pin.style.cssText = `position:relative;transform:translate(0px,${DUR}px)`;
+  else pin.style.cssText = `position:relative;transform:translate(0px,0px)`;
+  imgs.style.transform = `translate(0px, ${(-2000 * cur).toFixed(2)}px)`;
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+// ── 괄호 안 이름: 그림이 90% 보이면 그 이름을 한 글자씩 ──
+const names = ['UNIQLO', 'KBS', 'SHINSEGAE', 'SM', 'AVON', 'MAEIL'];
+const figs = [...imgs.children]; let last = -1, timer = null;
+const io = new IntersectionObserver((es) => {
+  const vis = es.filter((e) => e.isIntersecting).map((e) => figs.indexOf(e.target));
+  if (!vis.length) return;
+  const i = Math.min(...vis); if (i === last) return; last = i;
+  const n = names[i]; let k = 0; clearInterval(timer);
+  document.getElementById('name').textContent = '( )';
+  timer = setInterval(() => { k++; document.getElementById('name').textContent = `( ${n.slice(0, k)} )`; if (k >= n.length) clearInterval(timer); }, 60);
+}, { threshold: 0.9 });
+figs.forEach((f) => io.observe(f));
+// ── 아래 카드: 시작 자리를 처음에 한 번 계산해 둔다 (ScrollTrigger 처럼) ──
+const detail = document.getElementById('detail');
+const dStart = detail.getBoundingClientRect().top + window.scrollY - window.innerHeight * 0.5;
+window.addEventListener('scroll', () => { if (window.scrollY > dStart) detail.classList.add('on'); }, { passive: true });
+</script>
