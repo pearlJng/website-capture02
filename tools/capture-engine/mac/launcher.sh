@@ -2,8 +2,9 @@
 # 웹사이트 스냅샷.app 의 실행 파일. 터미널 없이 돈다:
 # 최신 코드를 받고 → 앱(node app.mjs)을 뒤에서 켜고 → 브라우저를 연다.
 # 이미 최신 코드로 켜져 있으면 브라우저만 연다. 예전 코드로 켜져 있으면 끄고 새로 켠다(캡처 중이면 그대로 둔다).
-# macapp.mjs 가 __APP_DIR__ 를 실제 설치 자리로 바꿔 넣는다.
-APP="__APP_DIR__"
+# 설치 자리는 첫 인자로 받는다(앱이 넘겨 준다). 없으면 이 파일이 있는 저장소(…/capture-engine).
+APP="${1:-__APP_DIR__}"
+case "$APP" in __APP_""DIR__) APP="$(cd "$(dirname "$0")/.." && pwd)";; esac
 BRANCH="claude/website-snapshot-automation-wdjs4i"
 PORT=8890
 URL="http://127.0.0.1:$PORT/"
