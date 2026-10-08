@@ -2,12 +2,12 @@
   <defs>
     <!-- 맥 앱 아이콘 격자: 1024 캔버스 안 824 둥근 사각형 -->
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#FBFBFC"/>
-      <stop offset="1" stop-color="#E4E6E9"/>
+      <stop offset="0" stop-color="#F7FAFF"/>
+      <stop offset="1" stop-color="#D9E5F7"/>
     </linearGradient>
     <linearGradient id="hero" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#E9EBEE"/>
-      <stop offset="1" stop-color="#D3D7DC"/>
+      <stop offset="0" stop-color="#6EA6FF"/>
+      <stop offset="1" stop-color="#2F6BEA"/>
     </linearGradient>
     <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#3C3F45"/>
@@ -18,9 +18,9 @@
       <stop offset="1" stop-color="#8E949D"/>
     </linearGradient>
     <radialGradient id="glass" cx="0.38" cy="0.34" r="0.78">
-      <stop offset="0" stop-color="#5B6676"/>
-      <stop offset="0.55" stop-color="#262B33"/>
-      <stop offset="1" stop-color="#0D0F12"/>
+      <stop offset="0" stop-color="#7FB2FF"/>
+      <stop offset="0.5" stop-color="#2554B8"/>
+      <stop offset="1" stop-color="#0B1430"/>
     </radialGradient>
     <filter id="tile" x="-10%" y="-10%" width="120%" height="125%">
       <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000" flood-opacity="0.22"/>
@@ -35,21 +35,21 @@
 
   <!-- 바탕 타일 -->
   <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)" filter="url(#tile)"/>
-  <rect x="101.5" y="101.5" width="821" height="821" rx="183.5" fill="none" stroke="#000" stroke-opacity="0.06" stroke-width="3"/>
+  <rect x="101.5" y="101.5" width="821" height="821" rx="183.5" fill="none" stroke="#1F4FA8" stroke-opacity="0.10" stroke-width="3"/>
 
   <!-- 찍히는 웹사이트 -->
   <g filter="url(#sh2)">
     <rect x="200" y="236" width="580" height="420" rx="36" fill="#fff" stroke="#D8DBE0" stroke-width="4"/>
     <path d="M200 272a36 36 0 0 1 36-36h508a36 36 0 0 1 36 36v26H200z" fill="#F0F1F3"/>
     <line x1="202" y1="298" x2="778" y2="298" stroke="#DFE2E6" stroke-width="3"/>
-    <circle cx="246" cy="267" r="11" fill="#C9CCD1"/>
+    <circle cx="246" cy="267" r="11" fill="#3D8BFF"/>
     <circle cx="282" cy="267" r="11" fill="#C9CCD1"/>
     <circle cx="318" cy="267" r="11" fill="#C9CCD1"/>
     <rect x="356" y="254" width="380" height="26" rx="13" fill="#fff" stroke="#E2E4E8" stroke-width="2"/>
     <rect x="236" y="330" width="508" height="150" rx="18" fill="url(#hero)"/>
-    <circle cx="676" cy="370" r="20" fill="#fff" opacity="0.9"/>
-    <path d="M236 460l96-70 72 50 70-46 128 96v8a18 18 0 0 1-18 18H254a18 18 0 0 1-18-18z" fill="#fff" opacity="0.6"/>
-    <rect x="236" y="506" width="290" height="18" rx="9" fill="#E1E4E8"/>
+    <circle cx="676" cy="370" r="20" fill="#fff" opacity="0.95"/>
+    <path d="M236 460l96-70 72 50 70-46 128 96v8a18 18 0 0 1-18 18H254a18 18 0 0 1-18-18z" fill="#fff" opacity="0.45"/>
+    <rect x="236" y="506" width="290" height="18" rx="9" fill="#C9D8F2"/>
     <rect x="236" y="538" width="200" height="18" rx="9" fill="#ECEEF1"/>
     <rect x="236" y="578" width="150" height="44" rx="10" fill="#F2F3F5"/>
     <rect x="400" y="578" width="150" height="44" rx="10" fill="#F2F3F5"/>
@@ -63,7 +63,7 @@
     <rect x="466" y="556" width="372" height="262" rx="52" fill="none" stroke="#fff" stroke-opacity="0.08" stroke-width="3"/>
     <rect x="466" y="660" width="372" height="92" fill="#000" opacity="0.18"/>
     <rect x="498" y="588" width="70" height="38" rx="10" fill="#E3E6EA"/>
-    <circle cx="790" cy="604" r="9" fill="#E0463C"/>
+    <circle cx="790" cy="604" r="9" fill="#3D8BFF"/>
     <circle cx="652" cy="687" r="114" fill="url(#ring)"/>
     <circle cx="652" cy="687" r="104" fill="#121316"/>
     <circle cx="652" cy="687" r="86" fill="#3A3E46"/>
