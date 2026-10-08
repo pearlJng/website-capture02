@@ -682,21 +682,48 @@ async function discoverByHover(page, origin, progress, aliases = new Set()) {
     return now;
   };
 
+  const clickOpened = new Set();
   const children = async (path, depth, known, maxDepth = 3) => {
     const it = path[path.length - 1];
     await hoverPath(path);
     let now = await settled();
     let fresh = now.filter((n) => !known.has(n.id) && n.y >= it.y - 4 && n.id !== it.id);
     // 마우스로 안 열리고 눌러야 열리는 것(주소 없는 항목)은 한 번 눌러 본다
+    let viaClick = false;
+    const sel = `[data-ia="${it.id}"]`;
     if (!fresh.length && !it.href && depth === 1) {
-      await page.click(`[data-ia="${it.id}"]`, { timeout: 2500, force: true }).catch(() => {});
-      await page.waitForTimeout(400);
-      now = await page.evaluate(inPageVisibleItems);
+      await page.click(sel, { timeout: 2500, force: true }).catch(() => {});
+      await page.waitForTimeout(450);
+      now = await settled();
       fresh = now.filter((n) => !known.has(n.id) && n.id !== it.id);
+      viaClick = fresh.length > 0;
     }
-    // 결정적인 검사: 진짜 하위 메뉴는 마우스를 치우면 사라진다. 그대로 남아
-    // 있는 건 그 사이에 나타난 본문 링크다.
-    if (fresh.length) {
+    const visibleIds = async () => new Set((await page.evaluate(inPageVisibleItems)).map((n) => n.id));
+    if (viaClick) {
+      // 눌러서 연 메뉴는 마우스를 치워도 그대로다(이퓨전아이 Projects). 그래서 "치우면 사라지나"로
+      // 가리면 진짜 하위 메뉴가 다 버려진다. 다시 눌러(또는 Esc) 닫히는 것이 하위 메뉴다.
+      await page.click(sel, { timeout: 2500, force: true }).catch(() => {});
+      await page.waitForTimeout(450);
+      let after = await visibleIds();
+      let gone = fresh.filter((f) => !after.has(f.id));
+      if (!gone.length) {
+        await page.keyboard.press('Escape').catch(() => {});
+        await page.waitForTimeout(400);
+        after = await visibleIds();
+        gone = fresh.filter((f) => !after.has(f.id));
+      }
+      if (gone.length) {
+        fresh = gone;
+        await page.click(sel, { timeout: 2500, force: true }).catch(() => {});   // 하위의 하위를 보려면 열어 둔다
+        await page.waitForTimeout(450);
+      } else {
+        // 닫히지 않는 메뉴 — 누른 버튼 가까이(같은 줄 언저리)에 나타난 것만 하위로 본다
+        fresh = fresh.filter((f) => Math.abs(f.y - it.y) <= 240);
+      }
+      if (fresh.length) clickOpened.add(it.id);
+    } else if (fresh.length) {
+      // 결정적인 검사: 진짜 하위 메뉴는 마우스를 치우면 사라진다. 그대로 남아
+      // 있는 건 그 사이에 나타난 본문 링크다.
       if (path.length > 1) await hoverPath(path.slice(0, -1)); else await away();
       await page.waitForTimeout(500);
       const after = new Set((await page.evaluate(inPageVisibleItems)).map((n) => n.id));
@@ -720,6 +747,11 @@ async function discoverByHover(page, origin, progress, aliases = new Set()) {
     progress(`메뉴에 마우스 올려 확인 — ${it.label}`);
     const node = { label: it.label, href: it.href, kind: kindOfHref(it.href, origins), depth: 0, children: [], id: it.id };
     node.children = await children([it], 1, seenId);
+    // 눌러서 연 메뉴는 다시 눌러 닫는다 — 열어 둔 채면 다음 메뉴의 하위로 잘못 잡힌다
+    if (clickOpened.has(it.id)) {
+      await page.click(`[data-ia="${it.id}"]`, { timeout: 2500, force: true }).catch(() => {});
+      await page.waitForTimeout(400);
+    }
     // 마우스를 치우고 열린 것이 닫히게 한다
     await page.mouse.move(2, Math.max(2, (page.viewportSize() || { height: 900 }).height - 2));
     await page.keyboard.press('Escape').catch(() => {});
@@ -748,6 +780,7 @@ async function discoverByHover(page, origin, progress, aliases = new Set()) {
       progress(`아이콘 메뉴 확인 — ${it.label}`);
       node.children = await children([it], 1, seenId, 1).catch(() => []);
       strip(node.children);
+      if (clickOpened.has(it.id)) await page.click(`[data-ia="${it.id}"]`, { timeout: 2500, force: true }).catch(() => {});
       await away();
       await page.keyboard.press('Escape').catch(() => {});
       await page.waitForTimeout(250);

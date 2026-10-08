@@ -641,6 +641,22 @@ const CASES = [
     },
   },
   {
+    // 이퓨전아이: 목록(ul/li) 없는 헤더. Projects 는 주소 없는 버튼이고, 누르면 옆으로 Creative·
+    // Maintenance 가 펼쳐진다. 마우스를 치워도 닫히지 않아 "치우면 사라지나" 검사에 하위가 다 버려졌다.
+    name: '메뉴구조: 눌러야 열리고 다시 눌러야 닫히는 하위 메뉴를 읽는다',
+    file: 'clickmenu.html', sitemap: true,
+    check: (r) => {
+      if (!r.ok) return `실패: ${r.error}`;
+      const top = r.menu.map((x) => x.label);
+      if (top.join('|') !== 'Projects|About|Contact|Recruit|Our LAB') return `최상위가 ${top.join(' / ')} (method ${r.method})`;
+      const kids = r.menu[0].children.map((x) => x.label).join('|');
+      if (kids !== 'Creative|Maintenance') return `Projects 하위가 ${kids || '(없음)'}`;
+      if (r.menu.slice(1).some((x) => x.children.length)) return `다른 메뉴에 하위가 붙었다 — 열어 둔 Projects 를 안 닫았다 (${r.menu.slice(1).map((x) => x.label + ':' + x.children.map((c) => c.label).join(',')).join(' ')})`;
+      if ((r.utility || []).some((x) => x.label === 'Creative')) return 'Creative 가 유틸리티로 빠졌다';
+      return null;
+    },
+  },
+  {
     // 정보구조는 헤더 목록의 중첩을 그대로 읽는다. 숨긴 드롭다운도 읽고,
     // 모바일 메뉴에 반복된 링크는 한 번만 세고, 외부·앵커·파일은 표시한다.
     name: '정보구조: 메뉴 트리를 읽고 중복·외부·앵커를 가른다',

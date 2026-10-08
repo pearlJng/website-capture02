@@ -1,0 +1,43 @@
+<!doctype html><meta charset=utf-8><title>눌러야 열리는 하위 메뉴 (이퓨전아이 구조)</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:system-ui;font-size:18px;color:#222}
+li{list-style:none}
+.header{position:fixed;top:0;left:0;right:0;z-index:20;display:flex;height:70px;justify-content:space-between;align-items:flex-end;padding:0 160px}
+.logo{display:flex;height:42px}
+.btnGnb{display:flex;padding:6px;gap:24px;border-radius:16px;background:#121212}
+.btnGnb a,.projectsBtn{padding:6px 12px;color:#fff;font-size:16px;border-radius:8px;background:none;border:0;cursor:pointer}
+.expandableMenu{display:flex;align-items:center;border-radius:8px}
+.subMenuItems{display:grid;grid-template-columns:0fr;transition:grid-template-columns .3s ease-out}
+.subMenuInner{overflow:hidden;display:flex;align-items:center;min-width:0}
+.subMenuInner a{padding:8px;font-size:14px;color:#aaa;white-space:nowrap}
+.expandableMenu.expanded{background:#fff}
+.expandableMenu.expanded .subMenuItems{grid-template-columns:1fr}
+.expandableMenu.expanded .projectsBtn{color:#121212}
+.btnLab{height:46px;padding:0 24px;line-height:46px;border:1px solid #aaa;border-radius:16px}
+.mo-only{display:none}
+.gnbWrap{position:fixed;left:100%;top:0;width:100%;height:100%;background:#101010}
+#wrapper{padding:160px 160px 0}
+section{height:900px}
+</style>
+<header class="header">
+  <a class="logo" href="/"><svg width="142" height="23"><rect width="142" height="23" fill="#121212"/></svg></a>
+  <div class="btnGnb pc-only">
+    <div class="expandableMenu">
+      <div class="subMenuItems"><div class="subMenuInner"><a href="/project/all">Creative</a><a href="/project/maintenance">Maintenance</a><i></i></div></div>
+      <button type="button" class="projectsBtn">Projects</button>
+    </div>
+    <a href="/about">About</a><a href="/contact">Contact</a><a href="/recruit">Recruit</a>
+  </div>
+  <a class="btnLab pc-only" href="/lab/index3">Our LAB</a>
+  <button type="button" class="btnMenu mo-only"><span aria-label="메뉴">열기</span></button>
+</header>
+<nav class="gnbWrap mo-only"><div><button type="button" aria-label="닫기"></button><ul>
+  <li><a href="/"><span>Home</span></a></li><li><a href="/project/all"><span>Creative</span></a></li><li><a href="/project/maintenance"><span>Maintenance</span></a></li>
+  <li><a href="/about"><span>About</span></a></li><li><a href="/contact"><span>Contact</span></a></li><li><a href="/recruit"><span>Recruit</span></a></li><li><a href="/lab/index3"><span>Our LAB</span></a></li>
+</ul></div></nav>
+<div id="wrapper"><section><h1>Digital Transforms Physical</h1></section><section><h2>Projects</h2></section></div>
+<script>
+// React 처럼: Projects 를 누르면 열리고, 다시 누르면 닫힌다. 마우스를 치워도 그대로다.
+const m = document.querySelector('.expandableMenu');
+document.querySelector('.projectsBtn').addEventListener('click', () => m.classList.toggle('expanded'));
+</script>
