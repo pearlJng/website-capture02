@@ -396,6 +396,11 @@ const server = createServer(async (req, res) => {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(readFileSync(join(HERE, 'app.html')));
       return;
     }
+    // 앱 아이콘 (화면 머리·탭 아이콘)
+    if (req.method === 'GET' && u.pathname === '/icon.png') {
+      const f = join(HERE, 'icon', 'icon.png');
+      if (existsSync(f)) { res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'max-age=3600' }).end(readFileSync(f)); return; }
+    }
     if (req.method === 'POST' && u.pathname === '/api/sitemap') {
       const { url } = await readBody(req);
       if (!url || !/^https?:\/\//i.test(url)) return json(res, 400, { ok: false, error: '주소는 http:// 또는 https:// 로 시작해야 합니다' });
