@@ -22,7 +22,7 @@ import { createBrowserHost, pickBrowser } from './browser.mjs';
 import { extractSitemap, renderTree } from './sitemap.mjs';
 import { shootAll, writeOutputs } from './shoot.mjs';
 import { writeFileSync, copyFileSync, readFileSync as readBytes } from 'node:fs';
-import { PDFDocument } from 'pdf-lib';
+import { PDFDocument, rgb } from 'pdf-lib';
 import { mergePngsVertically, stitchUserShots } from './png.mjs';
 import { startManual, stateManual, scrollManual, shotManual, undoManual, finishManual, closeManual, closeAllManual, pressManual } from './manual.mjs';
 import AdmZip from 'adm-zip';
@@ -100,6 +100,133 @@ async function exportPdf(job, rows, { baseDir, name }) {
   return { file, pages };
 }
 
+/* ───────────── 보드: 큰 대지 한 장에 페이지를 늘어놓는다 ─────────────
+ * 팀장님이 피그마처럼 큰 대지에서 한눈에 보도록. 1depth 메뉴마다 한 줄, 그 안의 페이지를 가로로.
+ * 페이지마다 위에 이름, 줄마다 왼쪽 위에 메뉴 이름. 두 가지로 낸다:
+ *   board — PDF 한 쪽(미리보기·Acrobat 에서 확대해 본다). 그림은 원래 해상도로 들어간다.
+ *   figma — SVG(피그마에 끌어다 놓으면 페이지마다 이름 붙은 묶음이 된다). 피그마는 4096px 넘는
+ *           그림을 줄여 흐려지므로, 긴 페이지는 4000px 조각으로 잘라 넣는다.
+ * 그림은 이 앱의 /files 주소로 브라우저에 불러와 캔버스로 자른다(큰 그림을 CDP 로 넘기지 않는다). */
+const xmlEsc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+async function exportBoard(job, rows, { baseDir, name, kind }) {
+  await ensureBrowser();
+  const browser = await host.get();
+  const ctx = await browser.newContext({ viewport: { width: 800, height: 600 } });
+  const origin = `http://127.0.0.1:${PORT}`;
+  if (PASSWORD) await ctx.addCookies([{ name: 'key', value: encodeURIComponent(PASSWORD), url: origin }]);
+  const page = await ctx.newPage();
+  try {
+    await page.goto(`${origin}/icon.png`).catch(() => {});
+    const FW = job.width || 1440;                                  // 대지 위 페이지 폭 (CSS px)
+    const px = Math.round(FW * Math.min(job.meta && job.meta.scale ? job.meta.scale : 1, 2));   // 실제 그림 폭
+    const TILE = 4000;
+    const G = Math.round(Math.max(80, FW * 0.08)), LH = Math.round(Math.max(56, FW * 0.045)), GH = Math.round(Math.max(90, FW * 0.07)), RG = Math.round(Math.max(160, FW * 0.12)), M = Math.round(Math.max(120, FW * 0.1));
+    // 1depth 메뉴로 묶는다 (요청 순서 그대로)
+    const groups = [];
+    for (const row of rows) {
+      const head = String(row.path || row.name).split(' > ')[0];
+      let g = groups.find((x) => x.name === head);
+      if (!g) { g = { name: head, frames: [] }; groups.push(g); }
+      g.frames.push({ row, label: row.path || row.name });
+    }
+    // 페이지마다 그림을 불러와 폭을 맞추고 조각으로 자른다
+    for (const g of groups) {
+      for (const f of g.frames) {
+        const urls = (f.row.files || []).map((file) => `${origin}/files/${encodeURIComponent(job.id)}/${encodeURIComponent(file)}`);
+        const r = await page.evaluate(async ({ urls, outW, tileH }) => {
+          const imgs = await Promise.all(urls.map((u) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('그림을 못 불러옴: ' + u)); i.src = u; })));
+          const k = outW / imgs[0].naturalWidth;
+          const H = Math.round(imgs.reduce((n, i) => n + i.naturalHeight * k, 0));
+          const tiles = [];
+          for (let y = 0; y < H; y += tileH) {
+            const h = Math.min(tileH, H - y);
+            const cv = document.createElement('canvas'); cv.width = outW; cv.height = h;
+            const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, outW, h);
+            let off = 0;
+            for (const im of imgs) { const ih = im.naturalHeight * k; if (off + ih > y && off < y + h) cx.drawImage(im, 0, off - y, outW, ih); off += ih; }
+            tiles.push({ y, h, data: cv.toDataURL('image/jpeg', 0.86).split(',')[1] });
+          }
+          return { H, tiles };
+        }, { urls, outW: px, tileH: TILE });
+        const k = FW / px;                                           // 그림 px → 대지 단위
+        f.h = Math.round(r.H * k);
+        f.tiles = r.tiles.map((t) => ({ y: t.y * k, h: t.h * k, data: t.data }));
+      }
+    }
+    // 배치
+    let y = M, W = 0;
+    for (const g of groups) {
+      g.y = y;
+      let x = M;
+      const rowH = Math.max(...g.frames.map((f) => f.h));
+      for (const f of g.frames) { f.x = x; f.y = y + GH + LH; x += FW + G; }
+      W = Math.max(W, x - G + M);
+      y += GH + LH + rowH + RG;
+    }
+    const H = y - RG + M;
+    const title = `${(() => { try { return new URL(rows[0].url).hostname; } catch { return 'site'; } })()} · ${job.device || FW + 'px'} · ${rows.length}페이지`;
+
+    if (kind === 'figma') {
+      const font = "Pretendard, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif";
+      const out = [`<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`,
+        `<rect id="배경" width="${W}" height="${H}" fill="#F3F4F6"/>`,
+        `<text id="제목" x="${M}" y="${Math.round(M * 0.6)}" font-family="${font}" font-size="${Math.round(GH * 0.45)}" fill="#6B7280">${xmlEsc(title)}</text>`];
+      const idOf = (t) => xmlEsc(String(t).replace(/\s*>\s*/g, '-').replace(/\s+/g, '_'));
+      for (const g of groups) {
+        out.push(`<g id="${idOf('메뉴 ' + g.name)}">`, `<text x="${M}" y="${g.y + Math.round(GH * 0.7)}" font-family="${font}" font-size="${Math.round(GH * 0.55)}" font-weight="700" fill="#111827">${xmlEsc(g.name)} <tspan fill="#9CA3AF" font-weight="400">${g.frames.length}</tspan></text>`);
+        for (const f of g.frames) {
+          out.push(`<g id="${idOf(f.label)}">`, `<text x="${f.x}" y="${f.y - Math.round(LH * 0.35)}" font-family="${font}" font-size="${Math.round(LH * 0.5)}" fill="#374151">${xmlEsc(f.label)}</text>`,
+            `<rect x="${f.x}" y="${f.y}" width="${FW}" height="${f.h}" fill="#fff"/>`);
+          for (const t of f.tiles) out.push(`<image x="${f.x}" y="${(f.y + t.y).toFixed(2)}" width="${FW}" height="${t.h.toFixed(2)}" preserveAspectRatio="none" xlink:href="data:image/jpeg;base64,${t.data}"/>`);
+          out.push(`<rect x="${f.x}" y="${f.y}" width="${FW}" height="${f.h}" fill="none" stroke="#D1D5DB" stroke-width="2"/>`, '</g>');
+        }
+        out.push('</g>');
+      }
+      out.push('</svg>');
+      const file = join(baseDir, `${name}.svg`);
+      writeFileSync(file, out.join('\n'));
+      return { file, pages: rows.length, width: W, height: H };
+    }
+
+    // PDF 한 쪽 — 보통 뷰어가 14,400pt 까지 연다. 넘으면 전체를 줄인다(그림 해상도는 그대로).
+    const s = Math.min(1, 14400 / Math.max(W, H));
+    const pdf = await PDFDocument.create();
+    pdf.setTitle(title);
+    const pg = pdf.addPage([W * s, H * s]);
+    pg.drawRectangle({ x: 0, y: 0, width: W * s, height: H * s, color: rgb(0.953, 0.957, 0.965) });
+    // 글자는 한글 글꼴을 PDF 에 넣는 대신 브라우저에서 그림으로 그려 붙인다
+    const textPng = async (text, size, color, bold) => {
+      const r = await page.evaluate(({ text, size, color, bold }) => {
+        const cv = document.createElement('canvas'); const cx = cv.getContext('2d');
+        const font = `${bold ? 700 : 500} ${size}px -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif`;
+        cx.font = font; const w = Math.ceil(cx.measureText(text).width) + 4;
+        cv.width = w; cv.height = Math.ceil(size * 1.35);
+        cx.font = font; cx.fillStyle = color; cx.textBaseline = 'top'; cx.fillText(text, 2, Math.round(size * 0.12));
+        return { w: cv.width, h: cv.height, data: cv.toDataURL('image/png').split(',')[1] };
+      }, { text, size: size * 2, color, bold });
+      return { img: await pdf.embedPng(Buffer.from(r.data, 'base64')), w: r.w / 2, h: r.h / 2 };
+    };
+    const put = (img, x, yTop, w, h) => pg.drawImage(img, { x: x * s, y: (H - yTop - h) * s, width: w * s, height: h * s });
+    const t0 = await textPng(title, Math.round(GH * 0.45), '#6B7280', false);
+    put(t0.img, M, Math.round(M * 0.25), t0.w, t0.h);
+    for (const g of groups) {
+      const gt = await textPng(`${g.name}  ${g.frames.length}`, Math.round(GH * 0.55), '#111827', true);
+      put(gt.img, M, g.y + Math.round(GH * 0.15), gt.w, gt.h);
+      for (const f of g.frames) {
+        const lt = await textPng(f.label, Math.round(LH * 0.5), '#374151', false);
+        put(lt.img, f.x, f.y - Math.round(LH * 0.85), Math.min(lt.w, FW), lt.h);
+        pg.drawRectangle({ x: f.x * s, y: (H - f.y - f.h) * s, width: FW * s, height: f.h * s, color: rgb(1, 1, 1), borderColor: rgb(0.82, 0.835, 0.86), borderWidth: Math.max(0.5, 2 * s) });
+        for (const t of f.tiles) put(await pdf.embedJpg(Buffer.from(t.data, 'base64')), f.x, f.y + t.y, FW, t.h);
+      }
+    }
+    const file = join(baseDir, `${name}.pdf`);
+    writeFileSync(file, await pdf.save());
+    return { file, pages: rows.length, width: W, height: H };
+  } finally {
+    await ctx.close().catch(() => {});
+  }
+}
+
 const reveal = (path) => { if (process.platform === 'darwin') spawn('open', ['-R', path], { stdio: 'ignore', detached: true }).unref(); };
 
 /**
@@ -109,8 +236,9 @@ const reveal = (path) => { if (process.platform === 'darwin') spawn('open', ['-R
  */
 function pickSavePath({ defaultName, format }) {
   if (process.platform !== 'darwin' || PUBLIC) return Promise.resolve({ ok: true, native: false });
-  const name = safeName(defaultName) + (format === 'pdf' ? '.pdf' : '');
-  const prompt = format === 'pdf' ? 'PDF 로 저장' : '이미지 폴더로 저장';
+  const ext = format === 'pdf' || format === 'board' ? '.pdf' : format === 'figma' ? '.svg' : '';
+  const name = safeName(defaultName) + (format === 'board' ? ' 보드' : format === 'figma' ? ' 피그마' : '') + ext;
+  const prompt = { pdf: 'PDF 로 저장', board: '보드 PDF 로 저장', figma: '피그마용 SVG 로 저장' }[format] || '이미지 폴더로 저장';
   const script = [
     'tell application "System Events" to activate',
     `set f to choose file name with prompt "${prompt}" default name "${name.replace(/"/g, '\\"')}" default location (path to downloads folder)`,
@@ -128,7 +256,7 @@ function pickSavePath({ defaultName, format }) {
         return res({ ok: false, error: err.trim() || '저장 창을 띄우지 못했습니다' });
       }
       let path = out.trim();
-      if (format === 'pdf' && !/\.pdf$/i.test(path)) path += '.pdf';
+      if (ext && !path.toLowerCase().endsWith(ext)) path += ext;
       res({ ok: true, native: true, path });
     });
     p.on('error', (e) => res({ ok: false, error: e.message }));
@@ -180,7 +308,7 @@ function retake(job, row, { tweaks, applied, ignored, request }) {
     await ensureBrowser();
     try {
       await shootAll({
-        args: { concurrency: 1, mode: tweaks.fullpage ? 'fullpage' : 'stitch', keepPieces: true },
+        args: { concurrency: 1, mode: tweaks.fullpage ? 'fullpage' : 'stitch', keepPieces: true, lang: job.lang },
         urls: [row.url], host, pick, device, scale, outDir: job.outDir,
         check: job.check && !tweaks.noCheck, retry: 2, fixedName, writeIndex: false,
         tweaks: { hideHeader: !!tweaks.hideHeader, closePopups: !!tweaks.closePopups, slow: !!tweaks.slow },
@@ -197,6 +325,7 @@ function retake(job, row, { tweaks, applied, ignored, request }) {
     }
     // 목록·보고서는 전체 결과로 다시 쓴다 — 한 장만 다시 찍었다고 목록이 한 장이 되면 안 된다
     try { writeOutputs(job.rows, { ...job.meta, when: new Date().toLocaleString('ko-KR') }, job.outDir); } catch { /* 무시 */ }
+    if (job.lang) writeLangReport(job);
     job.status = '완료';
     job.finishedAt = Date.now();
   });
@@ -277,7 +406,27 @@ function pagesFrom(result, entered) {
 const jobs = new Map();
 let seq = 0;
 
-function startJob({ pages, width, check }) {
+/** 언어 검수 결과를 결과 폴더에 글로 남긴다 — 보고 전에 고칠 곳 목록으로 쓴다 */
+function writeLangReport(job) {
+  const NAME = { ko: '국문', ja: '일문(가나)', zh: '한자' };
+  const T = { en: '영문', ja: '일문', zh: '중문' }[job.lang] || job.lang;
+  const L = [`언어 검수 — ${T} 사이트 (${new Date().toLocaleString('ko-KR')})`,
+    `규칙: 국문은 어디서도 안 됨 · 영문 사이트는 영문만 · 일문·중문 사이트는 그 언어와 영문까지`,
+    '그림 속 글자(로고·배너 이미지)는 읽지 못합니다 — 화면의 글자만 봅니다', ''];
+  let bad = 0;
+  for (const r of job.rows) {
+    if (!r.lang) continue;
+    if (!r.lang.total) { L.push(`✓ ${r.path || r.name}  ${r.url}`); continue; }
+    bad++;
+    L.push(`✗ ${r.path || r.name}  ${r.url}  — ${Object.entries(r.lang.counts).map(([k, v]) => `${NAME[k] || k} ${v}곳`).join(' · ')}`);
+    for (const it of r.lang.items.slice(0, 60)) L.push(`    ${String(it.y).padStart(6)}px  [${NAME[it.lang] || it.lang}] ${it.text}`);
+    if (r.lang.items.length > 60) L.push(`    … ${r.lang.items.length - 60}곳 더`);
+  }
+  L.splice(3, 0, bad ? `걸린 페이지 ${bad}곳` : '모든 페이지 통과');
+  try { writeFileSync(join(job.outDir, '언어검수.txt'), L.join('\n') + '\n'); } catch { /* 무시 */ }
+}
+
+function startJob({ pages, width, check, lang = null }) {
   const device = DEVICES[width] || DEVICES[1920];
   const id = `${Date.now().toString(36)}-${++seq}`;
   const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ').replace(':', '');
@@ -286,7 +435,7 @@ function startJob({ pages, width, check }) {
   const outDir = join(OUT_ROOT, `${stamp} ${hostName} ${device.width}`);
   mkdirSync(outDir, { recursive: true });
 
-  const job = { id, status: '대기', device: device.label, width: device.width, check, outDir, total: pages.length,
+  const job = { id, status: '대기', device: device.label, width: device.width, check, lang, outDir, total: pages.length,
     requested: pages.map((p) => ({ url: p.url, path: p.path.join(' > ') })),
     rows: [], log: [], activity: {}, startedAt: Date.now() };
   writeFileSync(join(outDir, '요청목록.txt'), pages.map((p) => `${p.path.join(' > ')}\t${p.url}`).join('\n') + '\n');
@@ -299,7 +448,7 @@ function startJob({ pages, width, check }) {
     job.meta = { scale: device.scale, out: outDir, browser: pick.name, codecs: pick.codecs, device: device.label, width: device.width };
     try {
       await shootAll({
-        args: { concurrency: 2, keepPieces: true },
+        args: { concurrency: 2, keepPieces: true, lang: job.lang },
         urls: pages.map((p) => p.url), host, pick, device, scale: device.scale,
         outDir, check, retry: 2,
         log: (m) => { if (m && !/^\s*$/.test(m)) job.log.push(String(m).trimEnd()); if (job.log.length > 400) job.log.shift(); },
@@ -313,6 +462,7 @@ function startJob({ pages, width, check }) {
           job.log.push(`  ✗ ${p.path.join(' > ')} — 결과 없음`);
         }
       }
+      if (job.lang) writeLangReport(job);
       job.status = '완료';
     } catch (e) {
       job.status = '실패';
@@ -427,10 +577,10 @@ const server = createServer(async (req, res) => {
       return json(res, 200, { ...rest, pages: pagesFrom(r, url), tree: renderTree(r), browser: pick && pick.name, diagDir });
     }
     if (req.method === 'POST' && u.pathname === '/api/capture') {
-      const { pages, width, check } = await readBody(req);
+      const { pages, width, check, lang } = await readBody(req);
       if (!Array.isArray(pages) || !pages.length) return json(res, 400, { ok: false, error: '찍을 페이지가 없습니다' });
       if (!DEVICES[width]) return json(res, 400, { ok: false, error: `화면 크기 ${width} 는 없습니다` });
-      const job = startJob({ pages, width, check: check !== false });
+      const job = startJob({ pages, width, check: check !== false, lang: ['en', 'ja', 'zh'].includes(lang) ? lang : null });
       return json(res, 200, { ok: true, id: job.id, outDir: job.outDir });
     }
     if (req.method === 'GET' && u.pathname === '/api/status') return json(res, 200, { ok: true, ...activity });
@@ -569,6 +719,13 @@ const server = createServer(async (req, res) => {
         .sort((a, b) => (order.get(normUrl(a.url)) ?? 999) - (order.get(normUrl(b.url)) ?? 999));
       if (!rows.length) return json(res, 400, { ok: false, error: '내보낼 그림이 없습니다' });
       const viaBrowser = PUBLIC || process.platform !== 'darwin' || !isLocalRequest(req);
+      if (format === 'board' || format === 'figma') {
+        const r = await exportBoard(job, rows, { baseDir, name: outName, kind: format });
+        const fname = `${outName}.${format === 'figma' ? 'svg' : 'pdf'}`;
+        if (viaBrowser) return json(res, 200, { ok: true, format, pages: r.pages, count: rows.length, download: offerDownload(r.file, fname, format === 'figma' ? 'image/svg+xml' : 'application/pdf') });
+        reveal(r.file);
+        return json(res, 200, { ok: true, format, path: r.file, pages: r.pages, count: rows.length, size: [r.width, r.height] });
+      }
       if (format === 'pdf') {
         const r = await exportPdf(job, rows, { baseDir, name: outName });
         if (viaBrowser) return json(res, 200, { ok: true, format, pages: r.pages, count: rows.length, download: offerDownload(r.file, `${outName}.pdf`, 'application/pdf') });

@@ -402,6 +402,39 @@ const CASES = [
     },
   },
   {
+    // 외국어 사이트에 다른 언어가 보이면 안 된다. 영문 사이트에서는 국문·일문(가나)·한자가 다 걸린다.
+    // 보이는 글자만 본다 — 숨긴 문장·그림 대체 텍스트는 아니다. 고정 헤더의 메뉴 글자는 본다
+    // (찍는 동안 숨겨도 첫 화면에는 보인다). 입력칸 안내 글도 화면에 보인다.
+    name: '언어 검수: 영문 사이트에 보이는 국문·일문·한자를 위치와 함께 찾는다',
+    file: 'langmix.html', mode: 'stitch', steps: ['sticky', 'motion', 'anim'], lang: 'en',
+    check: (r) => {
+      const L = r.lang;
+      if (!L) return '언어 검수 결과가 없다';
+      const txt = L.items.map((x) => `[${x.lang}] ${x.text}`).join(' | ');
+      if ((L.counts.ko || 0) !== 3) return `국문 ${L.counts.ko || 0}곳 (기대 3: 헤더 뉴스·안내 글·주소) — ${txt}`;
+      if (L.items.some((x) => /숨겨진|대체/.test(x.text))) return `안 보이는 글자까지 셌다 — ${txt}`;
+      if (!L.items.some((x) => x.lang === 'ja' && /オフィス/.test(x.text))) return `일문(가나)을 못 찾았다 — ${txt}`;
+      if (!L.items.some((x) => x.lang === 'zh' && /中国/.test(x.text))) return `한자를 못 찾았다 — ${txt}`;
+      const addr = L.items.find((x) => /주소/.test(x.text));
+      if (!addr || addr.y < r.docHeight - 200) return `주소 위치가 이상하다 (${addr && addr.y} / 문서 ${r.docHeight})`;
+      const menu = L.items.find((x) => /뉴스/.test(x.text));
+      if (!menu || menu.y > 64) return `헤더 메뉴 위치가 이상하다 (${menu && menu.y})`;
+      return null;
+    },
+  },
+  {
+    // 일문 사이트는 일문 + 영문까지 괜찮다. 국문만 걸린다.
+    name: '언어 검수: 일문 사이트는 국문만 걸린다',
+    file: 'langmix.html', mode: 'stitch', steps: ['sticky', 'motion', 'anim'], lang: 'ja',
+    check: (r) => {
+      const L = r.lang;
+      if (!L) return '언어 검수 결과가 없다';
+      const other = Object.keys(L.counts).filter((k) => k !== 'ko');
+      if (other.length) return `국문 말고 ${other.join(',')} 도 걸렸다`;
+      return (L.counts.ko || 0) === 3 ? null : `국문 ${L.counts.ko || 0}곳 (기대 3)`;
+    },
+  },
+  {
     // 둘째 조각 위에 흰 띠가 남았다. 맨 위에서는 없다가 스크롤하면 그때 생겨 스크롤
     // 위치를 따라오는 헤더는, 직전 조각과 견주는 방식으로는 처음 나타난 조각에서 못
     // 잡는다. 목표 자리 조금 위에 먼저 서서 자리를 재고 내려가면 잡힌다.
@@ -884,7 +917,7 @@ async function main() {
         ? contextOptionsFor(DEVICES[c.device], DEVICES[c.device].scale)
         : { viewport: VIEWPORT, locale: 'ko-KR' });
       const r = await captureSite(ctx, BASE + c.file, {
-        steps: c.steps, mode: c.mode, stitchPage: await getStitchPage(),
+        steps: c.steps, mode: c.mode, stitchPage: await getStitchPage(), lang: c.lang || null,
         scale: c.device ? DEVICES[c.device].scale : 1,   // 컨텍스트 배율과 맞아야 이어붙이기가 맞는다
       });
       await ctx.close().catch(() => {});

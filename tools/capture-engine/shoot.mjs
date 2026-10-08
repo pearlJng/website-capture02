@@ -329,6 +329,7 @@ export async function shootAll({ args = {}, urls, host, pick, device, scale, out
       const work = captureSite(ctx, url, {
         steps: [...STEPS], scale, mode: args.mode || 'stitch',
         stitchPage,
+        lang: args.lang || null,
         tweaks: tweaks || undefined,
         onProgress: (m) => {
           if (verbose) log(`      ${label} · ${m}`);
@@ -461,6 +462,7 @@ export async function shootAll({ args = {}, urls, host, pick, device, scale, out
       ratio: cmp ? cmp.ratio : 0,
       where: cmp && cmp.region ? `y ${cmp.region.y}~${cmp.region.y + cmp.region.h}` : '',
       notes: last.notes,
+      lang: last.lang || null,
     };
   };
   const rows = await mapLimit(urls, args.concurrency || 2, async (url) => {

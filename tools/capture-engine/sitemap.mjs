@@ -290,6 +290,7 @@ function inPageReadNav(aliasList) {
 
   return {
     title: clean(document.title),
+    pageLang: (document.documentElement.getAttribute('lang') || '').toLowerCase(),
     url: location.href,
     h1: clean((document.querySelector('h1') || {}).textContent),
     description: clean((document.querySelector('meta[name="description"]') || {}).content),
@@ -793,6 +794,24 @@ async function discoverByHover(page, origin, progress, aliases = new Set()) {
 
 /* ──────────────────────────────── 조립 ──────────────────────────────── */
 
+/**
+ * 사이트 언어를 짐작한다 — 언어 검수의 기본값. <html lang> 이 먼저, 없으면 주소(/en, jp. …).
+ * 모르면 'ko' (국문 사이트는 검수하지 않는다).
+ */
+export function guessLang(htmlLang, url) {
+  const l = String(htmlLang || '').toLowerCase();
+  const fromCode = (c) => (/^(en)/.test(c) ? 'en' : /^(ja|jp)/.test(c) ? 'ja' : /^(zh|cn|tw)/.test(c) ? 'zh' : /^(ko|kr)/.test(c) ? 'ko' : '');
+  let u = null; try { u = new URL(url); } catch { /* 무시 */ }
+  if (u) {
+    const seg = (u.pathname.split('/')[1] || '').toLowerCase();
+    const sub = u.hostname.split('.')[0].toLowerCase();
+    const q = (u.searchParams.get('lang') || u.searchParams.get('language') || '').toLowerCase();
+    const byUrl = fromCode(/^(en|eng|english|ja|jp|jpn|zh|cn|chn|tw|ko|kr|kor)$/.test(seg) ? seg : '') || fromCode(/^(en|eng|jp|ja|cn|zh|tw|kr|ko)$/.test(sub) ? sub : '') || fromCode(q);
+    if (byUrl) return byUrl;   // 주소가 /en 인데 html lang 이 ko 로 남아 있는 사이트가 흔하다 — 주소를 믿는다
+  }
+  return fromCode(l) || 'ko';
+}
+
 const normUrl = (href) => {
   try { const u = new URL(href); u.hash = ''; u.search = ''; return u.href.replace(/\/$/, ''); } catch { return href; }
 };
@@ -1001,6 +1020,7 @@ export async function extractSitemap(context, url, opts = {}) {
       menu: home.menu, utility: home.utility || [], loose: home.loose, footer: home.footer, main, pages,
       languages: home.languages || [],
       aliases: home.aliases || [],
+      lang: guessLang(home.pageLang, page.url()),
       diag: { ...(home.diag || {}), hover: discoverByHover.lastDiag || null, method },
       headerHtml: home.headerHtml,
       menuCount: count(home.menu), inspected, method, ms: Date.now() - started,

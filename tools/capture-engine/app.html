@@ -128,6 +128,17 @@
   .opts .chk input { width: 16px; height: 16px; accent-color: var(--accent); }
   .go-row { display: flex; align-items: center; gap: 12px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line2); }
   #b3 { padding: 12px 22px; font-size: 15px; }
+  .langrow { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
+  .langrow .lt { font-size: 14px; font-weight: 600; }
+  .langrow .mute { flex: 1 1 280px; }
+  .lang-ok { font-size: 12px; color: var(--ok); margin-top: 4px; }
+  .langbox { margin-top: 6px; font-size: 12px; }
+  .langbox summary { cursor: pointer; list-style: none; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .langbox summary::-webkit-details-marker { display: none; }
+  .langbox ul { margin: 6px 0 0; padding: 0 0 0 16px; max-height: 160px; overflow: auto; }
+  .langbox li { margin: 2px 0; color: var(--ink2); }
+  .langbox li .y { color: var(--faint); font-variant-numeric: tabular-nums; margin-left: 4px; }
+  .langbox .see { margin-left: auto; }
 
   /* 4. 결과 */
   .log { background: #14161b; color: #cfd3da; font: 12px/1.5 ui-monospace, Menlo, monospace; padding: 12px 14px; border-radius: 10px; max-height: 200px; overflow: auto; white-space: pre-wrap; }
@@ -170,8 +181,6 @@
     <img src="/icon.png" alt="">
     <h1>웹사이트 스냅샷</h1>
     <span class="sub">메뉴구조대로 사이트 전체를 찍습니다</span>
-    <span class="sp"></span>
-    <button type="button" id="quit" class="ghost sm" title="앱을 끕니다 — 다시 쓰려면 바탕화면의 웹사이트 스냅샷을 누르세요">앱 끄기</button>
   </header>
 
   <section class="step" id="s1">
@@ -218,6 +227,16 @@
       <label class="w"><input type="radio" name="w" value="375"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="6.5" y="2" width="11" height="20" rx="2.5"/><path d="M11 18.5h2"/></svg><span><b>모바일 375</b><small>휴대폰 화면</small></span></label>
       <label class="chk"><input type="checkbox" id="check" checked> 두 번 찍어 검사 <span class="mute">(느리지만 움직이는 것을 잡아냅니다)</span></label>
     </div>
+    <div class="langrow">
+      <span class="lt">사이트 언어</span>
+      <span class="seg" id="langSeg">
+        <label><input type="radio" name="lang" value="ko" checked>국문</label>
+        <label><input type="radio" name="lang" value="en">영문</label>
+        <label><input type="radio" name="lang" value="ja">일문</label>
+        <label><input type="radio" name="lang" value="zh">중문</label>
+      </span>
+      <span class="mute" id="langHint">외국어 사이트를 고르면 다른 언어가 보이는지 검수합니다 — 국문은 어디서도 안 되고, 영문 사이트는 영문만, 일문·중문은 그 언어와 영문까지</span>
+    </div>
     <div class="go-row">
       <button class="primary" id="b3">캡처 시작</button>
       <span class="mute" id="m3"></span>
@@ -230,7 +249,7 @@
     <div class="log" id="log"></div>
     <div class="grid" id="grid"></div>
     <div class="export" id="export" hidden>
-      <span class="seg"><label><input type="radio" name="fmt" value="img" checked>이미지 폴더</label><label><input type="radio" name="fmt" value="pdf">PDF 한 권</label></span>
+      <span class="seg"><label><input type="radio" name="fmt" value="img" checked>이미지 폴더</label><label><input type="radio" name="fmt" value="pdf">PDF 한 권</label><label title="큰 대지 한 장에 메뉴구조대로 늘어놓은 PDF — 확대해서 봅니다"><input type="radio" name="fmt" value="board">보드 PDF</label><label title="피그마에 끌어다 놓으면 페이지마다 이름 붙은 묶음이 됩니다"><input type="radio" name="fmt" value="figma">피그마 SVG</label></span>
       <span class="right">
         <button id="selToggle">전체 해제</button>
         <span class="mute" id="selCount"></span>
@@ -245,17 +264,6 @@
   const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   let analysis = null;
 
-  // 앱 끄기 — 터미널 없이 켠 앱은 여기서 끈다
-  document.getElementById('quit').onclick = async () => {
-    if (!confirm('앱을 끌까요? 다시 쓰려면 바탕화면의 웹사이트 스냅샷을 누르면 됩니다.')) return;
-    let r = await fetch('/api/quit', { method: 'POST' }).then((x) => x.json()).catch(() => ({ ok: true }));
-    if (!r.ok && r.busy) {
-      if (!confirm('지금 캡처 중입니다. 그래도 끌까요? (진행 중인 캡처는 멈춥니다)')) return;
-      r = await fetch('/api/quit?force=1', { method: 'POST' }).then((x) => x.json()).catch(() => ({ ok: true }));
-    }
-    if (!r.ok) { alert(r.error || '끄지 못했습니다'); return; }
-    document.body.innerHTML = '<main style="padding:80px 24px;text-align:center;font:16px system-ui;color:#555">앱을 껐습니다. 이 창은 닫아도 됩니다.<br>다시 쓰려면 바탕화면의 <b>웹사이트 스냅샷</b>을 누르세요.</main>';
-  };
   async function api(path, body) {
     const r = await fetch(path, body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {});
     return r.json();
@@ -395,7 +403,16 @@
       ? `<summary>메인페이지 구성 — ${sec.length}개 구간 (문서 ${r.main.docHeight.toLocaleString('en-US')}px)</summary><ol>${sec.map((s) => `<li><b>${esc(s.type)}</b> ${esc(s.heading || s.text.slice(0, 40))}${s.gnb ? ' ← GNB 항목' : ''}${s.parts.length ? ` <span>(${esc(s.parts.join(' · '))})</span>` : ''}</li>`).join('')}</ol>`
       : '<summary>메인페이지 구성 — 구간을 못 나눴습니다</summary>';
     refreshTree();
+    // 사이트 언어 — 분석이 짐작한 것을 기본으로 (주소 /en, <html lang> …)
+    const lg = ['en', 'ja', 'zh'].includes(r.lang) ? r.lang : 'ko';
+    document.querySelector(`input[name=lang][value="${lg}"]`).checked = true;
+    $('#langHint').textContent = lg === 'ko' ? '외국어 사이트를 고르면 다른 언어가 보이는지 검수합니다 — 국문은 어디서도 안 되고, 영문 사이트는 영문만, 일문·중문은 그 언어와 영문까지'
+      : `이 사이트를 ${({ en: '영문', ja: '일문', zh: '중문' })[lg]} 사이트로 보고 검수합니다 — ${({ en: '국문·일문·한자가 보이면 표시', ja: '국문이 보이면 표시 (영문은 괜찮음)', zh: '국문·일문(가나)이 보이면 표시 (영문은 괜찮음)' })[lg]}`;
   }
+  document.querySelectorAll('input[name=lang]').forEach((rd) => { rd.onchange = () => {
+    const lg = rd.value;
+    $('#langHint').textContent = lg === 'ko' ? '국문 사이트는 언어 검수를 하지 않습니다' : `${({ en: '영문', ja: '일문', zh: '중문' })[lg]} 사이트로 검수합니다 — ${({ en: '국문·일문·한자가 보이면 표시', ja: '국문이 보이면 표시 (영문은 괜찮음)', zh: '국문·일문(가나)이 보이면 표시 (영문은 괜찮음)' })[lg]}`;
+  }; });
 
   // 체크 상태를 묶음·하위 단추·개수에 반영한다
   const pgsIn = (el) => [...el.querySelectorAll('input.pg')];
@@ -492,13 +509,32 @@
 
   /* ── 3·4. 캡처 ── */
   let timer = null;
+  let jobWidth = 1920;
+  const LANG_NAME = { ko: '국문', ja: '일문', zh: '한자' };
+  // 언어 검수 위치 보기 — 새 탭에 전체 그림을 깔고 걸린 곳에 빨간 상자
+  function openLangView(row, parts) {
+    const w = window.open('', '_blank');
+    if (!w) return;
+    const L = row.lang;
+    const boxes = L.items.map((it, i) => `<div class="bx ${it.lang}" style="left:${it.x - 4}px;top:${it.y - 4}px;width:${it.w + 8}px;height:${it.h + 8}px" title="${esc(it.text)}"><span>${i + 1}</span></div>`).join('');
+    w.document.write(`<!doctype html><meta charset="utf-8"><title>언어 검수 — ${esc(row.path || row.name)}</title>
+      <style>body{margin:0;background:#2b2d31;font:13px -apple-system,sans-serif}.bar{position:sticky;top:0;z-index:2;background:#111;color:#eee;padding:10px 16px}.bar b{color:#ff8a80}
+      .wrap{position:relative;width:${jobWidth}px;margin:16px auto}.wrap img{display:block;width:100%}
+      .bx{position:absolute;border:3px solid #ff3b30;border-radius:4px;background:rgba(255,59,48,.12)}.bx.ja,.bx.zh{border-color:#ff9f0a;background:rgba(255,159,10,.12)}
+      .bx span{position:absolute;left:-3px;top:-22px;background:#ff3b30;color:#fff;font-size:11px;padding:1px 6px;border-radius:4px}.bx.ja span,.bx.zh span{background:#ff9f0a}</style>
+      <div class="bar">${esc(row.path || row.name)} — ${Object.entries(L.counts).map(([k, v]) => `<b>${LANG_NAME[k] || k} ${v}곳</b>`).join(' · ')} <span style="opacity:.6">(빨강: 국문, 주황: 다른 외국어)</span></div>
+      <div class="wrap">${parts.map((p) => `<img src="${location.origin}${p}">`).join('')}${boxes}</div>`);
+    w.document.close();
+  }
   $('#b3').addEventListener('click', async () => {
     const pages = selected();
     const width = Number(document.querySelector('input[name=w]:checked').value);
     const check = $('#check').checked;
+    const lang = document.querySelector('input[name=lang]:checked').value;
     $('#b3').disabled = true;
     $('#m3').textContent = '';
-    const r = await api('/api/capture', { pages, width, check });
+    const r = await api('/api/capture', { pages, width, check, lang });
+    jobWidth = width;
     if (!r.ok) { $('#m3').innerHTML = `<span class="err">${esc(r.error)}</span>`; $('#b3').disabled = false; return; }
     $('#s4').hidden = false;
     $('#grid').innerHTML = pages.map((p) => `<div class="card pending" data-url="${esc(norm(p.url))}"><div class="t">기다리는 중</div><div class="b"><b>${esc(p.path.join(' > '))}</b><span class="mute">${esc(shortUrl(p.url))}</span><div class="act"></div></div></div>`).join('');
@@ -519,6 +555,7 @@
     card.innerHTML = `${file ? `<input type="checkbox" class="sel" title="출력에 넣기" checked>` : ''}<div class="t">${file ? `<a href="${parts.length > 1 ? '#' : file}" target="_blank" class="thumb"><img src="${file}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'err',style:'padding:12px;font-size:12px',textContent:'그림을 못 불러왔어요: ' + decodeURIComponent(this.src.split('/').pop())}))"></a>` : `<div class="err" style="padding:12px">${esc(row.error || '이미지 없음')}</div>`}</div>
       <div class="b"><b>${esc(row.path || row.name)}</b>${row.status === '실패' || row.status === '직접 찍음' ? `<span class="badge ${cls}">${esc(row.status)}</span>` : ''}
       ${row.manualNote ? `<div class="mute">${esc(row.manualNote)}</div>` : ''}
+      ${row.lang ? (row.lang.total ? `<details class="langbox"><summary>${Object.entries(row.lang.counts).map(([k, v]) => `<span class="badge ${k === 'ko' ? 'bad' : 'warn'}">${LANG_NAME[k] || k} ${v}곳</span>`).join('')}<a href="#" class="see">위치 보기</a></summary><ul>${row.lang.items.slice(0, 40).map((it) => `<li>${esc(it.text)}<span class="y">${it.y.toLocaleString('en-US')}px</span></li>`).join('')}${row.lang.items.length > 40 ? `<li class="mute">… ${row.lang.items.length - 40}곳 더</li>` : ''}</ul></details>` : `<div class="lang-ok">언어 검수 통과 — 다른 언어가 안 보입니다</div>`) : ''}
       ${parts.length > 1 ? `<div class="mute">너무 길어 ${parts.length}장으로 나뉨 (출력하면 한 장으로 붙습니다) · ${parts.map((p, i) => `<a href="${p}" target="_blank">${i + 1}</a>`).join(' · ')} · <a href="#" class="stack">이어서 보기</a></div>` : ''}
       ${row.pieceFiles && row.pieceFiles.length ? `<div class="mute">조각: ${row.pieceFiles.map((f, i) => `<a href="${fileUrl(id, f)}" target="_blank">${i + 1}</a>`).join(' · ')}</div>` : ''}
       ${row.previous && row.previous.length ? `<div class="prev">이전: ${row.previous.map((f) => `<a href="${fileUrl(id, f)}" target="_blank">${esc(f)}</a>`).join(', ')}</div>` : ''}
@@ -562,6 +599,8 @@
       w.document.close();
     };
     if (parts.length > 1) { card.querySelector('.thumb').onclick = openStacked; card.querySelector('.stack').onclick = openStacked; }
+    const see = card.querySelector('.langbox .see');
+    if (see) see.onclick = (e) => { e.preventDefault(); openLangView(row, parts); };
     // 직접 찍기: 앱이 크롬 창을 띄운다. 사용자가 그 창에서 화면을 만들고 "이 화면 찍기"를 누르면
     // 앱이 스크롤 위치까지 알고 찍어 정확히 잇는다. 이 컴퓨터가 아니면(터널) 새 탭만 연다.
     const man = card.querySelector('.man');
@@ -615,20 +654,21 @@
       if (pick.native) {
         const path = pick.path.replace(/\/$/, '');
         const i = path.lastIndexOf('/');
-        dir = path.slice(0, i); name = path.slice(i + 1).replace(/\.pdf$/i, '');
+        dir = path.slice(0, i); name = path.slice(i + 1).replace(/\.(pdf|svg)$/i, '');
       }
     } finally { $('#exportBtn').disabled = false; }
-    $('#exportMsg').textContent = format === 'pdf' ? 'PDF 한 권으로 묶고 있어요…' : '폴더에 담고 있어요…';
+    $('#exportMsg').textContent = { pdf: 'PDF 한 권으로 묶고 있어요…', board: '큰 대지 한 장에 늘어놓고 있어요… (페이지가 많으면 1~2분)', figma: '피그마용 SVG 를 만들고 있어요… (페이지가 많으면 1~2분)' }[format] || '폴더에 담고 있어요…';
     const r = await api('/api/export', { id: currentJob, urls, format, dir, name });
     if (!r.ok) { $('#exportMsg').innerHTML = `<span class="err">${esc(r.error)}</span>`; return; }
     if (r.download) {
       // 서버에 올려 쓰는 경우: 브라우저 내려받기 — 브라우저의 저장 창이 뜬다
-      $('#exportMsg').textContent = format === 'pdf' ? `PDF ${r.pages}쪽을 내려받아요` : `${r.count}장을 zip 으로 내려받아요 (풀면 폴더가 돼요)`;
+      $('#exportMsg').textContent = format === 'pdf' ? `PDF ${r.pages}쪽을 내려받아요` : format === 'board' ? `보드 PDF(${r.pages}페이지)를 내려받아요` : format === 'figma' ? `피그마용 SVG(${r.pages}페이지)를 내려받아요` : `${r.count}장을 zip 으로 내려받아요 (풀면 폴더가 돼요)`;
       window.location.href = r.download;
       return;
     }
-    $('#exportMsg').innerHTML = format === 'pdf'
-      ? `PDF ${r.pages}쪽으로 묶었어요 → <code>${esc(r.path)}</code>`
+    $('#exportMsg').innerHTML = format === 'pdf' ? `PDF ${r.pages}쪽으로 묶었어요 → <code>${esc(r.path)}</code>`
+      : format === 'board' ? `${r.pages}페이지를 보드 한 장에 늘어놓았어요 → <code>${esc(r.path)}</code> <span class="mute">(미리보기에서 확대해 보세요)</span>`
+      : format === 'figma' ? `피그마용 SVG 를 만들었어요 → <code>${esc(r.path)}</code> <span class="mute">(피그마 캔버스에 끌어다 놓으세요)</span>`
       : `${r.count}장을 폴더에 담았어요 → <code>${esc(r.path)}</code>`;
   }
   $('#exportBtn').onclick = doExport;
@@ -669,7 +709,10 @@
       const warn = j.rows.filter((r) => r.status === '검수 필요').length;
       const bad = j.rows.filter((r) => r.status === '실패').length;
       const secs = Math.round(((j.finishedAt || Date.now()) - j.startedAt) / 1000);
-      $('#m4').innerHTML = `${j.status} — 확인됨 ${ok} · 검수 필요 ${warn} · 실패 ${bad} · ${secs}초${j.error ? ` <span class="err">${esc(j.error)}</span>` : ''}<br>저장 위치: <code>${esc(j.outDir)}</code>`;
+      const langBad = j.rows.filter((r) => r.lang && r.lang.counts && r.lang.counts.ko).length;
+      const langWarn = j.rows.filter((r) => r.lang && r.lang.total && !r.lang.counts.ko).length;
+      const langLine = j.lang ? ` · 언어 검수: ${langBad || langWarn ? `<span class="err">국문 노출 ${langBad}페이지</span>${langWarn ? ` · 다른 외국어 ${langWarn}페이지` : ''}` : '<span style="color:var(--ok)">모두 통과</span>'}` : '';
+      $('#m4').innerHTML = `${j.status} — 확인됨 ${ok} · 검수 필요 ${warn} · 실패 ${bad} · ${secs}초${langLine}${j.error ? ` <span class="err">${esc(j.error)}</span>` : ''}<br>저장 위치: <code>${esc(j.outDir)}</code>`;
 
     }
   }

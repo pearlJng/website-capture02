@@ -450,6 +450,84 @@ function inPageGapRanges() {
   return out;
 }
 
+/**
+ * 언어 검수 — 화면에 보이는 글자 중 그 언어 사이트에 있으면 안 되는 글자를 찾는다.
+ *
+ * 규칙(사용자가 정함): 영문 사이트는 영문만. 일문·중문 사이트는 그 언어 + 영문까지 괜찮다.
+ * 국문(한글)은 어느 외국어 사이트에서도 절대 안 된다.
+ *   en: 한글·가나·한자 → 위반   ja: 한글 → 위반   zh: 한글·가나 → 위반
+ * 한자는 일문·중문이 같이 쓰므로 둘을 가르지 않는다. 가나가 중문 사이트에 있으면 일문이다.
+ * 그림 속 글자(로고·배너 이미지)는 읽지 못한다 — 화면의 글자(텍스트)만 본다.
+ * 위치는 문서 좌표(CSS px). 잘라 낸 빈 여백(gaps)이 위에 있으면 그만큼 올린다.
+ */
+function inPageLangScan({ target, gaps }) {
+  const RULES = {
+    en: [['ko', /[가-힣ᄀ-ᇿ㄰-㆏]/], ['ja', /[぀-ヿㇰ-ㇿ]/], ['zh', /[㐀-鿿豈-﫿]/]],
+    ja: [['ko', /[가-힣ᄀ-ᇿ㄰-㆏]/]],
+    zh: [['ko', /[가-힣ᄀ-ᇿ㄰-㆏]/], ['ja', /[぀-ヿㇰ-ㇿ]/]],
+  };
+  const rules = RULES[target];
+  if (!rules) return null;
+  const cut = (y) => { let d = 0; for (const [a, b] of gaps || []) if (b <= y) d += b - a; else if (a < y) d += y - a; return y - d; };
+  const shown = (el) => {
+    for (let n = el; n && n.nodeType === 1; n = n.parentElement || (n.getRootNode && n.getRootNode().host)) {
+      if (n.closest && n.closest('[data-cap-ui]')) return false;
+      const cs = getComputedStyle(n);
+      if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) < 0.05) return false;
+    }
+    return true;
+  };
+  const docW = document.documentElement.scrollWidth;
+  const items = [];
+  const counts = {};
+  const seen = new Set();
+  const take = (text, el, rect) => {
+    for (const [lang, re] of rules) {
+      if (!re.test(text)) continue;
+      const r = rect || el.getBoundingClientRect();
+      if (r.width < 1 || r.height < 1) return;
+      if (r.right < 0 || r.left > docW) return;
+      const top = r.top + window.scrollY;
+      const key = `${lang}|${Math.round(top)}|${Math.round(r.left)}|${text.slice(0, 20)}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      counts[lang] = (counts[lang] || 0) + 1;
+      // 위반 글자 앞뒤로 조금만 — 무슨 글자인지 알아볼 만큼
+      const m = text.search(re);
+      const a0 = Math.max(0, m - 12), b0 = Math.min(text.length, m + 28);
+      const snip = (a0 > 0 ? '…' : '') + text.slice(a0, b0).replace(/\s+/g, ' ').trim() + (b0 < text.length ? '…' : '');
+      if (items.length < 300) items.push({ lang, text: snip, x: Math.round(r.left + window.scrollX), y: Math.round(cut(top)), w: Math.round(r.width), h: Math.round(r.height), tag: el.tagName.toLowerCase() });
+      return;
+    }
+  };
+  const walk = (root) => {
+    const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    for (let n = w.nextNode(); n; n = w.nextNode()) {
+      const t = n.textContent;
+      if (!t || !t.trim()) continue;
+      const el = n.parentElement;
+      if (!el || /^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE|TITLE)$/.test(el.tagName)) continue;
+      if (!rules.some(([, re]) => re.test(t))) continue;
+      if (!shown(el)) continue;
+      const range = document.createRange();
+      range.selectNodeContents(n);
+      const rects = [...range.getClientRects()].filter((r) => r.width >= 1 && r.height >= 1);
+      if (!rects.length) continue;
+      const r = rects.reduce((a, b) => ({ left: Math.min(a.left, b.left), top: Math.min(a.top, b.top), right: Math.max(a.right, b.right), bottom: Math.max(a.bottom, b.bottom) }), { left: Infinity, top: Infinity, right: -Infinity, bottom: -Infinity });
+      take(t.trim(), el, { left: r.left, top: r.top, right: r.right, width: r.right - r.left, height: r.bottom - r.top });
+    }
+    for (const el of root.querySelectorAll('*')) if (el.shadowRoot) walk(el.shadowRoot);
+  };
+  walk(document.body);
+  // 입력칸 안내 글(placeholder)·버튼 글자도 화면에 보인다
+  for (const el of document.querySelectorAll('input[placeholder], textarea[placeholder], input[type=button], input[type=submit]')) {
+    const t = el.getAttribute('placeholder') || el.value || '';
+    if (t && shown(el)) take(t, el, null);
+  }
+  items.sort((a, b) => a.y - b.y || a.x - b.x);   // 위에서 아래로
+  return { target, counts, items, total: Object.values(counts).reduce((a, b) => a + b, 0) };
+}
+
 export function inPageTameFixed(viewportWidth) {
   // 숨김 규칙. visibility 는 자식이 스스로 visible 로 정해 두면 부모를 숨겨도 그 자식은
   // 보인다 — 테라클 헤더가 그랬다(포장은 숨었는데 메뉴 글자만 조각마다 남았다).
@@ -1336,6 +1414,17 @@ export async function captureSite(context, url, opts = {}) {
 
     const ready = await page.evaluate(inPageReadiness);
 
+    // 언어 검수 — 외국어 사이트에 다른 언어(특히 국문)가 보이는지
+    let lang = null;
+    if (opts.lang && opts.lang !== 'ko') {
+      if (steps.has('sticky')) await page.evaluate(inPageRestoreFixed).catch(() => {});   // 숨겨 둔 헤더 글자도 본다
+      // 맨 위에서 잰다 — 고정 헤더는 그림에서 첫 화면(맨 위)에만 있다
+      await page.evaluate(inPageScrollTo, 0).catch(() => {});
+      await page.waitForTimeout(250);
+      lang = await page.evaluate(inPageLangScan, { target: opts.lang, gaps }).catch(() => null);
+      if (lang && lang.total) notes.push(`언어 검수: ${Object.entries(lang.counts).map(([k, v]) => `${{ ko: '국문', ja: '일문', zh: '한자' }[k] || k} ${v}곳`).join(' · ')}`);
+    }
+
     if (ready.loading) notes.push(`아직 받아오는 중인 이미지 ${ready.loading}개`);
     if (ready.broken) notes.push(`깨진 이미지 ${ready.broken}개`);
     if (ready.blankVideos) notes.push(`첫 프레임도 못 그린 비디오 ${ready.blankVideos}개`);
@@ -1346,7 +1435,7 @@ export async function captureSite(context, url, opts = {}) {
     if (steps.has('sticky')) await page.evaluate(inPageRestoreFixed);
 
     return {
-      ok: true, url, title: m.title, docHeight: docHeight - cutPx, scale, slices,
+      ok: true, url, title: m.title, docHeight: docHeight - cutPx, scale, slices, lang,
       sliceCount: slices.length, notes, docWidth: m.docWidth, ready, mode, shotCount, stalled, pieces,
       motionLibs: motion.found,
       motionHandled: steps.has('motion'), reachedBottom: scrolled.reachedBottom,
