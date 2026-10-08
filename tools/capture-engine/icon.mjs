@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PNG = join(HERE, 'icon', 'icon.png');
-const VERSION = 'camera-3';    // 그림을 바꾸면 올린다 — 이미 입힌 사람에게도 새 그림이 다시 입혀진다
+const VERSION = 'camera-4';    // 그림을 바꾸면 올린다 — 이미 입힌 사람에게도 새 그림이 다시 입혀진다
 const MARK = join(homedir(), 'Library', 'Application Support', 'website-snapshot', 'icon.txt');
 
 export const launcherPaths = () => [

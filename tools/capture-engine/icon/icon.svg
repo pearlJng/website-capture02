@@ -1,58 +1,74 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <defs>
+    <!-- 맥 앱 아이콘 격자: 1024 캔버스 안 824 둥근 사각형 -->
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FBFBFC"/>
+      <stop offset="1" stop-color="#E4E6E9"/>
+    </linearGradient>
     <linearGradient id="hero" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#9CC2FF"/>
-      <stop offset="1" stop-color="#C7B3FF"/>
+      <stop offset="0" stop-color="#E9EBEE"/>
+      <stop offset="1" stop-color="#D3D7DC"/>
     </linearGradient>
     <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#43474F"/>
-      <stop offset="1" stop-color="#1B1D22"/>
+      <stop offset="0" stop-color="#3C3F45"/>
+      <stop offset="1" stop-color="#1B1D21"/>
     </linearGradient>
-    <radialGradient id="glass" cx="0.38" cy="0.35" r="0.75">
-      <stop offset="0" stop-color="#8FC3FF"/>
-      <stop offset="0.45" stop-color="#3D63C9"/>
-      <stop offset="1" stop-color="#141B3D"/>
+    <linearGradient id="ring" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#D9DDE2"/>
+      <stop offset="1" stop-color="#8E949D"/>
+    </linearGradient>
+    <radialGradient id="glass" cx="0.38" cy="0.34" r="0.78">
+      <stop offset="0" stop-color="#5B6676"/>
+      <stop offset="0.55" stop-color="#262B33"/>
+      <stop offset="1" stop-color="#0D0F12"/>
     </radialGradient>
+    <filter id="tile" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000" flood-opacity="0.22"/>
+    </filter>
     <filter id="sh" x="-20%" y="-20%" width="140%" height="150%">
-      <feDropShadow dx="0" dy="16" stdDeviation="20" flood-color="#1A2350" flood-opacity="0.30"/>
+      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#000" flood-opacity="0.28"/>
     </filter>
     <filter id="sh2" x="-10%" y="-10%" width="120%" height="130%">
-      <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#1A2350" flood-opacity="0.22"/>
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity="0.10"/>
     </filter>
   </defs>
 
+  <!-- 바탕 타일 -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)" filter="url(#tile)"/>
+  <rect x="101.5" y="101.5" width="821" height="821" rx="183.5" fill="none" stroke="#000" stroke-opacity="0.06" stroke-width="3"/>
+
   <!-- 찍히는 웹사이트 -->
   <g filter="url(#sh2)">
-    <rect x="104" y="150" width="720" height="540" rx="44" fill="#fff" stroke="#DCE3F3" stroke-width="4"/>
-    <path d="M104 194a44 44 0 0 1 44-44h632a44 44 0 0 1 44 44v54H104z" fill="#E9EEFC"/>
-    <circle cx="160" cy="200" r="15" fill="#FF6B6B"/>
-    <circle cx="206" cy="200" r="15" fill="#FFC94D"/>
-    <circle cx="252" cy="200" r="15" fill="#4CD07D"/>
-    <rect x="300" y="183" width="476" height="34" rx="17" fill="#fff"/>
-    <rect x="144" y="282" width="640" height="176" rx="24" fill="url(#hero)"/>
-    <circle cx="700" cy="334" r="26" fill="#fff" opacity="0.85"/>
-    <path d="M144 434l116-88 88 62 84-56 152 116v14a24 24 0 0 1-24 24H168a24 24 0 0 1-24-24z" fill="#fff" opacity="0.55"/>
-    <rect x="144" y="492" width="360" height="24" rx="12" fill="#D3DBF0"/>
-    <rect x="144" y="534" width="250" height="24" rx="12" fill="#E3E8F6"/>
-    <rect x="144" y="584" width="180" height="66" rx="14" fill="#EEF2FB"/>
-    <rect x="342" y="584" width="180" height="66" rx="14" fill="#EEF2FB"/>
+    <rect x="200" y="236" width="580" height="420" rx="36" fill="#fff" stroke="#D8DBE0" stroke-width="4"/>
+    <path d="M200 272a36 36 0 0 1 36-36h508a36 36 0 0 1 36 36v26H200z" fill="#F0F1F3"/>
+    <line x1="202" y1="298" x2="778" y2="298" stroke="#DFE2E6" stroke-width="3"/>
+    <circle cx="246" cy="267" r="11" fill="#C9CCD1"/>
+    <circle cx="282" cy="267" r="11" fill="#C9CCD1"/>
+    <circle cx="318" cy="267" r="11" fill="#C9CCD1"/>
+    <rect x="356" y="254" width="380" height="26" rx="13" fill="#fff" stroke="#E2E4E8" stroke-width="2"/>
+    <rect x="236" y="330" width="508" height="150" rx="18" fill="url(#hero)"/>
+    <circle cx="676" cy="370" r="20" fill="#fff" opacity="0.9"/>
+    <path d="M236 460l96-70 72 50 70-46 128 96v8a18 18 0 0 1-18 18H254a18 18 0 0 1-18-18z" fill="#fff" opacity="0.6"/>
+    <rect x="236" y="506" width="290" height="18" rx="9" fill="#E1E4E8"/>
+    <rect x="236" y="538" width="200" height="18" rx="9" fill="#ECEEF1"/>
+    <rect x="236" y="578" width="150" height="44" rx="10" fill="#F2F3F5"/>
+    <rect x="400" y="578" width="150" height="44" rx="10" fill="#F2F3F5"/>
   </g>
 
   <!-- 카메라 -->
   <g filter="url(#sh)">
-    <rect x="566" y="508" width="128" height="66" rx="20" fill="#2A2D33"/>
-    <rect x="790" y="522" width="70" height="42" rx="13" fill="#C9CED8"/>
-    <rect x="490" y="552" width="420" height="292" rx="58" fill="url(#body)"/>
-    <rect x="490" y="666" width="420" height="104" fill="#000" opacity="0.22"/>
-    <rect x="490" y="552" width="420" height="292" rx="58" fill="none" stroke="#5A5F69" stroke-width="3" opacity="0.6"/>
-    <rect x="524" y="586" width="84" height="48" rx="13" fill="#E6EAF2"/>
-    <circle cx="848" cy="608" r="12" fill="#FF5A4E"/>
-    <circle cx="700" cy="698" r="134" fill="#A3A9B5"/>
-    <circle cx="700" cy="698" r="126" fill="#121317"/>
-    <circle cx="700" cy="698" r="108" fill="#3A3F49"/>
-    <circle cx="700" cy="698" r="90" fill="url(#glass)"/>
-    <circle cx="700" cy="698" r="90" fill="none" stroke="#0E1430" stroke-width="6" opacity="0.5"/>
-    <ellipse cx="666" cy="662" rx="28" ry="17" transform="rotate(-35 666 662)" fill="#fff" opacity="0.8"/>
-    <circle cx="734" cy="734" r="10" fill="#fff" opacity="0.45"/>
+    <rect x="534" y="520" width="112" height="58" rx="16" fill="#2A2C31"/>
+    <rect x="740" y="532" width="62" height="34" rx="11" fill="url(#ring)"/>
+    <rect x="466" y="556" width="372" height="262" rx="52" fill="url(#body)"/>
+    <rect x="466" y="556" width="372" height="262" rx="52" fill="none" stroke="#fff" stroke-opacity="0.08" stroke-width="3"/>
+    <rect x="466" y="660" width="372" height="92" fill="#000" opacity="0.18"/>
+    <rect x="498" y="588" width="70" height="38" rx="10" fill="#E3E6EA"/>
+    <circle cx="790" cy="604" r="9" fill="#E0463C"/>
+    <circle cx="652" cy="687" r="114" fill="url(#ring)"/>
+    <circle cx="652" cy="687" r="104" fill="#121316"/>
+    <circle cx="652" cy="687" r="86" fill="#3A3E46"/>
+    <circle cx="652" cy="687" r="72" fill="url(#glass)"/>
+    <ellipse cx="624" cy="657" rx="22" ry="13" transform="rotate(-35 624 657)" fill="#fff" opacity="0.75"/>
+    <circle cx="682" cy="718" r="8" fill="#fff" opacity="0.35"/>
   </g>
 </svg>
