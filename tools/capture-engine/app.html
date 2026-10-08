@@ -9,6 +9,8 @@
   body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.6 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif; }
   main { max-width: 1100px; margin: 0 auto; padding: 32px 24px 80px; }
   h1 { font-size: 22px; margin: 0 0 24px; }
+  h1.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  h1 .quit { font-size: 13px; font-weight: 400; padding: 6px 12px; }
   .step { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px 24px; margin-bottom: 16px; }
   .step[hidden] { display: none; }
   .step h2 { font-size: 16px; margin: 0 0 12px; display: flex; align-items: center; gap: 10px; }
@@ -80,7 +82,7 @@
   .card .prev { font-size: 12px; color: var(--mute); }
 </style>
 <main>
-  <h1>웹사이트 스냅샷</h1>
+  <h1 class="top">웹사이트 스냅샷 <button type="button" id="quit" class="quit" title="앱을 끕니다 — 다시 쓰려면 바탕화면의 웹사이트 스냅샷을 누르세요">앱 끄기</button></h1>
 
   <section class="step" id="s1">
     <h2><span class="n">1</span>주소</h2>
@@ -144,6 +146,17 @@
   const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   let analysis = null;
 
+  // 앱 끄기 — 터미널 없이 켠 앱은 여기서 끈다
+  document.getElementById('quit').onclick = async () => {
+    if (!confirm('앱을 끌까요? 다시 쓰려면 바탕화면의 웹사이트 스냅샷을 누르면 됩니다.')) return;
+    let r = await fetch('/api/quit', { method: 'POST' }).then((x) => x.json()).catch(() => ({ ok: true }));
+    if (!r.ok && r.busy) {
+      if (!confirm('지금 캡처 중입니다. 그래도 끌까요? (진행 중인 캡처는 멈춥니다)')) return;
+      r = await fetch('/api/quit?force=1', { method: 'POST' }).then((x) => x.json()).catch(() => ({ ok: true }));
+    }
+    if (!r.ok) { alert(r.error || '끄지 못했습니다'); return; }
+    document.body.innerHTML = '<main style="padding:80px 24px;text-align:center;font:16px system-ui;color:#555">앱을 껐습니다. 이 창은 닫아도 됩니다.<br>다시 쓰려면 바탕화면의 <b>웹사이트 스냅샷</b>을 누르세요.</main>';
+  };
   async function api(path, body) {
     const r = await fetch(path, body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {});
     return r.json();

@@ -27,6 +27,7 @@ import { mergePngsVertically, stitchUserShots } from './png.mjs';
 import { startManual, stateManual, scrollManual, shotManual, undoManual, finishManual, closeManual, closeAllManual, pressManual } from './manual.mjs';
 import AdmZip from 'adm-zip';
 import { applyLauncherIconOnce, syncLauncher } from './icon.mjs';
+import { ensureMacApp } from './macapp.mjs';
 
 /* 브라우저로 내려받기 — 서버에 올렸을 때(맥 저장 창을 못 띄울 때) 쓰는 길.
  * 만든 파일을 잠깐 들고 있다가 한 번 내려주고 지운다. */
@@ -428,6 +429,15 @@ const server = createServer(async (req, res) => {
       return json(res, 200, { ok: true, id: job.id, outDir: job.outDir });
     }
     if (req.method === 'GET' && u.pathname === '/api/status') return json(res, 200, { ok: true, ...activity });
+    // 터미널 없이 켠 앱은 여기서 끈다 (이 컴퓨터에서만)
+    if (req.method === 'POST' && u.pathname === '/api/quit') {
+      if (PUBLIC || !isLocalRequest(req)) return json(res, 200, { ok: false, error: '이 컴퓨터에서만 끌 수 있습니다' });
+      const busy = [...jobs.values()].some((j) => j.status === '진행 중' || j.status === '대기');
+      if (busy && u.searchParams.get('force') !== '1') return json(res, 200, { ok: false, busy: true, error: '지금 캡처 중입니다' });
+      json(res, 200, { ok: true });
+      setTimeout(() => shutdown(), 200);
+      return;
+    }
     if (req.method === 'POST' && u.pathname === '/api/retake') {
       const { id, url, request } = await readBody(req);
       const job = jobs.get(id);
@@ -606,13 +616,16 @@ server.listen(PORT, HOST, () => {
   console.log('  끝내려면 Ctrl+C\n');
   if (process.platform === 'darwin' && !PUBLIC) spawn('open', [url], { stdio: 'ignore', detached: true }).unref();
   // 바탕화면의 실행 파일에 카메라 아이콘을 (한 번) 입힌다
-  if (process.platform === 'darwin' && !PUBLIC) { syncLauncher(); applyLauncherIconOnce(); }
+  // 바탕화면에 터미널 없이 켜지는 "웹사이트 스냅샷.app" 을 만들거나 고쳐 쓴다
+  if (process.platform === 'darwin' && !PUBLIC) { syncLauncher(); applyLauncherIconOnce(); ensureMacApp(); }
 });
 
-process.on('SIGINT', async () => {
+async function shutdown() {
   console.log('\n정리하고 끝냅니다…');
   server.close();
   await closeAllManual().catch(() => {});
   if (host) await host.close().catch(() => {});
   process.exit(0);
-});
+}
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);

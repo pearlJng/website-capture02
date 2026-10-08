@@ -5,7 +5,7 @@
 #   bash <(curl -fsSL https://raw.githubusercontent.com/pearlJng/website-capture02/claude/website-snapshot-automation-wdjs4i/tools/capture-engine/install.sh)
 #
 # 하는 일: git·Node·크롬을 확인하고(없으면 설치 안내), 코드를 받고, 라이브러리를 깔고,
-# 바탕화면에 "웹사이트 스냅샷.command" 를 만든다. 그 뒤로는 그 파일을 더블클릭하면 된다.
+# 바탕화면에 "웹사이트 스냅샷.app" 을 만든다. 그 뒤로는 그 앱을 더블클릭하면 된다 (터미널 없이).
 set -e
 BRANCH="claude/website-snapshot-automation-wdjs4i"
 REPO="${SNAPSHOT_REPO:-https://github.com/pearlJng/website-capture02.git}"
@@ -53,14 +53,10 @@ else
   npx playwright install chrome || echo "크롬 자동 설치가 안 되면 google.com/chrome 에서 받아 설치해 주세요. 없어도 동작은 하지만 동영상이 오류 화면으로 찍힙니다."
 fi
 
-say "④ 바탕화면에 실행 파일 만들기"
+say "④ 바탕화면에 앱 만들기"
 mkdir -p "$HOME/Desktop"
-LAUNCHER="$HOME/Desktop/웹사이트 스냅샷.command"
-cp "$APP/웹사이트 스냅샷.command" "$LAUNCHER"
-chmod +x "$LAUNCHER"
-xattr -d com.apple.quarantine "$LAUNCHER" 2>/dev/null || true
-echo "$LAUNCHER ✓"
-node "$APP/icon.mjs" || true
+node "$APP/macapp.mjs" || true
+xattr -dr com.apple.quarantine "$HOME/Desktop/웹사이트 스냅샷.app" 2>/dev/null || true
 
-say "설치 끝. 바탕화면의 '웹사이트 스냅샷.command' 를 더블클릭하면 앱이 열립니다."
-echo "(켤 때마다 최신 코드를 자동으로 받습니다. 끌 때는 그 터미널 창에서 Ctrl+C 또는 창 닫기)"
+say "설치 끝. 바탕화면의 '웹사이트 스냅샷' 앱을 더블클릭하면 브라우저에 열립니다 (터미널은 안 뜹니다)."
+echo "(켤 때마다 최신 코드를 자동으로 받습니다. 끌 때는 앱 화면 오른쪽 위의 '앱 끄기')"
