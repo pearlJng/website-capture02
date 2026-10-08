@@ -60,6 +60,7 @@ cp "$APP/웹사이트 스냅샷.command" "$LAUNCHER"
 chmod +x "$LAUNCHER"
 xattr -d com.apple.quarantine "$LAUNCHER" 2>/dev/null || true
 echo "$LAUNCHER ✓"
+node "$APP/icon.mjs" || true
 
 say "설치 끝. 바탕화면의 '웹사이트 스냅샷.command' 를 더블클릭하면 앱이 열립니다."
 echo "(켤 때마다 최신 코드를 자동으로 받습니다. 끌 때는 그 터미널 창에서 Ctrl+C 또는 창 닫기)"

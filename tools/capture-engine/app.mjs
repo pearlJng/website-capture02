@@ -26,6 +26,7 @@ import { PDFDocument } from 'pdf-lib';
 import { mergePngsVertically, stitchUserShots } from './png.mjs';
 import { startManual, stateManual, scrollManual, shotManual, undoManual, finishManual, closeManual, closeAllManual, pressManual } from './manual.mjs';
 import AdmZip from 'adm-zip';
+import { applyLauncherIconOnce } from './icon.mjs';
 
 /* 브라우저로 내려받기 — 서버에 올렸을 때(맥 저장 창을 못 띄울 때) 쓰는 길.
  * 만든 파일을 잠깐 들고 있다가 한 번 내려주고 지운다. */
@@ -596,6 +597,8 @@ server.listen(PORT, HOST, () => {
   if (PASSWORD) console.log('  비밀번호가 걸려 있습니다 (APP_PASSWORD)');
   console.log('  끝내려면 Ctrl+C\n');
   if (process.platform === 'darwin' && !PUBLIC) spawn('open', [url], { stdio: 'ignore', detached: true }).unref();
+  // 바탕화면의 실행 파일에 카메라 아이콘을 (한 번) 입힌다
+  if (process.platform === 'darwin' && !PUBLIC) applyLauncherIconOnce();
 });
 
 process.on('SIGINT', async () => {
