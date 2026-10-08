@@ -5,8 +5,8 @@
       <stop offset="1" stop-color="#C7B3FF"/>
     </linearGradient>
     <linearGradient id="body" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#FF9670"/>
-      <stop offset="1" stop-color="#F2643F"/>
+      <stop offset="0" stop-color="#43474F"/>
+      <stop offset="1" stop-color="#1B1D22"/>
     </linearGradient>
     <radialGradient id="glass" cx="0.38" cy="0.35" r="0.75">
       <stop offset="0" stop-color="#8FC3FF"/>
@@ -40,14 +40,16 @@
 
   <!-- 카메라 -->
   <g filter="url(#sh)">
-    <rect x="566" y="508" width="128" height="66" rx="20" fill="#D9542F"/>
-    <rect x="790" y="522" width="70" height="42" rx="13" fill="#2B2F3A"/>
+    <rect x="566" y="508" width="128" height="66" rx="20" fill="#2A2D33"/>
+    <rect x="790" y="522" width="70" height="42" rx="13" fill="#C9CED8"/>
     <rect x="490" y="552" width="420" height="292" rx="58" fill="url(#body)"/>
-    <rect x="490" y="666" width="420" height="104" fill="#2B2F3A" opacity="0.16"/>
-    <rect x="524" y="586" width="84" height="48" rx="13" fill="#FFF3D1"/>
-    <circle cx="848" cy="608" r="17" fill="#2B2F3A" opacity="0.35"/>
-    <circle cx="700" cy="698" r="134" fill="#2B2F3A"/>
-    <circle cx="700" cy="698" r="112" fill="#555D70"/>
+    <rect x="490" y="666" width="420" height="104" fill="#000" opacity="0.22"/>
+    <rect x="490" y="552" width="420" height="292" rx="58" fill="none" stroke="#5A5F69" stroke-width="3" opacity="0.6"/>
+    <rect x="524" y="586" width="84" height="48" rx="13" fill="#E6EAF2"/>
+    <circle cx="848" cy="608" r="12" fill="#FF5A4E"/>
+    <circle cx="700" cy="698" r="134" fill="#A3A9B5"/>
+    <circle cx="700" cy="698" r="126" fill="#121317"/>
+    <circle cx="700" cy="698" r="108" fill="#3A3F49"/>
     <circle cx="700" cy="698" r="90" fill="url(#glass)"/>
     <circle cx="700" cy="698" r="90" fill="none" stroke="#0E1430" stroke-width="6" opacity="0.5"/>
     <ellipse cx="666" cy="662" rx="28" ry="17" transform="rotate(-35 666 662)" fill="#fff" opacity="0.8"/>
