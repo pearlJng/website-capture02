@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="100 100 824 824" width="256" height="256">
+  <!-- 파비콘·앱 화면 로고 (icon.svg 에서 둥근 사각형만 잘라 낸 것). 앱 아이콘: 납작한 큰 도형 스타일. 파란 그라데이션 바탕에 위에서 흰 스트랩이 내려오고,
+       검은 카메라가 아래로 잘려 나간다. 렌즈 가운데만 파란색. 맥 앱 아이콘 격자(1024 캔버스 안 824 둥근 사각형) -->
+  <defs>
+    <clipPath id="sq"><rect x="100" y="100" width="824" height="824" rx="185"/></clipPath>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#D6E4FF"/><stop offset="1" stop-color="#4B5BF0"/></linearGradient>
+    <linearGradient id="lens" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#8FA8FF"/><stop offset="1" stop-color="#4B5BF0"/></linearGradient>
+    <filter id="tile" x="-10%" y="-10%" width="120%" height="125%"><feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000" flood-opacity="0.18"/></filter>
+  </defs>
+  <g><rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/></g>
+  <g clip-path="url(#sq)">
+    <!-- 스트랩 -->
+    <path d="M 300 60 L 250 470" stroke="#FFFFFF" stroke-width="34" stroke-linecap="round" fill="none"/>
+    <path d="M 724 60 L 774 470" stroke="#FFFFFF" stroke-width="34" stroke-linecap="round" fill="none"/>
+    <!-- 몸통 -->
+    <rect x="190" y="420" width="644" height="560" rx="96" fill="#1F2226"/>
+    <rect x="640" y="372" width="130" height="80" rx="24" fill="#1F2226"/>
+    <!-- 렌즈 -->
+    <circle cx="512" cy="700" r="226" fill="#FFFFFF"/>
+    <circle cx="512" cy="700" r="176" fill="#1F2226"/>
+    <circle cx="512" cy="700" r="104" fill="url(#lens)"/>
+    <ellipse cx="455" cy="640" rx="40" ry="26" transform="rotate(-35 455 640)" fill="#FFFFFF"/>
+    <!-- 플래시 창 -->
+    <rect x="262" y="488" width="96" height="56" rx="18" fill="#FFFFFF" opacity="0.9"/>
+  </g>
+</svg>

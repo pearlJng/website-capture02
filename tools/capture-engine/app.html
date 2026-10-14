@@ -3,24 +3,30 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>웹사이트 스냅샷</title>
-<link rel="icon" href="/icon.png">
+<link rel="icon" type="image/png" href="/favicon.png?v=__ICON_V__">
+<link rel="apple-touch-icon" href="/icon.png?v=__ICON_V__">
 <style>
   :root {
     --ink: #15171c; --ink2: #3a3e47; --mute: #737885; --faint: #a3a8b3; --line: #e4e7ec; --line2: #eef0f3;
     --bg: #f3f5f9; --card: #fff; --ok: #0a7d3c; --warn: #a06000; --bad: #c0362c;
-    --accent: #2f6bea; --accent-ink: #1f4fb8; --accent-bg: #eef3fe; --accent-line: #c9d8fb;
+    --accent: #4b5bf0; --accent-ink: #3644cf; --accent-bg: #eef1ff; --accent-line: #cdd5ff;
+    /* 앱 아이콘의 블루 그라데이션 (바탕: 하늘색→남보라, 렌즈: 연보라→남보라) */
+    --grad: linear-gradient(135deg, #8fa8ff 0%, #4b5bf0 100%);
+    --grad-hover: linear-gradient(135deg, #7d97ff 0%, #3c4ae0 100%);
+    --grad-soft: linear-gradient(180deg, #f5f7ff 0%, #e9eeff 100%);
+    --glow: 0 6px 18px rgba(75, 91, 240, .28);
     --r: 14px; --shadow: 0 1px 2px rgba(16,24,40,.04), 0 4px 16px rgba(16,24,40,.05);
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Noto Sans KR", sans-serif; -webkit-font-smoothing: antialiased; }
+  body { margin: 0; background: var(--bg) linear-gradient(180deg, #dfe8ff 0px, #eaf0ff 180px, var(--bg) 520px) no-repeat; color: var(--ink); font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Noto Sans KR", sans-serif; -webkit-font-smoothing: antialiased; }
   main { max-width: 1080px; margin: 0 auto; padding: 0 24px 96px; }
   a { color: var(--accent); }
 
   /* 머리 */
-  .appbar { position: sticky; top: 0; z-index: 30; background: rgba(243,245,249,.86); backdrop-filter: saturate(1.4) blur(10px); -webkit-backdrop-filter: saturate(1.4) blur(10px); margin: 0 -24px 20px; padding: 14px 24px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid transparent; }
+  .appbar { position: sticky; top: 0; z-index: 30; background: rgba(226,234,255,.78); backdrop-filter: saturate(1.4) blur(10px); -webkit-backdrop-filter: saturate(1.4) blur(10px); margin: 0 -24px 20px; padding: 14px 24px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid transparent; }
   .appbar.scrolled { border-bottom-color: var(--line); }
-  .appbar img { width: 34px; height: 34px; }
-  .appbar h1 { font-size: 18px; font-weight: 700; margin: 0; letter-spacing: -.01em; }
+  .appbar img { width: 34px; height: 34px; border-radius: 9px; box-shadow: 0 3px 10px rgba(75,91,240,.28); }
+  .appbar h1 { font-size: 18px; font-weight: 800; margin: 0; letter-spacing: -.01em; background: linear-gradient(135deg, #1b2063 0%, #4b5bf0 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
   .appbar .sub { color: var(--mute); font-size: 13px; }
   .appbar .sp { flex: 1; }
 
@@ -28,7 +34,7 @@
   .step { background: var(--card); border: 1px solid var(--line); border-radius: var(--r); padding: 22px 26px; margin-bottom: 16px; box-shadow: var(--shadow); }
   .step[hidden] { display: none; }
   .step h2 { font-size: 16px; margin: 0 0 4px; display: flex; align-items: center; gap: 10px; letter-spacing: -.01em; }
-  .step h2 .n { display: inline-flex; width: 24px; height: 24px; border-radius: 8px; background: var(--accent); color: #fff; font-size: 13px; font-weight: 700; align-items: center; justify-content: center; }
+  .step h2 .n { display: inline-flex; width: 24px; height: 24px; border-radius: 8px; background: var(--grad); color: #fff; font-size: 13px; font-weight: 700; align-items: center; justify-content: center; box-shadow: 0 3px 8px rgba(75,91,240,.3); }
   .step .lead { color: var(--mute); font-size: 13px; margin: 0 0 16px 34px; }
   .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
   .mute { color: var(--mute); font-size: 13px; }
@@ -42,8 +48,9 @@
   button { font: inherit; font-size: 14px; padding: 9px 15px; border-radius: 10px; border: 1px solid var(--line); background: #fff; color: var(--ink2); cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
   button:hover { background: #f7f8fa; border-color: #d6dae1; }
   button:focus-visible { outline: 3px solid var(--accent-bg); outline-offset: 1px; }
-  button.primary { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
-  button.primary:hover { background: var(--accent-ink); border-color: var(--accent-ink); }
+  button.primary { background: var(--grad); color: #fff; border-color: transparent; font-weight: 600; box-shadow: var(--glow); }
+  button.primary:hover { background: var(--grad-hover); border-color: transparent; box-shadow: 0 8px 22px rgba(75,91,240,.36); }
+  button.primary:disabled { box-shadow: none; }
   button.ghost { border-color: transparent; background: transparent; color: var(--mute); }
   button.ghost:hover { background: var(--line2); color: var(--ink2); }
   button.sm { font-size: 13px; padding: 6px 11px; border-radius: 8px; }
@@ -56,7 +63,7 @@
   .seg { display: inline-flex; background: var(--line2); border-radius: 10px; padding: 3px; gap: 2px; }
   .seg label { font-size: 13px; padding: 5px 11px; border-radius: 8px; cursor: pointer; color: var(--mute); white-space: nowrap; user-select: none; }
   .seg label:hover { color: var(--ink2); }
-  .seg label:has(input:checked) { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(16,24,40,.1); font-weight: 600; }
+  .seg label:has(input:checked) { background: #fff; color: var(--accent-ink); box-shadow: 0 1px 3px rgba(75,91,240,.18); font-weight: 600; }
   .seg input { display: none; }
   .pick-bar .tot { margin-left: auto; font-size: 13px; color: var(--mute); white-space: nowrap; }
   .pick-bar .tot b { color: var(--accent); font-size: 15px; }
@@ -64,7 +71,7 @@
 
   .tree { font-size: 14px; }
   .gsec { border: 1px solid var(--line); border-radius: 12px; margin-top: 12px; overflow: hidden; }
-  .gsec > header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: #fafbfc; border-bottom: 1px solid var(--line2); }
+  .gsec > header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--grad-soft); border-bottom: 1px solid var(--line2); }
   .gsec > header .gt { font-weight: 700; font-size: 14px; }
   .gsec > header .gh { color: var(--mute); font-size: 12.5px; }
   .gsec > header .cnt { margin-left: auto; font-size: 12.5px; color: var(--mute); font-variant-numeric: tabular-nums; }
@@ -122,7 +129,7 @@
   .opts .w input { display: none; }
   .opts .w svg { width: 22px; height: 22px; color: var(--faint); flex: none; }
   .opts .w b { display: block; font-size: 14px; } .opts .w small { color: var(--mute); font-size: 12px; }
-  .opts .w:has(input:checked) { border-color: var(--accent); background: var(--accent-bg); box-shadow: 0 0 0 3px var(--accent-bg); }
+  .opts .w:has(input:checked) { border-color: var(--accent); background: var(--grad-soft); box-shadow: 0 0 0 3px var(--accent-bg); }
   .opts .w:has(input:checked) svg { color: var(--accent); }
   .opts .chk { align-self: center; margin-left: 6px; font-size: 14px; }
   .opts .chk input { width: 16px; height: 16px; accent-color: var(--accent); }
@@ -143,12 +150,12 @@
   /* 4. 결과 */
   .prog { display: flex; align-items: center; gap: 12px; margin: 4px 0 14px; font-size: 13px; color: var(--mute); }
   .prog .bar { flex: 1; height: 8px; background: var(--line2); border-radius: 99px; overflow: hidden; }
-  .prog .bar i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 99px; transition: width .4s; }
-  .prog.done .bar i { background: var(--ok); }
+  .prog .bar i { display: block; height: 100%; width: 0; background: var(--grad); border-radius: 99px; transition: width .4s; }
+  .prog.done .bar i { background: linear-gradient(135deg, #5fd39a 0%, #0a7d3c 100%); }
   .filters { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 4px; }
   .flt { font-size: 13px; padding: 6px 12px; border-radius: 99px; background: #fff; }
   .flt b { font-weight: 600; color: var(--faint); margin-left: 2px; font-variant-numeric: tabular-nums; }
-  .flt.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .flt.on { background: var(--grad); color: #fff; border-color: transparent; box-shadow: 0 3px 10px rgba(75,91,240,.25); }
   .flt.on b { color: #fff; opacity: .7; }
   .flt[data-f="warn"]:not(.on) b { color: var(--warn); } .flt[data-f="bad"]:not(.on) b { color: var(--bad); }
   .logbox { margin-top: 18px; font-size: 13px; color: var(--mute); }
@@ -182,7 +189,7 @@
   @keyframes shimmer { from { background-position: 200% 0 } to { background-position: -200% 0 } }
   .card .doing { font-size: 12px; color: var(--accent); margin-top: 6px; min-height: 16px; }
   .export[hidden] { display: none; }
-  .export { position: sticky; bottom: 14px; z-index: 15; background: rgba(255,255,255,.96); backdrop-filter: blur(8px); box-shadow: 0 6px 24px rgba(16,24,40,.12); }
+  .export { position: sticky; bottom: 14px; z-index: 15; background: rgba(255,255,255,.96); backdrop-filter: blur(8px); box-shadow: 0 6px 24px rgba(75,91,240,.16); }
   .export .et { font-weight: 700; font-size: 14px; margin-right: 4px; }
   .export #selCount b { color: var(--accent); }
   .log { background: #14161b; color: #cfd3da; font: 12px/1.5 ui-monospace, Menlo, monospace; padding: 12px 14px; border-radius: 10px; max-height: 200px; overflow: auto; white-space: pre-wrap; }
@@ -197,7 +204,7 @@
   .card.pending .t { display: flex; align-items: center; justify-content: center; color: var(--mute); font-size: 13px; }
   .done-links { margin-top: 12px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
   .busy { display: flex; align-items: center; gap: 10px; margin-top: 10px; color: var(--mute); font-size: 13px; }
-  .busy .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); animation: pulse 1s infinite ease-in-out; }
+  .busy .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--grad); animation: pulse 1s infinite ease-in-out; }
   @keyframes pulse { 0%, 100% { transform: scale(.6); opacity: .4 } 50% { transform: scale(1); opacity: 1 } }
   .busy .txt { min-width: 0; }
   .busy .t { color: #999; }
@@ -209,7 +216,7 @@
   .card .retake .rt:hover svg { transform: translate(1px, -1px); transition: transform .2s; }
   .card .retake .rt.up { margin-left: 10px; }
   .card .retake .rt.up:hover svg { transform: translateY(-2px); }
-  .export { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 16px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: #fafbfc; }
+  .export { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 16px; padding: 12px 14px; border: 1px solid var(--accent-line); border-radius: 12px; background: #fafbff; }
   .export .right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
   .export .msg { flex-basis: 100%; font-size: 13px; color: var(--mute); }
   .export .seg label { font-size: 14px; }
@@ -220,7 +227,7 @@
 </style>
 <main>
   <header class="appbar" id="appbar">
-    <img src="/icon.png" alt="">
+    <img src="/favicon.png?v=__ICON_V__" alt="">
     <h1>웹사이트 스냅샷</h1>
     <span class="sub">메뉴구조대로 사이트 전체를 찍습니다</span>
   </header>

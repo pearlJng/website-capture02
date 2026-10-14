@@ -416,13 +416,16 @@ const server = createServer(async (req, res) => {
       }
     }
     if (req.method === 'GET' && u.pathname === '/') {
-      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(readFileSync(join(HERE, 'app.html')));
+      // 아이콘 주소에 그림의 크기를 붙인다 — 그림을 바꾸면 주소가 바뀌어 브라우저가 옛 아이콘을 안 쓴다
+      const v = ['icon.png', 'favicon.png'].map((n) => { try { return statSync(join(HERE, 'icon', n)).size; } catch { return 0; } }).join('-');
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' })
+        .end(readFileSync(join(HERE, 'app.html'), 'utf8').replaceAll('__ICON_V__', v));
       return;
     }
-    // 앱 아이콘 (화면 머리·탭 아이콘)
-    if (req.method === 'GET' && u.pathname === '/icon.png') {
-      const f = join(HERE, 'icon', 'icon.png');
-      if (existsSync(f)) { res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'max-age=3600' }).end(readFileSync(f)); return; }
+    // 앱 아이콘(icon.png)과 탭 아이콘·화면 머리 로고(favicon.png — 둥근 사각형만 잘라 낸 것)
+    if (req.method === 'GET' && (u.pathname === '/icon.png' || u.pathname === '/favicon.png')) {
+      const f = join(HERE, 'icon', u.pathname.slice(1));
+      if (existsSync(f)) { res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'max-age=86400' }).end(readFileSync(f)); return; }
     }
     if (req.method === 'POST' && u.pathname === '/api/sitemap') {
       const { url } = await readBody(req);
