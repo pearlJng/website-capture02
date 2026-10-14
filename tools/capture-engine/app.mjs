@@ -26,8 +26,6 @@ import { PDFDocument } from 'pdf-lib';
 import { mergePngsVertically, stitchUserShots } from './png.mjs';
 import { startManual, stateManual, scrollManual, shotManual, undoManual, finishManual, closeManual, closeAllManual, pressManual } from './manual.mjs';
 import AdmZip from 'adm-zip';
-import { applyLauncherIconOnce, syncLauncher } from './icon.mjs';
-import { ensureMacApp } from './macapp.mjs';
 
 /* 브라우저로 내려받기 — 서버에 올렸을 때(맥 저장 창을 못 띄울 때) 쓰는 길.
  * 만든 파일을 잠깐 들고 있다가 한 번 내려주고 지운다. */
@@ -371,13 +369,17 @@ const readBody = (req) => new Promise((res, rej) => {
   req.on('end', () => { try { res(d ? JSON.parse(d) : {}); } catch (e) { rej(e); } });
   req.on('error', rej);
 });
-/** 그림 파일 같은 날것 본문. 80MB 까지 — 긴 페이지를 레티나로 찍으면 수십 MB 가 된다. */
-const readRaw = (req, max = 80e6) => new Promise((res, rej) => {
-  const chunks = []; let n = 0;
-  req.on('data', (c) => { n += c.length; if (n > max) { req.destroy(); rej(new Error('그림이 너무 큽니다 (80MB 까지)')); return; } chunks.push(c); });
-  req.on('end', () => res(Buffer.concat(chunks)));
+/** 그림 파일 같은 날것 본문. 300MB 까지 — 긴 페이지를 레티나로 찍으면 한 장에 수십 MB, 여러 장이면 더 된다.
+ *  넘쳐도 연결을 끊지 않는다 — 끊으면 브라우저에는 "Failed to fetch" 한 줄만 뜨고 무슨 일인지 모른다.
+ *  끝까지 받아 버리고 이유를 돌려준다. */
+const readRaw = (req, max = 300e6) => new Promise((res, rej) => {
+  const chunks = []; let n = 0; let over = false;
+  req.on('data', (c) => { n += c.length; if (n > max) { over = true; chunks.length = 0; return; } if (!over) chunks.push(c); });
+  req.on('end', () => (over ? rej(new Error(`그림이 너무 큽니다 (${Math.round(n / 1e6)}MB — ${Math.round(max / 1e6)}MB 까지). 장 수를 나눠 올려 주세요`)) : res(Buffer.concat(chunks))));
   req.on('error', rej);
 });
+/** 작업은 메모리에만 있다 — 앱이 다시 켜지면(새 버전으로 바뀔 때 등) 진행 중이던 작업은 사라진다 */
+const NO_JOB = '이 작업을 찾지 못했어요 — 앱이 다시 켜지면서 진행 중이던 작업이 지워졌어요. 찍은 원본은 결과 폴더에 남아 있으니, 처음부터 다시 분석해 주세요.';
 const json = (res, code, obj) => { res.writeHead(code, { 'content-type': 'application/json; charset=utf-8' }).end(JSON.stringify(obj)); };
 
 /** 이 요청이 이 컴퓨터의 브라우저에서 온 것인가. 터널(ngrok·cloudflared)이나 다른
@@ -472,7 +474,7 @@ const server = createServer(async (req, res) => {
     if (req.method === 'POST' && u.pathname === '/api/retake') {
       const { id, url, request } = await readBody(req);
       const job = jobs.get(id);
-      if (!job) return json(res, 404, { ok: false, error: '없는 작업' });
+      if (!job) return json(res, 404, { ok: false, error: NO_JOB });
       const row = job.rows.find((r) => normUrl(r.url) === normUrl(url || ''));
       if (!row) return json(res, 404, { ok: false, error: '그 페이지의 결과가 없습니다' });
       const { tweaks, applied, ignored } = parseRequest(request || '');
@@ -483,7 +485,7 @@ const server = createServer(async (req, res) => {
     // 사람이 크롬 전체 페이지 캡처로 찍어 올리는 편이 낫다. 이전 그림은 '이전'에 남긴다.
     if (req.method === 'POST' && u.pathname === '/api/replace') {
       const job = jobs.get(u.searchParams.get('id'));
-      if (!job) return json(res, 404, { ok: false, error: '없는 작업' });
+      if (!job) return json(res, 404, { ok: false, error: NO_JOB });
       const row = job.rows.find((r) => normUrl(r.url) === normUrl(u.searchParams.get('url') || ''));
       if (!row) return json(res, 404, { ok: false, error: '그 페이지의 결과가 없습니다' });
       const type = String(req.headers['content-type'] || '');
@@ -492,7 +494,7 @@ const server = createServer(async (req, res) => {
       const ext = multi || /png/i.test(type) ? '.png' : /jpe?g/i.test(type) ? '.jpg' : null;
       if (!ext) return json(res, 400, { ok: false, error: 'PNG 나 JPG 그림만 올릴 수 있습니다' });
       let buf;
-      try { buf = await readRaw(req); } catch (e) { return json(res, 400, { ok: false, error: e.message }); }
+      try { buf = await readRaw(req); } catch (e) { return json(res, 413, { ok: false, error: e.message }); }
       if (buf.length < 100) return json(res, 400, { ok: false, error: '빈 파일입니다' });
       let stitchNotes = [];
       if (multi) {
@@ -526,7 +528,7 @@ const server = createServer(async (req, res) => {
         // 창은 이 컴퓨터에 뜬다. 터널·다른 컴퓨터에서 온 요청이면 그 사람은 창을 못 본다.
         if (PUBLIC || !isLocalRequest(req)) return json(res, 200, { ok: false, local: false, error: '크롬 창은 앱을 띄운 컴퓨터에만 뜹니다 — 이 컴퓨터에서 연 화면에서 눌러 주세요' });
         const job = jobs.get(body.id);
-        if (!job) return json(res, 404, { ok: false, error: '없는 작업' });
+        if (!job) return json(res, 404, { ok: false, error: NO_JOB });
         const row = job.rows.find((r) => normUrl(r.url) === normUrl(body.url || ''));
         if (!row) return json(res, 404, { ok: false, error: '그 페이지의 결과가 없습니다' });
         await ensureBrowser();
@@ -548,7 +550,7 @@ const server = createServer(async (req, res) => {
         if (action === 'cancel') { await closeManual(body.key); return json(res, 200, { ok: true }); }
         if (action === 'finish') {
           const job = jobs.get(body.id);
-          if (!job) return json(res, 404, { ok: false, error: '없는 작업' });
+          if (!job) return json(res, 404, { ok: false, error: NO_JOB });
           const row = job.rows.find((r) => normUrl(r.url) === normUrl(body.url || ''));
           if (!row) return json(res, 404, { ok: false, error: '그 페이지의 결과가 없습니다' });
           const r = await finishManual(body.key);
@@ -571,7 +573,7 @@ const server = createServer(async (req, res) => {
     if (req.method === 'POST' && u.pathname === '/api/pickSave') {
       const { id, format } = await readBody(req);
       const job = jobs.get(id);
-      if (!job) return json(res, 404, { ok: false, error: '없는 작업' });
+      if (!job) return json(res, 404, { ok: false, error: NO_JOB });
       let hostName = 'site';
       try { hostName = new URL(job.requested[0].url).hostname; } catch { /* 무시 */ }
       if (!isLocalRequest(req)) return json(res, 200, { ok: true, native: false });
@@ -580,7 +582,7 @@ const server = createServer(async (req, res) => {
     if (req.method === 'POST' && u.pathname === '/api/export') {
       const { id, urls, format, dir, name } = await readBody(req);
       const job = jobs.get(id);
-      if (!job) return json(res, 404, { ok: false, error: '없는 작업' });
+      if (!job) return json(res, 404, { ok: false, error: NO_JOB });
       // 저장 위치·이름은 사용자가 정한다. 비우면 작업 폴더의 내보내기/ 와 "<사이트> <폭>".
       let hostName = 'site';
       try { hostName = new URL(job.requested[0].url).hostname; } catch { /* 무시 */ }
@@ -615,7 +617,7 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === 'GET' && u.pathname === '/api/job') {
       const job = jobs.get(u.searchParams.get('id'));
-      if (!job) return json(res, 404, { ok: false, error: '없는 작업' });
+      if (!job) return json(res, 404, { ok: false, error: NO_JOB });
       let hostName = 'site';
       try { hostName = new URL(job.requested[0].url).hostname; } catch { /* 무시 */ }
       return json(res, 200, { ok: true, ...job, exportDefaults: { dir: join(job.outDir, '내보내기'), name: `${hostName} ${job.width}` } });
@@ -648,8 +650,18 @@ server.listen(PORT, HOST, () => {
   if (process.platform === 'darwin' && !PUBLIC) spawn('open', [url], { stdio: 'ignore', detached: true }).unref();
   // 바탕화면의 실행 파일에 카메라 아이콘을 (한 번) 입힌다
   // 바탕화면에 터미널 없이 켜지는 "웹사이트 스냅샷.app" 을 만들거나 고쳐 쓴다
-  if (process.platform === 'darwin' && !PUBLIC) { syncLauncher(); applyLauncherIconOnce(); ensureMacApp(); }
+  // 이 일들(아이콘 입히기, 앱 묶음 다시 만들기 — osacompile·sips·codesign)은 몇 초~십수 초 걸린다.
+  // 서버 안에서 돌리면 그동안 화면의 요청이 전부 멈춘다. 따로 띄운 프로세스에서 한다.
+  if (process.platform === 'darwin' && !PUBLIC) {
+    try { spawn(process.execPath, [join(HERE, 'mac', 'maintain.mjs')], { stdio: 'ignore', detached: true }).unref(); }
+    catch (e) { console.log('맥 앱 정리를 띄우지 못했습니다:', e.message); }
+  }
 });
+
+// 어디선가 예상 못 한 오류가 나도 서버는 살아 있어야 한다 — 죽으면 화면에는 "Failed to fetch" 만 남는다.
+// 기록만 남기고 계속 돈다. (기록은 ~/Library/Logs/웹사이트 스냅샷.log)
+process.on('uncaughtException', (e) => { console.log(`[${new Date().toLocaleString('ko-KR')}] 처리 못 한 오류(서버는 계속 돕니다): ${e && e.stack || e}`); });
+process.on('unhandledRejection', (e) => { console.log(`[${new Date().toLocaleString('ko-KR')}] 처리 못 한 오류(서버는 계속 돕니다): ${e && e.stack || e}`); });
 
 async function shutdown() {
   console.log('\n정리하고 끝냅니다…');

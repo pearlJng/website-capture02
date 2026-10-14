@@ -325,9 +325,13 @@
   const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   let analysis = null;
 
+  // 앱(서버)에 닿지 못했을 때 — 브라우저는 "Failed to fetch" 한 줄만 준다. 무슨 일인지와 할 일을 말한다.
+  const OFFLINE = '앱과 연결이 끊겼어요. 앱이 새 버전으로 다시 켜지는 중이거나 꺼졌을 수 있어요 — 잠시 뒤 다시 눌러 보고, 그래도 안 되면 바탕화면의 앱 아이콘을 다시 눌러 주세요.';
   async function api(path, body) {
-    const r = await fetch(path, body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {});
-    return r.json();
+    let r;
+    try { r = await fetch(path, body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : {}); }
+    catch { return { ok: false, error: OFFLINE, offline: true }; }
+    try { return await r.json(); } catch { return { ok: false, error: `앱이 알 수 없는 답을 했어요 (${r.status})` }; }
   }
 
   /* ── 기다리는 동안: 서버가 지금 무엇을 하는지 + 그 사이를 채우는 문구 ── */
@@ -666,7 +670,7 @@
         type = 'application/x-cap-parts';
       }
       const r = await fetch(`/api/replace?id=${encodeURIComponent(id)}&url=${encodeURIComponent(row.url)}`,
-        { method: 'POST', headers: { 'content-type': type }, body }).then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
+        { method: 'POST', headers: { 'content-type': type }, body }).then((x) => x.json()).catch(() => ({ ok: false, error: OFFLINE }));
       if (!r.ok) { alert(r.error); card.dataset.stamp = ''; poll(id); return; }
       card.dataset.stamp = '';
       poll(id);
