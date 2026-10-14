@@ -643,7 +643,7 @@ server.listen(PORT, HOST, () => {
   if (PASSWORD) console.log('  비밀번호가 걸려 있습니다 (APP_PASSWORD)');
   console.log('  끝내려면 Ctrl+C\n');
   if (process.platform === 'darwin' && !PUBLIC) spawn('open', [url], { stdio: 'ignore', detached: true }).unref();
-  // 바탕화면의 실행 파일에 카메라 아이콘을 (한 번) 입힌다
+  // 바탕화면의 실행 파일에 렌즈 아이콘을 (한 번) 입힌다
   // 바탕화면에 터미널 없이 켜지는 "웹사이트 스냅샷.app" 을 만들거나 고쳐 쓴다
   if (process.platform === 'darwin' && !PUBLIC) { syncLauncher(); applyLauncherIconOnce(); ensureMacApp(); }
 });

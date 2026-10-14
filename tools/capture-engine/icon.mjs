@@ -1,5 +1,5 @@
 /**
- * 실행 파일(웹사이트 스냅샷.command)에 카메라 아이콘을 입힌다 — 맥에서만.
+ * 실행 파일(웹사이트 스냅샷.command)에 카메라 렌즈 아이콘을 입힌다 — 맥에서만.
  *
  * 파일 아이콘은 git 으로 옮겨지지 않는다(맥의 파일 속성에 붙는다). 그래서 그림은 icon/icon.png 로
  * 두고, 앱이 켜질 때 바탕화면의 실행 파일에 한 번 입힌다. install.sh 는 실행 파일을 만든 직후 입힌다.
@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PNG = join(HERE, 'icon', 'icon.png');
-const VERSION = 'camera-5';    // 그림을 바꾸면 올린다 — 이미 입힌 사람에게도 새 그림이 다시 입혀진다
+const VERSION = 'lens-1';      // 그림을 바꾸면 올린다 — 이미 입힌 사람에게도 새 그림이 다시 입혀진다
 const MARK = join(homedir(), 'Library', 'Application Support', 'website-snapshot', 'icon.txt');
 
 export const launcherPaths = () => [
@@ -73,5 +73,5 @@ export async function applyLauncherIconOnce() {
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const paths = launcherPaths();
   const n = await setIcons(paths);
-  console.log(process.platform !== 'darwin' ? '맥이 아니라 아이콘은 건너뜁니다' : n ? `카메라 아이콘 입힘 ✓ (${n}개)` : '아이콘을 입히지 못했습니다 (앱 사용에는 지장 없음)');
+  console.log(process.platform !== 'darwin' ? '맥이 아니라 아이콘은 건너뜁니다' : n ? `렌즈 아이콘 입힘 ✓ (${n}개)` : '아이콘을 입히지 못했습니다 (앱 사용에는 지장 없음)');
 }
