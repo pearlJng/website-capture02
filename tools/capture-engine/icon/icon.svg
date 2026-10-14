@@ -1,76 +1,21 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
-  <!-- 웹사이트 스냅샷 앱 아이콘: 카메라 렌즈 하나. 맥 앱 아이콘 격자(1024 캔버스 안 824 둥근 사각형) -->
+  <!-- 웹사이트 스냅샷 앱 아이콘: 납작한 큰 도형 스타일. 파란 그라데이션 바탕에 큰 렌즈가 오른쪽 아래로 잘려 나간다.
+       맥 앱 아이콘 격자(1024 캔버스 안 824 둥근 사각형) -->
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#FFFFFF"/>
-      <stop offset="1" stop-color="#E3E7EE"/>
-    </linearGradient>
-    <linearGradient id="barrel" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#3B3F47"/>
-      <stop offset="1" stop-color="#121418"/>
-    </linearGradient>
-    <linearGradient id="rim" x1="0.15" y1="0" x2="0.85" y2="1">
-      <stop offset="0" stop-color="#F4F6F9"/>
-      <stop offset="0.5" stop-color="#A3AAB4"/>
-      <stop offset="1" stop-color="#535962"/>
-    </linearGradient>
-    <!-- 유리: 거의 검은 남색, 가장자리만 살짝 푸르다 -->
-    <radialGradient id="glass" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#03050C"/>
-      <stop offset="0.62" stop-color="#0A1330"/>
-      <stop offset="0.9" stop-color="#16306E"/>
-      <stop offset="1" stop-color="#0B1534"/>
-    </radialGradient>
-    <!-- 코팅 반사(파랑→보라) -->
-    <linearGradient id="coat" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#5B8CFF" stop-opacity="0.95"/>
-      <stop offset="1" stop-color="#8A5CFF" stop-opacity="0.15"/>
-    </linearGradient>
-    <linearGradient id="coat2" x1="1" y1="1" x2="0" y2="0">
-      <stop offset="0" stop-color="#3FD0C9" stop-opacity="0.7"/>
-      <stop offset="1" stop-color="#3FD0C9" stop-opacity="0"/>
-    </linearGradient>
-    <filter id="tile" x="-10%" y="-10%" width="120%" height="125%">
-      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000" flood-opacity="0.22"/>
-    </filter>
-    <filter id="lensShadow" x="-20%" y="-20%" width="140%" height="145%">
-      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#0B1430" flood-opacity="0.32"/>
-    </filter>
-    <filter id="soft"><feGaussianBlur stdDeviation="6"/></filter>
+    <clipPath id="sq"><rect x="100" y="100" width="824" height="824" rx="185"/></clipPath>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#D6E4FF"/><stop offset="1" stop-color="#4B5BF0"/></linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2E338A"/><stop offset="1" stop-color="#11133A"/></linearGradient>
+    <filter id="tile" x="-10%" y="-10%" width="120%" height="125%"><feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#000" flood-opacity="0.18"/></filter>
   </defs>
-
-  <!-- 바탕 -->
-  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)" filter="url(#tile)"/>
-
-  <!-- 렌즈 몸통과 눈금 링 -->
-  <g filter="url(#lensShadow)">
-    <circle cx="512" cy="512" r="300" fill="url(#barrel)"/>
+  <g filter="url(#tile)"><rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/></g>
+  <g clip-path="url(#sq)">
+    <!-- 렌즈: 흰 테 → 유리 → 안쪽 고리 → 가운데 -->
+    <circle cx="590" cy="615" r="345" fill="#FFFFFF"/>
+    <circle cx="590" cy="615" r="275" fill="url(#glass)"/>
+    <circle cx="590" cy="615" r="205" fill="none" stroke="#5B6BFF" stroke-width="14" stroke-opacity="0.55"/>
+    <circle cx="590" cy="615" r="138" fill="#07081F"/>
+    <!-- 반사 -->
+    <ellipse cx="488" cy="512" rx="66" ry="40" transform="rotate(-38 488 512)" fill="#FFFFFF"/>
+    <circle cx="678" cy="702" r="20" fill="#FFFFFF" opacity="0.8"/>
   </g>
-  <circle cx="512" cy="512" r="282" fill="none" stroke="#24272D" stroke-width="10"/>
-  <g stroke="#5F6570" stroke-width="5" stroke-linecap="round">
-    <line x1="512" y1="236" x2="512" y2="252"/>
-    <line x1="512" y1="772" x2="512" y2="788"/>
-    <line x1="236" y1="512" x2="252" y2="512"/>
-    <line x1="772" y1="512" x2="788" y2="512"/>
-  </g>
-
-  <!-- 금속 테 -->
-  <circle cx="512" cy="512" r="238" fill="url(#rim)"/>
-  <circle cx="512" cy="512" r="220" fill="#0C0E12"/>
-
-  <!-- 유리와 안쪽 렌즈들(겹친 고리) -->
-  <circle cx="512" cy="512" r="204" fill="url(#glass)"/>
-  <g fill="none" stroke="#2C4C9C" stroke-opacity="0.55">
-    <circle cx="512" cy="512" r="168" stroke-width="3"/>
-    <circle cx="512" cy="512" r="128" stroke-width="3"/>
-    <circle cx="512" cy="512" r="84" stroke-width="3"/>
-  </g>
-
-  <!-- 코팅 반사: 위 왼쪽 파랑·보라 초승달, 아래 오른쪽 청록 -->
-  <path d="M 340 470 A 176 176 0 0 1 560 342 A 210 210 0 0 0 340 470 Z" fill="url(#coat)"/>
-  <path d="M 610 640 A 150 150 0 0 0 668 520 A 176 176 0 0 1 610 640 Z" fill="url(#coat2)"/>
-
-  <!-- 반사광 -->
-  <path d="M 392 428 A 140 140 0 0 1 472 356" fill="none" stroke="#FFFFFF" stroke-opacity="0.9" stroke-width="20" stroke-linecap="round"/>
-  <ellipse cx="575" cy="575" rx="30" ry="18" transform="rotate(-45 575 575)" fill="#FFFFFF" fill-opacity="0.18" filter="url(#soft)"/>
 </svg>
