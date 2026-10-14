@@ -1,6 +1,9 @@
 /**
  * 피드백 — 앱 오른쪽 아래 버튼으로 보낸 의견을 노션 매뉴얼의 "피드백·QA" 표에 한 줄씩 쌓는다.
  *
+ * 기본은 키 없이: 노션 양식(폼)을 열고, 적은 내용과 화면 정보를 복사해 두어 양식에 붙여 넣게 한다.
+ * (워크스페이스가 관리자만 연결 키를 만들 수 있게 막혀 있어서.) 키가 생기면 아래처럼 자동으로 쌓는다.
+ *
  * 노션에 쓰려면 통합(Integration) 키가 필요하다. 키는 비밀번호와 같아서 공개 저장소에 넣지 않는다 —
  * 앱 화면에서 한 번 붙여 넣으면 이 컴퓨터의 설정 파일(~/.website-snapshot/feedback.json)에만 남는다.
  * 표 주소와 알림 받을 사람은 비밀이 아니라 여기 적어 둔다(키 없이는 아무것도 못 한다).
@@ -148,3 +151,7 @@ export async function flushOutbox() {
 }
 
 export const FEEDBACK_DB_URL = `https://www.notion.so/${DATABASE_ID}`;
+// 노션 피드백·QA 표의 "피드백 보내기" 양식. 양식의 "링크 복사"로 얻은 주소를 넣는다(비밀 아님).
+// 비어 있으면 표의 양식 탭을 연다.
+export const FEEDBACK_FORM_URL = process.env.FEEDBACK_FORM_URL || ''
+  || `https://www.notion.so/${DATABASE_ID}?v=3f99764ea3ec81d48a90000cfb881829`;

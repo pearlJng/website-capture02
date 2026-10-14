@@ -26,7 +26,7 @@ import { PDFDocument } from 'pdf-lib';
 import { mergePngsVertically, stitchUserShots } from './png.mjs';
 import { startManual, stateManual, scrollManual, shotManual, undoManual, finishManual, closeManual, closeAllManual, pressManual } from './manual.mjs';
 import AdmZip from 'adm-zip';
-import { sendFeedback, setupFeedback, feedbackStatus, flushOutbox, FEEDBACK_DB_URL } from './feedback.mjs';
+import { sendFeedback, setupFeedback, feedbackStatus, flushOutbox, FEEDBACK_DB_URL, FEEDBACK_FORM_URL } from './feedback.mjs';
 
 /* 브라우저로 내려받기 — 서버에 올렸을 때(맥 저장 창을 못 띄울 때) 쓰는 길.
  * 만든 파일을 잠깐 들고 있다가 한 번 내려주고 지운다. */
@@ -427,7 +427,7 @@ const server = createServer(async (req, res) => {
     }
     // ── 피드백: 노션 매뉴얼의 피드백·QA 표로 보낸다 (feedback.mjs) ──
     if (req.method === 'GET' && u.pathname === '/api/feedback/status') {
-      return json(res, 200, { ok: true, ...feedbackStatus(), board: FEEDBACK_DB_URL });
+      return json(res, 200, { ok: true, ...feedbackStatus(), board: FEEDBACK_DB_URL, form: FEEDBACK_FORM_URL, version: HEAD.slice(0, 7) });
     }
     if (req.method === 'POST' && u.pathname === '/api/feedback') {
       const b = await readBody(req);
