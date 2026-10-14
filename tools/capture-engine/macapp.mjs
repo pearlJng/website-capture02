@@ -85,7 +85,7 @@ export function ensureMacApp(opts = {}) {
     execFileSync('osacompile', args, { stdio: 'ignore' });
     const res = join(app, 'Contents', 'Resources');
     const plist = join(app, 'Contents', 'Info.plist');
-    // 렌즈 아이콘으로 — applet.icns 를 바꾸고, 그림 묶음(Assets.car)이 있으면 그쪽이 앞서므로 뗀다
+    // 카메라 아이콘으로 — applet.icns 를 바꾸고, 그림 묶음(Assets.car)이 있으면 그쪽이 앞서므로 뗀다
     let icon = false;
     const icns = makeIcns();
     if (icns) {
