@@ -846,6 +846,19 @@ const CAFE24_PAGES = [
  * 첫 페이지의 메뉴를 읽고, 최상위 메뉴 페이지에 들어가 그 페이지에만 있는
  * 하위 메뉴를 붙인다. 아임웹 템플릿 일부는 하위 메뉴를 해당 페이지에서만 보여 준다.
  */
+/**
+ * 페이지를 연다. 응답이 오기 시작하면 넘어가고, "문서 읽기 끝"은 20초까지만 기다린 뒤 안 오는
+ * 요청을 멈춘다 — 늦게 오는 외부 스크립트 하나 때문에 시간 초과로 실패하지 않게(동인써모).
+ */
+async function openPage(page, url) {
+  await page.goto(url, { waitUntil: 'commit', timeout: PAGE_TIMEOUT });
+  const dcl = await page.waitForLoadState('domcontentloaded', { timeout: 20000 }).then(() => true).catch(() => false);
+  if (!dcl) {
+    await page.evaluate(() => window.stop()).catch(() => {});
+    await page.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => {});
+  }
+}
+
 export async function extractSitemap(context, url, opts = {}) {
   const depth = opts.depth ?? 0;    // 기본은 GNB 와 메인페이지까지. 하위 페이지는 시키면 들어간다
   const progress = typeof opts.onProgress === 'function' ? opts.onProgress : () => {};
@@ -853,7 +866,7 @@ export async function extractSitemap(context, url, opts = {}) {
   const page = await context.newPage();
   try {
     progress('여는 중');
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: PAGE_TIMEOUT });
+    await openPage(page, url);
     await page.waitForLoadState('networkidle', { timeout: 4000 }).catch(() => {});
     await page.waitForTimeout(500);
     const origin = new URL(page.url()).origin;
@@ -990,7 +1003,7 @@ export async function extractSitemap(context, url, opts = {}) {
         inspected++;
         progress(`하위 페이지 ${inspected}/${targets.length} — ${it.label}`);
         try {
-          await page.goto(it.href, { waitUntil: 'domcontentloaded', timeout: PAGE_TIMEOUT });
+          await openPage(page, it.href);
           await page.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => {});
           await page.waitForTimeout(300);
           const sub = await page.evaluate(inPageReadNav);

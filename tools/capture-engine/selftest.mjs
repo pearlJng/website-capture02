@@ -443,6 +443,19 @@ const CASES = [
     },
   },
   {
+    // 동인써모: 페이지를 다 읽기 전에 받아야 하는 외부 스크립트가 90개 넘고, 그중 하나가 늦으면
+    // "문서 읽기 끝"이 안 와 page.goto 가 45초 시간 초과로 모든 페이지가 실패했다. 화면은 이미 보인다.
+    // 응답이 오기 시작하면 넘어가고, 문서 읽기 끝은 잠깐만 기다린 뒤 보이는 대로 찍는다.
+    name: '영영 안 오는 외부 스크립트가 있어도 실패하지 않고 보이는 대로 찍는다',
+    file: 'hangscript.html', mode: 'stitch', steps: ['sticky', 'motion', 'anim'], timeout: 8000, dclWait: 3000, color: 200, colorFrac: 0.9,
+    check: (r, cmp, shots, extra) => {
+      if (!r.ok) return `실패했다: ${r.error}`;
+      if (!extra || !extra.rows || extra.rows.top < 150) return `히어로가 안 찍혔다 (${extra && extra.rows && extra.rows.top}줄)`;
+      if (!(r.notes || []).some((n) => /끝까지 안 읽혔/.test(n))) return '느린 외부 스크립트 기록이 없다';
+      return null;
+    },
+  },
+  {
     // 둘째 조각 위에 흰 띠가 남았다. 맨 위에서는 없다가 스크롤하면 그때 생겨 스크롤
     // 위치를 따라오는 헤더는, 직전 조각과 견주는 방식으로는 처음 나타난 조각에서 못
     // 잡는다. 목표 자리 조금 위에 먼저 서서 자리를 재고 내려가면 잡힌다.
@@ -935,6 +948,7 @@ async function main() {
         : { viewport: VIEWPORT, locale: 'ko-KR' });
       const r = await captureSite(ctx, BASE + c.file, {
         steps: c.steps, mode: c.mode, stitchPage: await getStitchPage(), lang: c.lang || null,
+        ...(c.timeout ? { timeout: c.timeout } : {}), ...(c.dclWait ? { dclWait: c.dclWait } : {}),
         scale: c.device ? DEVICES[c.device].scale : 1,   // 컨텍스트 배율과 맞아야 이어붙이기가 맞는다
       });
       await ctx.close().catch(() => {});

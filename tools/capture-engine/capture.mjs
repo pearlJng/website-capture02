@@ -1152,10 +1152,31 @@ export async function captureSite(context, url, opts = {}) {
     // 페이지 스크립트보다 먼저: 스크롤 위치 표시 옵저버를 나중에 멈출 수 있게 감싼다
     if (steps.has('motion')) await page.addInitScript(inPageInitObservers);
     progress('여는 중');
-    try {
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout });
-    } catch (e) {
-      return { ok: false, url, error: 'goto: ' + e.message.split('\n')[0], ms: Date.now() - started };
+    // 응답이 오기 시작하면(commit) 넘어간다. "문서 읽기 끝"(DOMContentLoaded)은 페이지를 다 읽기 전에
+    // 받아야 하는 외부 스크립트가 하나라도 늦으면 안 온다 — 동인써모는 그런 스크립트가 90개가 넘어
+    // 45초 시간 초과로 모든 페이지가 실패했다. 화면은 이미 보이는데도. 그래서 잠깐만 기다리고 보이는 대로 찍는다.
+    // 응답 자체가 안 오면 한 번 더 시도한다.
+    let opened = null;
+    for (let k = 0; k < 2 && !opened; k++) {
+      try { await page.goto(url, { waitUntil: 'commit', timeout }); opened = true; }
+      catch (e) {
+        if (k === 1 || page.isClosed()) return { ok: false, url, error: 'goto: ' + e.message.split('\n')[0], ms: Date.now() - started };
+        progress('응답이 없어 한 번 더 여는 중');
+        await page.waitForTimeout(2000);
+      }
+    }
+    const dclWait = opts.dclWait ?? 30000;
+    const dcl = await page.waitForLoadState('domcontentloaded', { timeout: dclWait }).then(() => true).catch(() => false);
+    if (!dcl) {
+      // 안 오는 요청을 멈춘다(브라우저의 중지 단추). 그래야 문서 읽기가 끝나고, 찍기·글꼴 기다리기도
+      // 영영 기다리지 않는다. 그 사이 끊긴 그림은 다시 부른다.
+      await page.evaluate(() => {
+        window.stop();
+        for (const im of document.images) if (!im.complete && im.currentSrc) { const s = im.src; im.src = ''; im.src = s; }
+      }).catch(() => {});
+      await page.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => {});
+      notes.push(`페이지가 끝까지 안 읽혔습니다 — 늦게 오는 외부 스크립트가 있어 ${Math.round(dclWait / 1000)}초 기다린 뒤 멈추고 보이는 대로 찍었습니다`);
+      progress('늦게 오는 외부 스크립트가 있어 보이는 대로 찍습니다');
     }
     // networkidle 은 분석 스크립트가 계속 두드리는 사이트에서 제한 시간을 꽉 채운다.
     // 어차피 이미지는 칸마다 따로 기다리므로 여기서 오래 붙잡을 이유가 없다.
