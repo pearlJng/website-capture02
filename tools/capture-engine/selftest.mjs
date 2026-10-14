@@ -831,6 +831,22 @@ const CASES = [
     },
   },
   {
+    // 추성고을: 하위 메뉴 12개에 3단이 있나 보려고 하나씩 마우스를 올려 보느라 메뉴 읽기가 오래 걸렸다(3단은 없었다).
+    // 더 열릴 흔적(숨은 하위 목록 등)이 있는 항목만 올려 본다 — 3단이 있는 한 곳은 그대로 찾는다.
+    name: '메뉴구조: 3단이 있는 항목만 마우스를 올려 보고, 그냥 링크는 건너뛴다 (3단은 그대로 찾는다)',
+    file: 'hover3.html', sitemap: true,
+    check: (r) => {
+      if (!r.ok) return `실패: ${r.error}`;
+      if (r.method !== 'hover') return `마우스로 읽지 않았다 (${r.method})`;
+      const product = r.menu.find((x) => x.label === 'Product');
+      const spirits = product && product.children.find((x) => x.label === '증류주');
+      if (!spirits || spirits.children.length !== 2) return `3단(증류주 > 25도·40도)을 못 찾았다: ${JSON.stringify(product && product.children.map((c) => [c.label, c.children.length]))}`;
+      const p = r.diag && r.diag.hover && r.diag.hover.probes;
+      if (!p || p.done !== 1 || p.skipped !== 13) return `더 열리나 보려고 마우스를 올린 항목: ${JSON.stringify(p)} (증류주 1곳만 올리고, 나머지 하위 11곳과 3단 2곳은 건너뛰어야)`;
+      return null;
+    },
+  },
+  {
     // K'sox 에서 2차 메뉴를 하나도 못 잡았다. 로고가 위, 메뉴가 두 번째 줄(y≈230)
     // 이라 220px 안에서 찾는 GNB 줄에 안 걸렸고, 드롭다운이 0.6초에 걸쳐
     // 서서히 나타나 350ms 뒤에 보면 비어 있었다. 3차는 화면엔 안 보이고 DOM 에만 있다.

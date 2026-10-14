@@ -22,7 +22,7 @@ import { createBrowserHost, pickBrowser } from './browser.mjs';
 import { extractSitemap, renderTree } from './sitemap.mjs';
 import { shootAll, writeOutputs } from './shoot.mjs';
 import { writeFileSync, copyFileSync, readFileSync as readBytes } from 'node:fs';
-import { PDFDocument, rgb } from 'pdf-lib';
+import { PDFDocument } from 'pdf-lib';
 import { mergePngsVertically, stitchUserShots } from './png.mjs';
 import { startManual, stateManual, scrollManual, shotManual, undoManual, finishManual, closeManual, closeAllManual, pressManual } from './manual.mjs';
 import AdmZip from 'adm-zip';
@@ -83,7 +83,7 @@ async function exportPdf(job, rows, { baseDir, name }) {
   let pages = 0;
   for (const row of rows) {
     for (const f of row.files || []) {
-      const bytes = new Uint8Array(readBytes(join(job.outDir, f)));   // 공유 풀 Buffer 를 피한다 (보드 PDF 참고)
+      const bytes = new Uint8Array(readBytes(join(job.outDir, f)));   // 공유 풀 Buffer 를 피한다 — 작은 Buffer 는 byteOffset 이 0 이 아니라 pdf-lib 가 엉뚱한 곳을 읽는다
       const png = /\.jpe?g$/i.test(f) ? await pdf.embedJpg(bytes) : await pdf.embedPng(bytes);
       // 화면 픽셀을 그대로 pt 로 쓴다 (1px = 1pt). 배율 2 면 절반으로 줄여 실제 크기를 맞춘다.
       // 직접 올린 그림은 배율을 모른다 — 레티나로 찍어 폭이 1.5배 넘게 크면 작업 폭에 맞춘다.
@@ -100,117 +100,6 @@ async function exportPdf(job, rows, { baseDir, name }) {
   return { file, pages };
 }
 
-/* ───────────── 보드: 큰 대지 한 장에 페이지를 늘어놓는다 ─────────────
- * 팀장님이 피그마처럼 큰 대지에서 한눈에 보도록. 1depth 메뉴마다 한 줄, 그 안의 페이지를 가로로.
- * 페이지마다 위에 이름, 줄마다 왼쪽 위에 메뉴 이름. PDF 한 쪽으로 낸다(미리보기·Acrobat·일러스트에서
- * 확대해 본다). 그림은 원래 해상도로, 긴 페이지는 4000px 조각으로 나눠 넣는다.
- * 그림은 이 앱의 /files 주소로 브라우저에 불러와 캔버스로 자른다(큰 그림을 CDP 로 넘기지 않는다). */
-async function exportBoard(job, rows, { baseDir, name }) {
-  await ensureBrowser();
-  const browser = await host.get();
-  const ctx = await browser.newContext({ viewport: { width: 800, height: 600 } });
-  const origin = `http://127.0.0.1:${PORT}`;
-  if (PASSWORD) await ctx.addCookies([{ name: 'key', value: encodeURIComponent(PASSWORD), url: origin }]);
-  const page = await ctx.newPage();
-  try {
-    await page.goto(`${origin}/icon.png`).catch(() => {});
-    const FW = job.width || 1440;                                  // 대지 위 페이지 폭 (CSS px)
-    const px = Math.round(FW * Math.min(job.meta && job.meta.scale ? job.meta.scale : 1, 2));   // 실제 그림 폭
-    const TILE = 4000;
-    const G = Math.round(Math.max(80, FW * 0.08)), LH = Math.round(Math.max(56, FW * 0.045)), GH = Math.round(Math.max(90, FW * 0.07)), RG = Math.round(Math.max(160, FW * 0.12)), M = Math.round(Math.max(120, FW * 0.1));
-    // 1depth 메뉴로 묶는다 (요청 순서 그대로)
-    const groups = [];
-    for (const row of rows) {
-      const head = String(row.path || row.name).split(' > ')[0];
-      let g = groups.find((x) => x.name === head);
-      if (!g) { g = { name: head, frames: [] }; groups.push(g); }
-      g.frames.push({ row, label: row.path || row.name });
-    }
-    // 페이지마다 그림을 불러와 폭을 맞추고 조각으로 자른다
-    for (const g of groups) {
-      for (const f of g.frames) {
-        const urls = (f.row.files || []).map((file) => `${origin}/files/${encodeURIComponent(job.id)}/${encodeURIComponent(file)}`);
-        const r = await page.evaluate(async ({ urls, outW, tileH }) => {
-          const imgs = await Promise.all(urls.map((u) => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('그림을 못 불러옴: ' + decodeURIComponent(u.split('/').pop()))); i.src = u; })));
-          const k = outW / imgs[0].naturalWidth;
-          const H = Math.round(imgs.reduce((n, i) => n + i.naturalHeight * k, 0));
-          // 캔버스 하나를 돌려 쓴다 — 조각마다 새로 만들면 페이지가 많을 때 메모리가 모자라
-          // 브라우저가 빈 그림("data:,")을 돌려준다(보드 PDF 의 "SOI not found in JPEG").
-          const cv = window.__boardCanvas || (window.__boardCanvas = document.createElement('canvas'));
-          const tiles = [];
-          for (let y = 0; y < H; y += tileH) {
-            const h = Math.min(tileH, H - y);
-            cv.width = outW; cv.height = h;
-            const cx = cv.getContext('2d'); cx.fillStyle = '#fff'; cx.fillRect(0, 0, outW, h);
-            let off = 0;
-            for (const im of imgs) { const ih = im.naturalHeight * k; if (off + ih > y && off < y + h) cx.drawImage(im, 0, off - y, outW, ih); off += ih; }
-            let url = cv.toDataURL('image/jpeg', 0.86), type = 'jpg';
-            if (!url.startsWith('data:image/jpeg')) { url = cv.toDataURL('image/png'); type = 'png'; }
-            if (!url.startsWith('data:image/')) throw new Error(`그림을 만들지 못했습니다 (${outW}×${h})`);
-            tiles.push({ y, h, type, data: url.split(',')[1] });
-          }
-          cv.width = 1; cv.height = 1;   // 메모리를 돌려준다
-          return { H, tiles };
-        }, { urls, outW: px, tileH: TILE }).catch((e) => { throw new Error(`"${f.label}" 페이지를 보드에 넣지 못했습니다 — ${e.message.split('\n')[0]}`); });
-        const k = FW / px;                                           // 그림 px → 대지 단위
-        f.h = Math.round(r.H * k);
-        f.tiles = r.tiles.map((t) => ({ y: t.y * k, h: t.h * k, type: t.type, data: t.data }));
-      }
-    }
-    // 배치
-    let y = M, W = 0;
-    for (const g of groups) {
-      g.y = y;
-      let x = M;
-      const rowH = Math.max(...g.frames.map((f) => f.h));
-      for (const f of g.frames) { f.x = x; f.y = y + GH + LH; x += FW + G; }
-      W = Math.max(W, x - G + M);
-      y += GH + LH + rowH + RG;
-    }
-    const H = y - RG + M;
-    const title = `${(() => { try { return new URL(rows[0].url).hostname; } catch { return 'site'; } })()} · ${job.device || FW + 'px'} · ${rows.length}페이지`;
-
-    // PDF 한 쪽 — 보통 뷰어가 14,400pt 까지 연다. 넘으면 전체를 줄인다(그림 해상도는 그대로).
-    const s = Math.min(1, 14400 / Math.max(W, H));
-    const pdf = await PDFDocument.create();
-    pdf.setTitle(title);
-    const pg = pdf.addPage([W * s, H * s]);
-    pg.drawRectangle({ x: 0, y: 0, width: W * s, height: H * s, color: rgb(0.953, 0.957, 0.965) });
-    // 글자는 한글 글꼴을 PDF 에 넣는 대신 브라우저에서 그림으로 그려 붙인다
-    const textPng = async (text, size, color, bold) => {
-      const r = await page.evaluate(({ text, size, color, bold }) => {
-        const cv = document.createElement('canvas'); const cx = cv.getContext('2d');
-        const font = `${bold ? 700 : 500} ${size}px -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif`;
-        cx.font = font; const w = Math.ceil(cx.measureText(text).width) + 4;
-        cv.width = w; cv.height = Math.ceil(size * 1.35);
-        cx.font = font; cx.fillStyle = color; cx.textBaseline = 'top'; cx.fillText(text, 2, Math.round(size * 0.12));
-        return { w: cv.width, h: cv.height, data: cv.toDataURL('image/png').split(',')[1] };
-      }, { text, size: size * 2, color, bold });
-      return { img: await pdf.embedPng(new Uint8Array(Buffer.from(r.data, 'base64'))), w: r.w / 2, h: r.h / 2 };
-    };
-    const put = (img, x, yTop, w, h) => pg.drawImage(img, { x: x * s, y: (H - yTop - h) * s, width: w * s, height: h * s });
-    const t0 = await textPng(title, Math.round(GH * 0.45), '#6B7280', false);
-    put(t0.img, M, Math.round(M * 0.25), t0.w, t0.h);
-    for (const g of groups) {
-      const gt = await textPng(`${g.name}  ${g.frames.length}`, Math.round(GH * 0.55), '#111827', true);
-      put(gt.img, M, g.y + Math.round(GH * 0.15), gt.w, gt.h);
-      for (const f of g.frames) {
-        const lt = await textPng(f.label, Math.round(LH * 0.5), '#374151', false);
-        put(lt.img, f.x, f.y - Math.round(LH * 0.85), Math.min(lt.w, FW), lt.h);
-        pg.drawRectangle({ x: f.x * s, y: (H - f.y - f.h) * s, width: FW * s, height: f.h * s, color: rgb(1, 1, 1), borderColor: rgb(0.82, 0.835, 0.86), borderWidth: Math.max(0.5, 2 * s) });
-        // 작은 Buffer 는 Node 가 공유 풀에 담아 byteOffset 이 0 이 아니다. pdf-lib 는 그 풀의 맨 앞부터 읽어
-        // "SOI not found in JPEG" 가 났다(긴 페이지의 마지막 작은 조각). 따로 떨어진 Uint8Array 로 넘긴다.
-        for (const t of f.tiles) { const bytes = new Uint8Array(Buffer.from(t.data, 'base64')); put(t.type === 'png' ? await pdf.embedPng(bytes) : await pdf.embedJpg(bytes), f.x, f.y + t.y, FW, t.h); }
-      }
-    }
-    const file = join(baseDir, `${name}.pdf`);
-    writeFileSync(file, await pdf.save());
-    return { file, pages: rows.length, width: W, height: H };
-  } finally {
-    await ctx.close().catch(() => {});
-  }
-}
-
 const reveal = (path) => { if (process.platform === 'darwin') spawn('open', ['-R', path], { stdio: 'ignore', detached: true }).unref(); };
 
 /**
@@ -220,9 +109,9 @@ const reveal = (path) => { if (process.platform === 'darwin') spawn('open', ['-R
  */
 function pickSavePath({ defaultName, format }) {
   if (process.platform !== 'darwin' || PUBLIC) return Promise.resolve({ ok: true, native: false });
-  const ext = format === 'pdf' || format === 'board' ? '.pdf' : '';
-  const name = safeName(defaultName) + (format === 'board' ? ' 보드' : '') + ext;
-  const prompt = { pdf: 'PDF 로 저장', board: '보드 PDF 로 저장' }[format] || '이미지 폴더로 저장';
+  const ext = format === 'pdf' ? '.pdf' : '';
+  const name = safeName(defaultName) + ext;
+  const prompt = format === 'pdf' ? 'PDF 로 저장' : '이미지 폴더로 저장';
   const script = [
     'tell application "System Events" to activate',
     `set f to choose file name with prompt "${prompt}" default name "${name.replace(/"/g, '\\"')}" default location (path to downloads folder)`,
@@ -693,7 +582,7 @@ const server = createServer(async (req, res) => {
       let hostName = 'site';
       try { hostName = new URL(job.requested[0].url).hostname; } catch { /* 무시 */ }
       const baseDir = resolve(String(dir || '').trim().replace(/^~(?=$|\/)/, process.env.HOME || '') || join(job.outDir, '내보내기'));
-      const outName = safeName(name) === 'page' && !String(name || '').trim() ? `${hostName} ${job.width}${format === 'board' ? ' 보드' : ''}` : safeName(name);
+      const outName = safeName(name) === 'page' && !String(name || '').trim() ? `${hostName} ${job.width}` : safeName(name);
       try { mkdirSync(baseDir, { recursive: true }); } catch (e) { return json(res, 400, { ok: false, error: `저장 위치를 만들 수 없습니다: ${e.message}` }); }
       const want = Array.isArray(urls) && urls.length ? new Set(urls.map(normUrl)) : null;
       // 정보구조 순서(요청 순서)대로
@@ -703,13 +592,6 @@ const server = createServer(async (req, res) => {
         .sort((a, b) => (order.get(normUrl(a.url)) ?? 999) - (order.get(normUrl(b.url)) ?? 999));
       if (!rows.length) return json(res, 400, { ok: false, error: '내보낼 그림이 없습니다' });
       const viaBrowser = PUBLIC || process.platform !== 'darwin' || !isLocalRequest(req);
-      if (format === 'board') {
-        let r;
-        try { r = await exportBoard(job, rows, { baseDir, name: outName }); } catch (e) { return json(res, 200, { ok: false, error: e.message.split('\n')[0] }); }
-        if (viaBrowser) return json(res, 200, { ok: true, format, pages: r.pages, count: rows.length, download: offerDownload(r.file, `${outName}.pdf`, 'application/pdf') });
-        reveal(r.file);
-        return json(res, 200, { ok: true, format, path: r.file, pages: r.pages, count: rows.length, size: [r.width, r.height] });
-      }
       if (format === 'pdf') {
         const r = await exportPdf(job, rows, { baseDir, name: outName });
         if (viaBrowser) return json(res, 200, { ok: true, format, pages: r.pages, count: rows.length, download: offerDownload(r.file, `${outName}.pdf`, 'application/pdf') });

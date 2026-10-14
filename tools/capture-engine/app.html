@@ -303,7 +303,7 @@
     <details class="logbox"><summary>작업 기록 보기</summary><div class="log" id="log"></div></details>
     <div class="export" id="export" hidden>
       <span class="et">출력</span>
-      <span class="seg"><label><input type="radio" name="fmt" value="img" checked>이미지 폴더</label><label><input type="radio" name="fmt" value="pdf">PDF 한 권</label><label title="큰 대지 한 장에 메뉴구조대로 늘어놓은 PDF — 확대해서 봅니다"><input type="radio" name="fmt" value="board">보드 PDF</label></span>
+      <span class="seg"><label><input type="radio" name="fmt" value="img" checked>이미지 폴더</label><label><input type="radio" name="fmt" value="pdf">PDF 한 권</label></span>
       <span class="right">
         <button id="selToggle">전체 해제</button>
         <span class="mute" id="selCount"></span>
@@ -732,17 +732,16 @@
         dir = path.slice(0, i); name = path.slice(i + 1).replace(/\.pdf$/i, '');
       }
     } finally { $('#exportBtn').disabled = false; }
-    $('#exportMsg').textContent = { pdf: 'PDF 한 권으로 묶고 있어요…', board: '큰 대지 한 장에 늘어놓고 있어요… (페이지가 많으면 1~2분)' }[format] || '폴더에 담고 있어요…';
+    $('#exportMsg').textContent = format === 'pdf' ? 'PDF 한 권으로 묶고 있어요…' : '폴더에 담고 있어요…';
     const r = await api('/api/export', { id: currentJob, urls, format, dir, name });
     if (!r.ok) { $('#exportMsg').innerHTML = `<span class="err">${esc(r.error)}</span>`; return; }
     if (r.download) {
       // 서버에 올려 쓰는 경우: 브라우저 내려받기 — 브라우저의 저장 창이 뜬다
-      $('#exportMsg').textContent = format === 'pdf' ? `PDF ${r.pages}쪽을 내려받아요` : format === 'board' ? `보드 PDF(${r.pages}페이지)를 내려받아요` : `${r.count}장을 zip 으로 내려받아요 (풀면 폴더가 돼요)`;
+      $('#exportMsg').textContent = format === 'pdf' ? `PDF ${r.pages}쪽을 내려받아요` : `${r.count}장을 zip 으로 내려받아요 (풀면 폴더가 돼요)`;
       window.location.href = r.download;
       return;
     }
     $('#exportMsg').innerHTML = format === 'pdf' ? `PDF ${r.pages}쪽으로 묶었어요 → <code>${esc(r.path)}</code>`
-      : format === 'board' ? `${r.pages}페이지를 보드 한 장에 늘어놓았어요 → <code>${esc(r.path)}</code> <span class="mute">(미리보기에서 확대해 보세요)</span>`
       : `${r.count}장을 폴더에 담았어요 → <code>${esc(r.path)}</code>`;
   }
   $('#exportBtn').onclick = doExport;

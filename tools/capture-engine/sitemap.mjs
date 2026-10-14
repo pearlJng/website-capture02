@@ -592,6 +592,43 @@ const kindOfHref = (href, origin) => {
  * 테라클(아임웹)은 드롭다운이 li 안에 있지 않아 Product·Contact 의 하위가
  * 1차로 흩어져 나왔다. 화면에 무엇이 나타나는지는 구조와 무관하다.
  */
+/**
+ * 하위 메뉴 항목 중 "더 열릴 수 있는" 것만 고른다 — 3단 메뉴를 찾으려고 하위 항목마다 마우스를 올려 보면
+ * 항목마다 1초 가까이 든다. 추성고을은 하위 12개를 다 올려 보느라 메뉴 읽기의 4분의 3을 썼는데, 3단은 없었다.
+ * 열릴 수 있다는 흔적: 자기 li 안의 숨은 링크 목록, aria-haspopup·aria-expanded, has-sub·dropdown 같은 이름,
+ * 또는 바로 옆에 붙은 숨은 목록. 흔적이 없는 그냥 링크는 올려 보지 않는다.
+ */
+function inPageCanOpen(ids) {
+  const OPENER = /has-?sub|has-?child|has-?drop|dropdown|drop-?down|submenu|sub-?menu|depth|toggle|expand|accordion|arrow|caret|more/i;
+  const hiddenLinks = (box, self) => {
+    if (!box) return false;
+    for (const a of box.querySelectorAll('a[href], button')) {
+      if (a === self || self.contains(a) || a.contains(self)) continue;
+      const r = a.getBoundingClientRect();
+      if (r.width < 2 || r.height < 2) return true;                 // 숨은 링크(접힌 목록)
+      let n = a;
+      for (; n && n !== box; n = n.parentElement) {
+        const cs = getComputedStyle(n);
+        if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) < 0.05) return true;
+      }
+    }
+    return false;
+  };
+  const out = [];
+  for (const id of ids) {
+    const el = document.querySelector(`[data-ia="${id}"]`);
+    if (!el) continue;
+    if (el.hasAttribute('aria-haspopup') || el.hasAttribute('aria-expanded')) { out.push(id); continue; }
+    const li = el.closest('li');
+    const names = [el, el.parentElement, li].filter(Boolean).map((x) => (typeof x.className === 'string' ? x.className : '')).join(' ');
+    if (OPENER.test(names)) { out.push(id); continue; }
+    if (li && li.contains(el) && hiddenLinks(li, el)) { out.push(id); continue; }
+    const next = (li || el).nextElementSibling;
+    if (next && !/^(LI|A)$/.test(next.tagName) && hiddenLinks(next, el)) { out.push(id); continue; }
+  }
+  return out;
+}
+
 async function discoverByHover(page, origin, progress, aliases = new Set()) {
   // 사이트의 다른 주소(연결한 도메인)로 가는 링크도 "사이트 안"이다 — 아래 origins 로 본다
   const origins = new Set([origin, ...aliases]);
@@ -684,6 +721,7 @@ async function discoverByHover(page, origin, progress, aliases = new Set()) {
   };
 
   const clickOpened = new Set();
+  const probes = { done: 0, skipped: 0 };
   const children = async (path, depth, known, maxDepth = 3) => {
     const it = path[path.length - 1];
     await hoverPath(path);
@@ -729,22 +767,28 @@ async function discoverByHover(page, origin, progress, aliases = new Set()) {
       await page.waitForTimeout(500);
       const after = new Set((await page.evaluate(inPageVisibleItems)).map((n) => n.id));
       fresh = fresh.filter((f) => !after.has(f.id));
-      await hoverPath(path);    // 다시 열어 둔다 — 하위의 하위를 보려면 열려 있어야 한다
+      // 다시 열어 둘 필요는 없다 — 하위의 하위를 볼 때 children() 이 경로 전체에 다시 마우스를 올린다
     }
     fresh.sort((a, b) => (a.y - b.y) || (a.x - b.x));
     const out = [];
     const nextKnown = new Set([...known, ...fresh.map((f) => f.id)]);
+    // 더 열릴 흔적이 있는 항목만 마우스를 올려 본다 (그냥 링크는 건너뛴다)
+    const canOpen = depth < maxDepth && fresh.length
+      ? new Set(await page.evaluate(inPageCanOpen, fresh.map((f) => f.id)).catch(() => fresh.map((f) => f.id))) : new Set();
+    probes.skipped += fresh.filter((f) => depth < maxDepth && !canOpen.has(f.id)).length;
     for (const f of fresh) {
       if (f.label === it.label && f.href === it.href) continue;    // 자기 자신의 복사본
       const node = { label: f.label, href: f.href, kind: kindOfHref(f.href, origins), depth, children: [], id: f.id };
-      if (depth < maxDepth) node.children = await children([...path, f], depth + 1, nextKnown, maxDepth);
+      if (depth < maxDepth && canOpen.has(f.id)) { probes.done++; node.children = await children([...path, f], depth + 1, nextKnown, maxDepth); }
       out.push(node);
     }
     return out;
   };
 
   const menu = [];
+  discoverByHover.lastDiag.items = [];
   for (const it of row) {
+    const t0 = Date.now();
     progress(`메뉴에 마우스 올려 확인 — ${it.label}`);
     const node = { label: it.label, href: it.href, kind: kindOfHref(it.href, origins), depth: 0, children: [], id: it.id };
     node.children = await children([it], 1, seenId);
@@ -758,7 +802,9 @@ async function discoverByHover(page, origin, progress, aliases = new Set()) {
     await page.keyboard.press('Escape').catch(() => {});
     await page.waitForTimeout(250);
     menu.push(node);
+    discoverByHover.lastDiag.items.push(`${it.label} ${Date.now() - t0}ms`);
   }
+  discoverByHover.lastDiag.probes = probes;
   const strip = (items) => { for (const x of items) { delete x.id; strip(x.children); } };
   strip(menu);
   // 주소 없는 항목도 남긴다 — 눌러야 팝업이 열리는 "Contact" 같은 메뉴가 있다.
@@ -860,12 +906,18 @@ export async function extractSitemap(context, url, opts = {}) {
   const depth = opts.depth ?? 0;    // 기본은 GNB 와 메인페이지까지. 하위 페이지는 시키면 들어간다
   const progress = typeof opts.onProgress === 'function' ? opts.onProgress : () => {};
   const started = Date.now();
+  // 어디서 시간이 갔는지 — 안 재면 짐작으로 고치게 된다
+  const timing = {};
+  let tick = started;
+  const lap = (k) => { const now = Date.now(); timing[k] = (timing[k] || 0) + (now - tick); tick = now; };
   const page = await context.newPage();
   try {
     progress('여는 중');
     await openPage(page, url);
+    lap('열기');
     await page.waitForLoadState('networkidle', { timeout: 4000 }).catch(() => {});
     await page.waitForTimeout(500);
+    lap('열기 뒤 기다림');
     const origin = new URL(page.url()).origin;
     const aliases = new Set(await page.evaluate(inPageAliasOrigins).catch(() => []));
     const home = await page.evaluate(inPageReadNav, [...aliases]);
@@ -887,7 +939,9 @@ export async function extractSitemap(context, url, opts = {}) {
 
     // 1순위: 마우스를 올려 찾은 것. 2순위: DOM 구조로 읽은 것.
     let method = 'dom';
+    lap('메뉴 읽기(DOM)');
     const found = await discoverByHover(page, origin, progress, aliases).catch(() => null);
+    lap('메뉴 확인(마우스)');
     const hovered = found && found.menu;
     if (hovered && hovered.length >= 3) {
       // hover 로 하위가 안 보인 항목은 DOM 목록 구조에서 채운다. 서서히 열리거나
@@ -980,6 +1034,7 @@ export async function extractSitemap(context, url, opts = {}) {
     progress('메인페이지 구성 읽는 중');
     await page.evaluate(inPageQuickScroll);
     const main = await page.evaluate(inPageReadSections);
+    lap('메인페이지 구성');
 
     // 홈 링크 표시: 사이트 루트로 가는 항목
     const isHome = (l) => l.kind === '페이지' && normUrl(l.href) === normUrl(origin + '/');
@@ -1033,7 +1088,7 @@ export async function extractSitemap(context, url, opts = {}) {
       lang: guessLang(home.pageLang, page.url()),
       diag: { ...(home.diag || {}), hover: discoverByHover.lastDiag || null, method },
       headerHtml: home.headerHtml,
-      menuCount: count(home.menu), inspected, method, ms: Date.now() - started,
+      menuCount: count(home.menu), inspected, method, ms: Date.now() - started, timing,
     };
   } catch (e) {
     return { ok: false, url, error: e.message.split('\n')[0], ms: Date.now() - started };

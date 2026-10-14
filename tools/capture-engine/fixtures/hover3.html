@@ -1,0 +1,25 @@
+<!doctype html><meta charset=utf-8><title>마우스로 여는 드롭다운 — 3단은 한 곳만 (추성고을 구조 + 3단 하나)</title>
+<style>
+body{margin:0;font:16px/1.6 system-ui}
+header{position:fixed;top:0;left:0;right:0;height:90px;background:#fff;z-index:10;border-bottom:1px solid #eee}
+.logo{position:absolute;left:40px;top:28px;font-weight:800}
+.gnb{position:absolute;left:50%;top:0;transform:translateX(-50%);height:100%}
+.gnb>ul{display:flex;height:100%;margin:0;padding:0;list-style:none}
+.gnb>ul>li{position:relative;height:100%}
+.gnb>ul>li>a{display:flex;align-items:center;height:100%;padding:0 18px;color:#111;text-decoration:none}
+.gnb ul ul{position:absolute;left:0;top:100%;min-width:180px;padding:10px 0;margin:0;list-style:none;background:#fff;box-shadow:0 6px 24px rgba(0,0,0,.12);display:none}
+.gnb>ul>li:hover>ul{display:block}
+.gnb ul ul li{position:relative}
+.gnb ul ul a{display:block;padding:8px 18px;color:#111;text-decoration:none}
+/* 3단: 옆으로 펼쳐진다 */
+.gnb ul ul ul{left:100%;top:0}
+.gnb ul ul li:hover>ul{display:block}
+main{padding-top:90px}section{height:700px;padding:40px}
+</style>
+<header><a class="logo" href="/">LOGO</a><nav class="gnb"><ul>
+<li><a href="/about/story">About</a><ul><li><a href="/about/story">이야기</a></li><li><a href="/about/brand">브랜드</a></li><li><a href="/about/people">사람들</a></li></ul></li>
+<li><a href="/product">Product</a><ul><li><a href="/product">전체</a></li><li><a href="/product/spirits">증류주</a><ul><li><a href="/product/spirits/25">25도</a></li><li><a href="/product/spirits/40">40도</a></li></ul></li><li><a href="/product/yakju">약주</a></li></ul></li>
+<li><a href="/program">Program</a><ul><li><a href="/program/tour">체험하기</a></li><li><a href="/program/class">클래스</a></li><li><a href="/program/review">후기</a></li></ul></li>
+<li><a href="/community">Community</a><ul><li><a href="/community/notice">공지</a></li><li><a href="/community/faq">FAQ</a></li><li><a href="/contact">문의</a></li></ul></li>
+</ul></nav></header>
+<main><section><h1>홈</h1></section><section>본문</section></main>
