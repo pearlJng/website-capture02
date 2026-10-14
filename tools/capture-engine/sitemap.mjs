@@ -20,7 +20,7 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DEVICES, contextOptionsFor } from './capture.mjs';
+import { DEVICES, contextOptionsFor, openPatiently } from './capture.mjs';
 import { createBrowserHost, pickBrowser } from './browser.mjs';
 import { writeTable } from './csv.mjs';
 
@@ -851,12 +851,9 @@ const CAFE24_PAGES = [
  * 요청을 멈춘다 — 늦게 오는 외부 스크립트 하나 때문에 시간 초과로 실패하지 않게(동인써모).
  */
 async function openPage(page, url) {
-  await page.goto(url, { waitUntil: 'commit', timeout: PAGE_TIMEOUT });
-  const dcl = await page.waitForLoadState('domcontentloaded', { timeout: 20000 }).then(() => true).catch(() => false);
-  if (!dcl) {
-    await page.evaluate(() => window.stop()).catch(() => {});
-    await page.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => {});
-  }
+  // 문서 읽기를 붙잡는 외부 파일이 있으면 빼고 다시 연다 (메뉴를 그리는 스크립트가 문서 끝에 있기도 하다)
+  const r = await openPatiently(page, url, { timeout: PAGE_TIMEOUT, dclWait: 20000 });
+  if (!r.ok) throw new Error(r.error);
 }
 
 export async function extractSitemap(context, url, opts = {}) {

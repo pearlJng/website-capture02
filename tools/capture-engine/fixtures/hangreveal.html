@@ -1,0 +1,29 @@
+<!doctype html><meta charset=utf-8><title>응답 없는 외부 스크립트 + 문서 끝 스크립트가 켜는 이미지 (동인써모 R&D 구조)</title>
+<style>
+body{margin:0;font:16px/1.6 system-ui}
+.hero{height:400px;background:#223;color:#fff;padding:40px}
+section{padding:40px}
+.reveal-wrap{display:inline-block;clip-path:inset(0px 50%);opacity:0;transition:clip-path 1.2s cubic-bezier(.22,1,.36,1),opacity 1.2s}
+.reveal-wrap.is-visible{clip-path:inset(0px);opacity:1}
+.reveal-wrap img{display:block;width:1200px;height:500px}
+.tail{height:900px}
+</style>
+<div class="hero"><h1>R&amp;D</h1></div>
+<script src="느린무한.html?script"></script>
+<section><h2>동인써모를 이끄는 인재를 소개합니다.</h2><p>소개 글 아래에 스크롤하면 펼쳐지는 이미지가 있다.</p>
+<div class="reveal-wrap" id="image-reavel"><img alt="스크롤 인터랙션 이미지" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='500'%3E%3Crect width='1200' height='500' fill='%23ff00aa'/%3E%3C/svg%3E"></div>
+</section>
+<section class="tail"><h2>R&amp;D 인재</h2></section>
+<script>
+// 사이트처럼 문서 맨 끝에 있다: 화면 가운데에 닿으면 is-visible 을 붙인다. 이 스크립트가 돌았다는 표시로 띠도 하나 단다.
+(function () {
+  var el = document.getElementById('image-reavel');
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) { if (e.isIntersecting) { el.classList.add('is-visible'); io.unobserve(e.target); } });
+  }, { threshold: 0, rootMargin: '0px 0px -50% 0px' });
+  io.observe(el);
+  var band = document.createElement('div');
+  band.style.cssText = 'height:200px;background:#ff00aa';
+  document.querySelector('.tail').appendChild(band);
+})();
+</script>

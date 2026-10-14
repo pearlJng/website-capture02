@@ -70,6 +70,7 @@ const SHOT_TIMEOUT = 60000;
  */
 const SHOT_SETTLE_MS = 250;
 const PROBE_PX = 160;        // 둘째 조각부터, 목표 자리 조금 위에 먼저 서는 거리
+const REVEAL_GRACE_MS = 700; // 화면에 들어왔는데 아직 비어 있는 것이 스스로 나타나기를 기다리는 시간
 const PROBE_SETTLE_MS = 120; // 거기서 자리를 재기 전에 기다리는 시간
 const SHOT_SETTLE_FIRST_MS = 600;
 /** 칸을 찍기 전에 그 칸(과 다음 칸) 이미지가 다 뜨기를 기다리는 최대 횟수 × 간격 */
@@ -351,6 +352,7 @@ async function inPageSettleScrollStages() {
     });
     for (const x of keep.keys()) mo.observe(x, { attributes: true, attributeFilter: ['style'] });
     (window.__capStageObservers = window.__capStageObservers || []).push(mo);
+    el.setAttribute('data-cap-stage', '');
     const cls = (track.getAttribute('class') || '').trim().split(/\s+/).filter(Boolean).slice(0, 2).join('.');
     done.push(track.tagName.toLowerCase() + (cls ? '.' + cls : ''));
   }
@@ -919,6 +921,92 @@ async function inPageHoldVideos() {
   return fixed;
 }
 
+/**
+ * 화면 안에서 "보이기 효과"가 끝나지 않아 비어 있는 콘텐츠를 찾고, 시키면 보이게 한다.
+ *
+ * 스크롤하면 나타나는 이미지·글은 처음에 투명(opacity 0)하거나 잘려(clip-path: inset(0 50%)) 있다가
+ * 스크립트가 클래스를 붙여 보인다. 그 스크립트가 안 돌거나(문서 끝에 있는데 읽기가 멈췄다 — 동인써모 R&D),
+ * 화면 가운데에 닿아야 켜지는데 그 칸이 아래쪽에서 지나가 버리면 그 자리가 빈 채로 찍힌다.
+ * 두 번 찍어도 똑같이 비니 결정성 검사로는 안 잡힌다.
+ *
+ * 일부러 숨긴 것은 건드리지 않는다: 흐름 밖(absolute·fixed — 마우스 올리면 뜨는 덮개),
+ * 슬라이더·메뉴·팝업·탭 안, aria-hidden, 고정 구간(pin) 안. 그리고 안에 볼 것(그림·글)이 있어야 한다.
+ */
+function inPageStuckReveals(force) {
+  const vh = window.innerHeight, vw = document.documentElement.clientWidth;
+  const SKIP = /swiper|slick|carousel|slider|owl-|flickity|splide|glide|modal|popup|dropdown|tooltip|menu|gnb|lnb|nav|tab-?pane|tab-?cont|accordion|marquee|ticker/i;
+  const MARK = /animat|aos|wow|reveal|fade|sal-|scroll|appear|motion|inview|in-view/i;
+  const skipCache = new Map();
+  const skipped = (el) => {
+    if (skipCache.has(el)) return skipCache.get(el);
+    let r = false;
+    if (!el || el === document.body || el === document.documentElement) r = false;
+    else if (/^(HEADER|NAV|DIALOG|ASIDE)$/.test(el.tagName) || el.getAttribute('aria-hidden') === 'true' || el.getAttribute('role') === 'dialog' ||
+      el.hasAttribute('data-cap-gap') || el.hasAttribute('data-cap-hidden') || el.hasAttribute('data-cap-stage') || el.classList.contains('pin-spacer') ||
+      SKIP.test(typeof el.className === 'string' ? el.className : '') || SKIP.test(el.id || '')) r = true;
+    else r = skipped(el.parentElement);
+    skipCache.set(el, r);
+    return r;
+  };
+  const collapsed = (cp) => {
+    const m = /^inset\(([^)]*)\)/.exec(cp || '');
+    if (m) {
+      const v = m[1].split(/\s+round\s+/)[0].trim().split(/\s+/).map((s) => (/%$/.test(s) ? parseFloat(s) / 100 : NaN));
+      const [t, r = t, b = t, l = r] = v;
+      return (l + r >= 0.99) || (t + b >= 0.99);
+    }
+    return /^circle\(\s*0(px|%)?[\s)]/.test(cp || '');
+  };
+  const hiddenBy = (el, cs) => {
+    if (Number(cs.opacity) < 0.05) return 'opacity';
+    if (collapsed(cs.clipPath)) return 'clip';
+    if (cs.visibility === 'hidden' && el.style.visibility === 'hidden' &&
+      (MARK.test(typeof el.className === 'string' ? el.className : '') || [...el.attributes].some((a) => /^data-(aos|sal|wow|anim|widget-anim|scroll)/.test(a.name)))) return 'visibility';
+    return null;
+  };
+  const hasContent = (el) => {
+    for (const im of el.querySelectorAll('img')) if (im.complete && im.naturalWidth > 0) return true;
+    if (el.tagName === 'IMG' && el.complete && el.naturalWidth > 0) return true;
+    if (el.querySelector('video,canvas,svg,picture')) return true;
+    if ((el.textContent || '').trim().length > 1) return true;
+    for (const n of [el, ...el.querySelectorAll('*')].slice(0, 60)) if (getComputedStyle(n).backgroundImage.startsWith('url(')) return true;
+    return false;
+  };
+  const found = [];
+  for (const el of document.querySelectorAll('body *')) {
+    const r = el.getBoundingClientRect();
+    if (r.width < 40 || r.height < 24) continue;
+    if (r.bottom <= 0 || r.top >= vh || r.right <= 0 || r.left >= vw) continue;
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none') continue;
+    const why = hiddenBy(el, cs);
+    if (!why) continue;
+    if (cs.position === 'absolute' || cs.position === 'fixed') continue;
+    // 바깥이 이미 숨어 있으면 바깥을 고친다 (안쪽만 고치면 여전히 안 보인다)
+    let outer = false;
+    for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+      if (found.includes(p)) { outer = true; break; }
+    }
+    if (outer) continue;
+    if (skipped(el) || !hasContent(el)) continue;
+    found.push(el);
+  }
+  if (!force) return found.length;
+  let n = 0;
+  for (const el of found) {
+    const cs = getComputedStyle(el);
+    const why = hiddenBy(el, cs);
+    if (!why) continue;              // 기다리는 사이 스스로 나타났다
+    el.style.setProperty('transition', 'none', 'important');
+    if (why === 'opacity' || Number(cs.opacity) < 0.05) el.style.setProperty('opacity', '1', 'important');
+    if (collapsed(cs.clipPath)) el.style.setProperty('clip-path', 'none', 'important');
+    if (why === 'visibility') el.style.setProperty('visibility', 'visible', 'important');
+    el.setAttribute('data-cap-revealed', why);
+    n++;
+  }
+  return n;
+}
+
 function inPageScrollTo(y) {
   const se = document.scrollingElement || document.documentElement;
   const at = () => Math.round(Math.max(
@@ -1126,6 +1214,111 @@ async function holdVideosEverywhere(page) {
   return { fixed, frames };
 }
 
+/**
+ * 문서 읽기를 붙잡고 있는 요청(응답 없는 외부 스크립트·스타일시트)을 찾는다.
+ *
+ * 읽기 중(loading)이면 파서는 마지막으로 만난 동기 스크립트에서 멈춰 있다. 그 스크립트, 그리고
+ * 아직 안 받아진 스타일시트(뒤 스크립트의 실행을 막는다)가 범인이다. 읽기는 끝났는데(interactive)
+ * 문서 읽기 끝이 안 오면 defer·module 스크립트가 아직이다.
+ */
+function inPageStuckResources() {
+  const out = [];
+  const done = new Set(performance.getEntriesByType('resource').map((e) => e.name));
+  if (document.readyState === 'loading') {
+    const sc = document.scripts[document.scripts.length - 1];
+    if (sc && sc.src && !sc.async && !sc.defer && sc.type !== 'module') out.push(sc.src);
+  } else if (document.readyState === 'interactive') {
+    for (const sc of document.scripts) {
+      if (sc.src && (sc.defer || sc.type === 'module') && !sc.async && !done.has(sc.src)) out.push(sc.src);
+    }
+  }
+  for (const l of document.querySelectorAll('link[rel~="stylesheet"][href]')) {
+    if (l.sheet || l.disabled || done.has(l.href)) continue;
+    if (l.media && !matchMedia(l.media).matches) continue;
+    out.push(l.href);
+  }
+  return [...new Set(out)];
+}
+
+/** 컨텍스트에 모아 둔 "응답 없는 주소"를 이 페이지에서 막는다 (브라우저 캐시는 그대로 쓴다). */
+async function applyBlocks(page) {
+  const set = page.context().__capBlocked;
+  if (!set || !set.size) return false;
+  try {
+    if (!page.__capCdp) {
+      page.__capCdp = await page.context().newCDPSession(page);
+      await page.__capCdp.send('Network.enable');
+    }
+    await page.__capCdp.send('Network.setBlockedURLs', { urls: [...set] });
+    return true;
+  } catch { return false; }   // 크로미움이 아니면 못 막는다 — 아래의 중지 단추로 간다
+}
+
+/**
+ * 페이지를 연다. 문서 읽기 끝이 안 오면 붙잡고 있는 요청을 막고 다시 연다.
+ *
+ * 예전엔 기다리다 브라우저의 중지 단추(window.stop)를 눌렀다. 화면은 보이지만 **문서 끝의 스크립트가
+ * 영영 안 돈다** — 동인써모 R&D 는 스크롤하면 펼쳐지는 이미지를 끝에 둔 스크립트가 켜는데, 그게 안 돌아
+ * 그 자리가 통째로 빈 채로 찍혔다. 범인 요청만 빼고 다시 열면 나머지는 끝까지 읽히고 스크립트도 돈다.
+ * 막은 주소는 컨텍스트에 남겨 다음 페이지는 처음부터 막고 연다(같은 사이트는 같은 스크립트를 쓴다).
+ * 같은 호스트(외부)가 또 붙잡으면 그 호스트를 통째로 막는다. 그래도 안 되면 그때 중지 단추.
+ */
+export async function openPatiently(page, url, { timeout = 45000, dclWait = 30000, onProgress = () => {} } = {}) {
+  const context = page.context();
+  const blocked = context.__capBlocked || (context.__capBlocked = new Set());
+  const blockedNow = [];
+  let stopped = false;
+  const go = async () => {
+    for (let k = 0; k < 2; k++) {
+      try { await page.goto(url, { waitUntil: 'commit', timeout }); return null; }
+      catch (e) {
+        if (k === 1 || page.isClosed()) return 'goto: ' + e.message.split('\n')[0];
+        onProgress('응답이 없어 한 번 더 여는 중');
+        await page.waitForTimeout(2000);
+      }
+    }
+    return null;
+  };
+  await applyBlocks(page);
+  let err = await go();
+  if (err) return { ok: false, error: err };
+  const pageHost = (() => { try { return new URL(url).host; } catch { return ''; } })();
+  const hostsSeen = new Map();
+  let dcl = false;
+  for (let round = 0; round < 4; round++) {
+    dcl = await page.waitForLoadState('domcontentloaded', { timeout: round ? Math.min(dclWait, 12000) : dclWait }).then(() => true).catch(() => false);
+    if (dcl) break;
+    const stuck = await page.evaluate(inPageStuckResources).catch(() => []);
+    const fresh = [];
+    for (const u of stuck) {
+      let host = '';
+      try { host = new URL(u).host; } catch { continue; }
+      const n = (hostsSeen.get(host) || 0) + 1;
+      hostsSeen.set(host, n);
+      const key = n > 1 && host !== pageHost ? `*://${host}/*` : u;
+      if (!blocked.has(key)) { blocked.add(key); fresh.push(key); }
+    }
+    if (!fresh.length || !(await applyBlocks(page))) break;
+    blockedNow.push(...fresh);
+    onProgress(`응답 없는 외부 파일 ${blockedNow.length}개를 빼고 다시 여는 중`);
+    err = await go();
+    if (err) return { ok: false, error: err };
+  }
+  if (!dcl) {
+    // 마지막 수단: 안 오는 요청을 멈춘다(브라우저의 중지 단추). 그래야 찍기·글꼴 기다리기가 영영 기다리지 않는다.
+    // 그 사이 끊긴 그림은 다시 부른다.
+    await page.evaluate(() => {
+      window.stop();
+      for (const im of document.images) if (!im.complete && im.currentSrc) { const s = im.src; im.src = ''; im.src = s; }
+    }).catch(() => {});
+    await page.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => {});
+    stopped = true;
+  }
+  return { ok: true, blocked: blockedNow, stopped };
+}
+
+const shortUrl = (u) => u.replace(/^\*:\/\//, '').replace(/\/\*$/, ' 전체').replace(/^https?:\/\//, '').replace(/\?.*$/, '').slice(0, 80);
+
 export async function captureSite(context, url, opts = {}) {
   const steps = new Set(opts.steps || []);
   const mode = opts.mode || 'stitch';
@@ -1156,25 +1349,13 @@ export async function captureSite(context, url, opts = {}) {
     // 받아야 하는 외부 스크립트가 하나라도 늦으면 안 온다 — 동인써모는 그런 스크립트가 90개가 넘어
     // 45초 시간 초과로 모든 페이지가 실패했다. 화면은 이미 보이는데도. 그래서 잠깐만 기다리고 보이는 대로 찍는다.
     // 응답 자체가 안 오면 한 번 더 시도한다.
-    let opened = null;
-    for (let k = 0; k < 2 && !opened; k++) {
-      try { await page.goto(url, { waitUntil: 'commit', timeout }); opened = true; }
-      catch (e) {
-        if (k === 1 || page.isClosed()) return { ok: false, url, error: 'goto: ' + e.message.split('\n')[0], ms: Date.now() - started };
-        progress('응답이 없어 한 번 더 여는 중');
-        await page.waitForTimeout(2000);
-      }
-    }
     const dclWait = opts.dclWait ?? 30000;
-    const dcl = await page.waitForLoadState('domcontentloaded', { timeout: dclWait }).then(() => true).catch(() => false);
-    if (!dcl) {
-      // 안 오는 요청을 멈춘다(브라우저의 중지 단추). 그래야 문서 읽기가 끝나고, 찍기·글꼴 기다리기도
-      // 영영 기다리지 않는다. 그 사이 끊긴 그림은 다시 부른다.
-      await page.evaluate(() => {
-        window.stop();
-        for (const im of document.images) if (!im.complete && im.currentSrc) { const s = im.src; im.src = ''; im.src = s; }
-      }).catch(() => {});
-      await page.waitForLoadState('domcontentloaded', { timeout: 5000 }).catch(() => {});
+    const opened = await openPatiently(page, url, { timeout, dclWait, onProgress: progress });
+    if (!opened.ok) return { ok: false, url, error: opened.error, ms: Date.now() - started };
+    if (opened.blocked.length) {
+      notes.push(`응답 없는 외부 파일 ${opened.blocked.length}개를 빼고 다시 열었습니다 (${opened.blocked.slice(0, 2).map(shortUrl).join(', ')}${opened.blocked.length > 2 ? '…' : ''}) — 이 사이트의 다음 페이지부터는 처음부터 뺍니다`);
+    }
+    if (opened.stopped) {
       notes.push(`페이지가 끝까지 안 읽혔습니다 — 늦게 오는 외부 스크립트가 있어 ${Math.round(dclWait / 1000)}초 기다린 뒤 멈추고 보이는 대로 찍었습니다`);
       progress('늦게 오는 외부 스크립트가 있어 보이는 대로 찍습니다');
     }
@@ -1297,6 +1478,7 @@ export async function captureSite(context, url, opts = {}) {
       let lastY = -1;      // 직전에 실제로 도달한 자리
       let hiddenLater = 0; // 두 번째 조각부터 숨긴 고정 요소 수
       let videosHeld = 0;  // 다시 돌기 시작한 비디오를 붙잡은 횟수
+      let revealed = 0;    // 보이기 효과가 안 끝나 직접 보이게 한 요소
       let pinned = null;   // 직전 조각에서 화면 위·아래 띠에 있던 요소들의 자리
       // 마지막 안전망. DOM 으로 못 잡은 헤더가 둘째 조각 위쪽에도 찍혀 있으면,
       // 그 띠 높이만큼 겹치게 다시 내려가며 찍고 조각마다 위를 잘라낸다.
@@ -1330,6 +1512,14 @@ export async function captureSite(context, url, opts = {}) {
         if (steps.has('motion')) await waitNearFrames(page, slow);
         // 비디오가 다시 돌고 있으면 붙잡는다 — 조각마다 같은 프레임이어야 이음새가 맞는다
         if (steps.has('anim')) { const r = await holdVideosEverywhere(page); if (r.fixed) videosHeld += r.fixed; }
+        // 이 화면에서 보이기 효과가 안 끝나 비어 있는 것 — 잠깐 기다려 주고, 그래도 비어 있으면 보이게 한다
+        if (steps.has('motion')) {
+          const waiting = await page.evaluate(inPageStuckReveals, false).catch(() => 0);
+          if (waiting) {
+            await page.waitForTimeout(REVEAL_GRACE_MS * slow);
+            revealed += await page.evaluate(inPageStuckReveals, true).catch(() => 0);
+          }
+        }
 
         // 두 번째 조각부터는 따라붙는 고정 요소를 전부 숨긴다. 첫 조각에는 남겨야
         // 헤더가 스냅샷에 한 번 들어간다 (수정 요청으로 첫 화면에서도 뺄 수 있다).
@@ -1408,6 +1598,7 @@ export async function captureSite(context, url, opts = {}) {
         stalled = stalled || { at: y, of: height };
       }
       if (hiddenLater) notes.push(`${tweaks.hideHeader ? '첫' : '두 번째'} 조각부터 고정 요소 ${hiddenLater}개 숨김`);
+      if (revealed) notes.push(`스크롤하면 나타나는 효과가 끝나지 않아 비어 있던 요소 ${revealed}개를 보이게 하고 찍었습니다`);
       if (videosHeld) notes.push(`다시 돌기 시작한 비디오를 ${videosHeld}번 붙잡아 같은 장면(앞부분이 지난 자리)에 뒀습니다`);
       scrolled = { reachedBottom: !stalled, height };
       lap('찍기');

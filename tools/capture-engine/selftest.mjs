@@ -451,7 +451,36 @@ const CASES = [
     check: (r, cmp, shots, extra) => {
       if (!r.ok) return `실패했다: ${r.error}`;
       if (!extra || !extra.rows || extra.rows.top < 150) return `히어로가 안 찍혔다 (${extra && extra.rows && extra.rows.top}줄)`;
-      if (!(r.notes || []).some((n) => /끝까지 안 읽혔/.test(n))) return '느린 외부 스크립트 기록이 없다';
+      if (!(r.notes || []).some((n) => /빼고 다시 열었/.test(n))) return '응답 없는 외부 스크립트를 빼고 다시 연 기록이 없다';
+      return null;
+    },
+  },
+  {
+    // 동인써모 R&D: 응답 없는 외부 스크립트 때문에 중지 단추를 누르면 문서 끝의 스크립트가 영영 안 돌아,
+    // 그 스크립트가 켜는 "스크롤하면 펼쳐지는 이미지"가 빈 자리로 찍혔다. 범인만 빼고 다시 열면 끝까지 읽힌다.
+    name: '응답 없는 외부 스크립트는 빼고 다시 열어, 문서 끝 스크립트가 켜는 이미지까지 찍힌다',
+    file: 'hangreveal.html', mode: 'stitch', steps: ['sticky', 'motion', 'anim'], timeout: 8000, dclWait: 3000, color: 1, colorFrac: 0.6,
+    check: (r, cmp, shots, extra) => {
+      if (!r.ok) return `실패했다: ${r.error}`;
+      if (!(r.notes || []).some((n) => /빼고 다시 열었/.test(n))) return '응답 없는 외부 스크립트를 빼고 다시 연 기록이 없다';
+      if ((r.notes || []).some((n) => /끝까지 안 읽혔/.test(n))) return '다시 열어도 끝까지 안 읽혔다';
+      const rows = extra && extra.rows ? extra.rows.below : 0;
+      if (rows < 650) return `이미지(500줄)와 문서 끝 스크립트가 단 띠(200줄)가 ${rows}줄뿐이다 — 문서 끝 스크립트가 안 돌았다`;
+      return null;
+    },
+  },
+  {
+    // 켜 주는 스크립트가 끝내 안 돌아 투명·잘린 채 남은 콘텐츠는 그 화면을 찍을 때 보이게 한다.
+    // 마우스를 올리면 뜨는 덮개, 겹쳐 둔 페이드 슬라이드처럼 일부러 숨긴 것(초록)은 그대로 둔다.
+    name: '보이기 효과가 안 끝나 빈 콘텐츠는 보이게 찍고, 일부러 숨긴 덮개·슬라이드는 그대로 둔다',
+    file: 'stuckreveal.html', mode: 'stitch', steps: ['sticky', 'motion', 'anim'], color: 1, colorFrac: 0.6, green: true,
+    check: (r, cmp, shots, extra) => {
+      const rows = extra && extra.rows ? extra.rows.below : 0;
+      if (rows < 450) return `투명하게 남은 이미지가 ${rows}줄만 보인다 (500줄이어야)`;
+      if (extra.green && extra.green.below > 0) return `일부러 숨긴 초록 덮개·슬라이드가 ${extra.green.below}줄 드러났다`;
+      const note = (r.notes || []).find((n) => /나타나는 효과가 끝나지 않아/.test(n)) || '';
+      const n = Number((/(\d+)개/.exec(note) || [])[1] || 0);
+      if (n !== 2) return `보이게 한 요소가 ${n}개다 (이미지·글 2개여야) — ${note}`;
       return null;
     },
   },
@@ -958,6 +987,7 @@ async function main() {
     const cmp = c.twice ? await compareCaptures(await getDiffPage(), shots[0].slices, shots[1].slices) : null;
     // color 가 숫자면 위/아래를 가르는 높이(px). 기본 200 — 헤더는 첫 화면 위쪽에만 있어야 한다.
     const extra = c.color ? { rows: await countColorRows(shots[0].slices[0], [255, 0, 170], typeof c.color === 'number' ? c.color : 200, c.colorFrac) } : null;
+    if (extra && c.green) extra.green = await countColorRows(shots[0].slices[0], [0, 200, 0], 1, 0.3);
     return { shots, cmp, extra };
   }
 
