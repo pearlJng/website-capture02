@@ -229,6 +229,7 @@
   .fab:hover { background: var(--grad-hover); transform: translateY(-2px); box-shadow: 0 14px 32px rgba(75,91,240,.45); border: 0; }
   .fab svg { width: 18px; height: 18px; }
   .fab.lift { bottom: 104px; }
+  .fab[hidden] { display: none; }
   .fab .cnt { background: #fff; color: var(--accent-ink); border-radius: 99px; font-size: 11px; padding: 0 6px; line-height: 17px; }
   dialog.fb { border: 0; border-radius: 18px; padding: 0; width: min(520px, calc(100vw - 32px)); box-shadow: 0 24px 64px rgba(16,24,40,.28); color: var(--ink); }
   dialog.fb::backdrop { background: rgba(17,19,58,.35); backdrop-filter: blur(2px); }
@@ -351,7 +352,8 @@
     </div>
   </section>
 </main>
-<button class="fab" id="fbOpen" title="불편한 점·바라는 점을 담당자에게 바로 보냅니다">
+<!-- 피드백 버튼: 보내는 방식을 다듬는 동안 잠시 가려 둔다 (다시 보이려면 hidden 을 지운다) -->
+<button class="fab" id="fbOpen" hidden title="불편한 점·바라는 점을 담당자에게 바로 보냅니다">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.9A8 8 0 1 1 21 12z"/><path d="M8.5 11h7M8.5 14h4"/></svg>
   피드백<span class="cnt" id="fbWait" hidden></span>
 </button>
