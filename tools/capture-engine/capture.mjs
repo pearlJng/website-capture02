@@ -70,6 +70,7 @@ const SHOT_TIMEOUT = 60000;
  */
 const SHOT_SETTLE_MS = 250;
 const PROBE_PX = 160;        // 둘째 조각부터, 목표 자리 조금 위에 먼저 서는 거리
+const VIDEO_START_WAIT_MS = 12000; // 첫 화면 배경 영상이 재생을 시작하기를 기다리는 최대 시간
 const REVEAL_GRACE_MS = 700; // 화면에 들어왔는데 아직 비어 있는 것이 스스로 나타나기를 기다리는 시간
 const PROBE_SETTLE_MS = 120; // 거기서 자리를 재기 전에 기다리는 시간
 const SHOT_SETTLE_FIRST_MS = 600;
@@ -1199,6 +1200,65 @@ async function neutralizeStuckFrames(page) {
  * 영영 안 생기기도 하고, 그러면 evaluate 가 안 돌아온다. 테라클 Contact 페이지가
  * 그래서 "여는 중"에서 10분 넘게 멈춰 있었다.
  */
+/**
+ * 화면(첫 화면 근처)의 배경 영상이 **실제로 재생을 시작할 때까지** 기다린다. 멈추기는 그다음이다.
+ *
+ * 아임웹 비주얼 섹션의 비메오 배경 영상은 플레이어가 'play' 를 알려야 영상 상자에 active 가 붙어 보인다.
+ * 그 플레이어는 문서 끝 스크립트가 이미지 로딩·SDK 로딩을 기다린 뒤에야 만든다(조금 늦게 뜬다).
+ * 우리가 재생을 막는 것(멈춰야 조각마다 같은 장면이다)이 그보다 먼저 걸리면 'play' 가 영영 안 와서
+ * 히어로가 회색 빈 상자로 찍혔다 — 동인써모 홈. 그래서 재생될 영상이 다 돌기 시작한 걸 보고 나서 멈춘다.
+ * 재생하려는 영상만 기다린다: 자동재생·음소거(배경 영상) 비디오, 그리고 유튜브·비메오 등 플레이어 iframe.
+ */
+async function waitVideosStarted(page, maxMs) {
+  const started = Date.now();
+  const VIDEO_HOST = /vimeo\.com|youtube(-nocookie)?\.com|youtu\.be|wistia|jwplayer|kollus|vod|video|player/i;
+  let pending = 0, seen = 0;
+  for (let round = 0; ; round++) {
+    // 화면 위아래 한 화면 안의 후보를 표시한다
+    const info = await page.evaluate((hostSrc) => {
+      const HOST = new RegExp(hostSrc, 'i');
+      const vh = window.innerHeight;
+      const near = (el) => { const r = el.getBoundingClientRect(); return r.width >= 80 && r.height >= 60 && r.bottom > -vh * 0.25 && r.top < vh * 1.25; };
+      let wait = 0, ifr = 0;
+      for (const v of document.querySelectorAll('video')) {
+        if (!near(v) || !(v.autoplay || (v.muted && v.loop))) continue;   // 배경 영상 꼴만
+        if (v.currentTime > 0 || v.ended || v.error) continue;
+        wait++;
+      }
+      document.querySelectorAll('[data-cap-vwait]').forEach((f) => f.removeAttribute('data-cap-vwait'));
+      for (const f of document.querySelectorAll('iframe')) {
+        if (!near(f) || !HOST.test(f.src || '')) continue;
+        // 눌러야 재생되는 일반 임베드는 기다리지 않는다 — 자동재생·배경 영상만
+        if (!/[?&](autoplay|background)=(1|true)/i.test(f.src || '') && !f.closest('[data-vimeo-id], [data-youtube-id], ._section_vg')) continue;
+        f.setAttribute('data-cap-vwait', '');
+        ifr++;
+      }
+      // 플레이어를 넣을 자리(아임웹 비메오·유튜브 자리)만 있고 iframe 이 아직 없는 것
+      for (const s of document.querySelectorAll('[data-vimeo-id], [data-youtube-id], ._section_vg')) {
+        if (near(s) && !s.querySelector('iframe, video')) wait++;
+      }
+      return { wait, ifr };
+    }, VIDEO_HOST.source).catch(() => ({ wait: 0, ifr: 0 }));
+    pending = info.wait;
+    if (info.ifr) {
+      for (const h of await page.$$('iframe[data-cap-vwait]').catch(() => [])) {
+        const fr = await h.contentFrame().catch(() => null);
+        // 안을 못 보면(응답 없는 프레임) 기다리지 않는다
+        const ok = fr ? await withTimeout(fr.evaluate(() => {
+          const vs = [...document.querySelectorAll('video')];
+          return vs.length > 0 && vs.some((v) => v.currentTime > 0 || v.ended);
+        }).catch(() => true), 1500, true) : true;
+        if (!ok) pending++;
+        await h.dispose().catch(() => {});
+      }
+    }
+    if (round === 0) seen = pending;
+    if (!pending || Date.now() - started > maxMs) break;
+    await page.waitForTimeout(400);
+  }
+  return { seen, pending, ms: Date.now() - started };
+}
+
 async function holdVideosEverywhere(page) {
   let fixed = 0, frames = 0;
   for (const f of page.frames()) {
@@ -1391,6 +1451,15 @@ export async function captureSite(context, url, opts = {}) {
     }
 
     if (steps.has('anim')) {
+      // 늦게 뜨는 배경 영상이 돌기 시작한 뒤에 멈춘다 — 먼저 멈추면 영상 상자가 영영 안 보인다
+      const vw0 = await waitVideosStarted(page, VIDEO_START_WAIT_MS * slow).catch(() => null);
+      if (vw0 && vw0.seen) {
+        notes.push(vw0.pending
+          ? `배경 영상 ${vw0.pending}개가 ${Math.round(vw0.ms / 1000)}초 안에 재생을 시작하지 않았습니다 — 영상 자리가 비어 찍혔을 수 있어요`
+          : `늦게 뜨는 배경 영상이 재생을 시작할 때까지 ${(vw0.ms / 1000).toFixed(1)}초 기다렸습니다`);
+        if (!vw0.pending) await page.waitForTimeout(800);   // 영상 상자가 나타나는 효과(페이드)가 끝나게
+      }
+      lap('영상 기다리기');
       const n = await page.evaluate(inPageFreezeAnimations);
       if (n.length) notes.push('정지: ' + n.join(', '));
       // 임베드(iframe) 안의 비디오까지. 바깥 문서만 멈추면 유튜브·비메오는 계속 돈다.

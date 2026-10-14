@@ -443,6 +443,23 @@ const CASES = [
     },
   },
   {
+    // 동인써모 홈: 아임웹 비주얼 섹션의 비메오 배경 영상은 문서 끝 스크립트가 조금 뒤에 만들고, 플레이어가 'play' 를
+    // 알려야 영상 상자가 보인다. 그보다 먼저 재생을 막으면 'play' 가 안 와 히어로가 회색 빈 상자로 찍혔다.
+    name: '늦게 뜨는 비메오 배경 영상도 재생이 시작된 뒤 멈춰 히어로에 장면이 찍힌다',
+    file: 'vimeolate.html', mode: 'stitch', steps: ['sticky', 'motion', 'anim'], twice: true, color: 640, colorFrac: 0.9,
+    check: (r, cmp, shots, extra) => {
+      if (!extra || !extra.rows) return '색을 못 셌다';
+      if (extra.rows.top < 400) return `히어로에 영상 장면이 ${extra.rows.top}줄뿐이다 — 재생 전에 멈춰 영상 상자가 안 보였다`;
+      const waited = (r.notes || []).find((n) => /재생을 시작할 때까지/.test(n));
+      if (!waited) return '배경 영상을 기다린 기록이 없다';
+      // 눌러야 재생되는 임베드(같은 화면에 있다)까지 기다리면 제한 시간(12초)을 꽉 채운다
+      const sec = Number((/([\d.]+)초/.exec(waited) || [])[1] || 99);
+      if (sec > 8) return `${sec}초나 기다렸다 — 눌러야 재생되는 임베드까지 기다렸다`;
+      if (cmp && cmp.verdict !== VERDICT.SAME && cmp.verdict !== VERDICT.SAME_PIXELS) return `두 번 찍은 그림이 다르다 (${cmp.verdict})`;
+      return null;
+    },
+  },
+  {
     // 동인써모: 페이지를 다 읽기 전에 받아야 하는 외부 스크립트가 90개 넘고, 그중 하나가 늦으면
     // "문서 읽기 끝"이 안 와 page.goto 가 45초 시간 초과로 모든 페이지가 실패했다. 화면은 이미 보인다.
     // 응답이 오기 시작하면 넘어가고, 문서 읽기 끝은 잠깐만 기다린 뒤 보이는 대로 찍는다.
