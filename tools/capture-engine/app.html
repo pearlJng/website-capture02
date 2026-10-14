@@ -223,6 +223,31 @@
   .card .applied { font-size: 12px; color: var(--ok); }
   .card .ignored { font-size: 12px; color: var(--warn); }
   .card .prev { font-size: 12px; color: var(--mute); }
+
+  /* 피드백: 오른쪽 아래 떠 있는 버튼과 입력 창 */
+  .fab { position: fixed; right: 24px; bottom: 24px; z-index: 40; display: inline-flex; align-items: center; gap: 8px; padding: 12px 18px 12px 15px; border: 0; border-radius: 999px; background: var(--grad); color: #fff; font-weight: 700; font-size: 14px; box-shadow: 0 10px 28px rgba(75,91,240,.38); transition: transform .15s, box-shadow .15s, bottom .2s; }
+  .fab:hover { background: var(--grad-hover); transform: translateY(-2px); box-shadow: 0 14px 32px rgba(75,91,240,.45); border: 0; }
+  .fab svg { width: 18px; height: 18px; }
+  .fab.lift { bottom: 104px; }
+  .fab .cnt { background: #fff; color: var(--accent-ink); border-radius: 99px; font-size: 11px; padding: 0 6px; line-height: 17px; }
+  dialog.fb { border: 0; border-radius: 18px; padding: 0; width: min(520px, calc(100vw - 32px)); box-shadow: 0 24px 64px rgba(16,24,40,.28); color: var(--ink); }
+  dialog.fb::backdrop { background: rgba(17,19,58,.35); backdrop-filter: blur(2px); }
+  .fb .hd { padding: 20px 22px 14px; background: var(--grad-soft); border-bottom: 1px solid var(--line2); }
+  .fb .hd h3 { margin: 0 0 4px; font-size: 17px; }
+  .fb .hd p { margin: 0; font-size: 12.5px; color: var(--mute); }
+  .fb .bd { padding: 16px 22px 6px; display: flex; flex-direction: column; gap: 12px; }
+  .fb label.f { font-size: 13px; font-weight: 600; color: var(--ink2); display: flex; flex-direction: column; gap: 6px; }
+  .fb textarea, .fb input[type=text], .fb input[type=password] { font: inherit; font-size: 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; outline: none; font-weight: 400; }
+  .fb textarea { min-height: 120px; resize: vertical; }
+  .fb textarea:focus, .fb input:focus { border-color: var(--accent); box-shadow: 0 0 0 4px var(--accent-bg); }
+  .fb .ctx { font-size: 12px; color: var(--mute); display: flex; gap: 8px; align-items: flex-start; }
+  .fb .ctx input { margin-top: 2px; accent-color: var(--accent); }
+  .fb .key { border: 1px dashed var(--accent-line); background: #fafbff; border-radius: 12px; padding: 12px; font-size: 12.5px; color: var(--ink2); }
+  .fb .key .r { display: flex; gap: 8px; margin-top: 8px; }
+  .fb .key input { flex: 1; min-width: 0; font-size: 13px; }
+  .fb .ft { display: flex; gap: 8px; justify-content: flex-end; align-items: center; padding: 12px 22px 20px; }
+  .fb .ft .msg { margin-right: auto; font-size: 12.5px; color: var(--mute); }
+  .fb .ok { color: var(--ok); } .fb .warn { color: var(--warn); }
   @media (max-width: 720px) { .pick-bar { top: 63px; } .url { display: none; } input[type=url] { min-width: 0; } }
 </style>
 <main>
@@ -320,6 +345,43 @@
     </div>
   </section>
 </main>
+<button class="fab" id="fbOpen" title="불편한 점·바라는 점을 담당자에게 바로 보냅니다">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.9A8 8 0 1 1 21 12z"/><path d="M8.5 11h7M8.5 14h4"/></svg>
+  피드백<span class="cnt" id="fbWait" hidden></span>
+</button>
+<dialog class="fb" id="fb">
+  <form method="dialog" id="fbForm">
+    <div class="hd">
+      <h3>피드백 보내기</h3>
+      <p>불편한 점, 잘못 찍힌 화면, 바라는 기능을 적어 주세요. 노션 매뉴얼의 <b>피드백·QA</b> 표에 쌓이고 담당자에게 바로 알림이 가요.</p>
+    </div>
+    <div class="bd">
+      <span class="seg" id="fbKind">
+        <label><input type="radio" name="fbk" value="오류" checked>오류</label>
+        <label><input type="radio" name="fbk" value="개선">개선</label>
+        <label><input type="radio" name="fbk" value="질문">질문</label>
+        <label><input type="radio" name="fbk" value="기타">기타</label>
+      </span>
+      <label class="f">내용
+        <textarea id="fbBody" placeholder="예) 동인써모 /rnd 페이지에서 가운데 이미지가 비어 찍혀요"></textarea>
+      </label>
+      <label class="f">이름
+        <input type="text" id="fbName" placeholder="보내는 사람 (한 번 적으면 기억해요)">
+      </label>
+      <label class="ctx"><input type="checkbox" id="fbCtx" checked><span>지금 화면 정보도 같이 보내기 — <span id="fbCtxText"></span></span></label>
+      <div class="key" id="fbKey" hidden>
+        <b>처음 한 번만: 노션 연결 키</b><br>
+        키는 노션 매뉴얼의 <b>피드백·QA</b> 섹션에 있어요. 키 없이 보내도 이 컴퓨터에 모아 뒀다가, 키를 넣으면 한꺼번에 보내요.
+        <div class="r"><input type="password" id="fbToken" placeholder="ntn_ 로 시작하는 키" autocomplete="off"><button type="button" class="sm" id="fbKeySave">저장</button></div>
+      </div>
+    </div>
+    <div class="ft">
+      <span class="msg" id="fbMsg"></span>
+      <button type="button" id="fbCancel">닫기</button>
+      <button type="button" class="primary" id="fbSend">보내기</button>
+    </div>
+  </form>
+</dialog>
 <script>
   const $ = (s) => document.querySelector(s);
   const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -813,5 +875,60 @@
 
     }
   }
+  /* ── 피드백: 오른쪽 아래 버튼 → 노션 피드백·QA 표 ── */
+  (() => {
+    const dlg = $('#fb');
+    const ctxNow = () => {
+      const steps = [...document.querySelectorAll('.step:not([hidden]) h2')];
+      const step = steps.length ? steps[steps.length - 1].textContent.replace(/^\d+/, '').trim() : '';
+      const w = document.querySelector('input[name=w]:checked');
+      const lang = document.querySelector('input[name=lang]:checked');
+      const log = ($('#log') && $('#log').textContent || '').split('\n').filter(Boolean).slice(-15);
+      return { site: $('#url').value.trim(), step, width: w && !$('#s3').hidden ? w.value : '', lang: lang ? lang.parentElement.textContent.trim() : '', log, os: navigator.platform };
+    };
+    const showCtx = () => {
+      const c = ctxNow();
+      $('#fbCtxText').textContent = [c.site || '사이트 주소 없음', c.step, c.width && `${c.width}px`].filter(Boolean).join(' · ');
+    };
+    const refresh = async () => {
+      const st = await api('/api/feedback/status');
+      $('#fbKey').hidden = !!st.configured;
+      $('#fbWait').hidden = !st.waiting; $('#fbWait').textContent = st.waiting || '';
+      $('#fbWait').title = st.waiting ? `못 보내고 모아 둔 피드백 ${st.waiting}개` : '';
+    };
+    try { $('#fbName').value = localStorage.getItem('fbName') || ''; } catch { /* 저장소 없음 */ }
+    $('#fbOpen').onclick = () => { $('#fbMsg').textContent = ''; showCtx(); refresh(); dlg.showModal(); setTimeout(() => $('#fbBody').focus(), 50); };
+    $('#fbCancel').onclick = () => dlg.close();
+    dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });   // 바깥을 누르면 닫는다
+    $('#fbKeySave').onclick = async () => {
+      $('#fbMsg').textContent = '키를 확인하는 중…';
+      const r = await api('/api/feedback/key', { token: $('#fbToken').value });
+      $('#fbMsg').innerHTML = r.ok ? `<span class="ok">연결됐어요${r.sent ? ` — 모아 둔 피드백 ${r.sent}개도 보냈어요` : ''}</span>${r.warn ? ` <span class="warn">${esc(r.warn)}</span>` : ''}` : `<span class="err">${esc(r.error)}</span>`;
+      if (r.ok) { $('#fbToken').value = ''; refresh(); }
+    };
+    $('#fbSend').onclick = async () => {
+      const body = $('#fbBody').value.trim();
+      if (!body) { $('#fbMsg').innerHTML = '<span class="err">내용을 적어 주세요</span>'; $('#fbBody').focus(); return; }
+      const name = $('#fbName').value.trim();
+      try { localStorage.setItem('fbName', name); } catch { /* 저장소 없음 */ }
+      $('#fbSend').disabled = true; $('#fbMsg').textContent = '보내는 중…';
+      const r = await api('/api/feedback', { kind: document.querySelector('input[name=fbk]:checked').value, body, name, ctx: $('#fbCtx').checked ? ctxNow() : {} });
+      $('#fbSend').disabled = false;
+      if (!r.ok) { $('#fbMsg').innerHTML = `<span class="err">${esc(r.error)}</span>`; return; }
+      if (r.queued) {
+        $('#fbMsg').innerHTML = `<span class="warn">이 컴퓨터에 저장해 뒀어요 (${r.waiting}개 대기) — ${r.needKey ? '아래에 노션 연결 키를 넣으면 보내져요' : '다음에 다시 보낼게요'}</span>`;
+        $('#fbBody').value = ''; refresh(); return;
+      }
+      $('#fbBody').value = '';
+      $('#fbMsg').innerHTML = `<span class="ok">보냈어요, 고마워요!${r.sent ? ` (모아 둔 ${r.sent}개도 함께)` : ''}</span>`;
+      refresh();
+      setTimeout(() => { if (dlg.open) dlg.close(); }, 1400);
+    };
+    // 출력 막대가 떠 있으면 버튼을 그 위로 올린다 (오른쪽 출력하기 버튼을 가리지 않게)
+    const lift = () => $('#fbOpen').classList.toggle('lift', !$('#export').hidden && window.innerWidth < 1300);
+    new MutationObserver(lift).observe($('#export'), { attributes: true, attributeFilter: ['hidden'] });
+    window.addEventListener('resize', lift);
+    refresh();
+  })();
 </script>
 </html>

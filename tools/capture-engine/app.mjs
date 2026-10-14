@@ -26,6 +26,7 @@ import { PDFDocument } from 'pdf-lib';
 import { mergePngsVertically, stitchUserShots } from './png.mjs';
 import { startManual, stateManual, scrollManual, shotManual, undoManual, finishManual, closeManual, closeAllManual, pressManual } from './manual.mjs';
 import AdmZip from 'adm-zip';
+import { sendFeedback, setupFeedback, feedbackStatus, flushOutbox, FEEDBACK_DB_URL } from './feedback.mjs';
 
 /* 브라우저로 내려받기 — 서버에 올렸을 때(맥 저장 창을 못 띄울 때) 쓰는 길.
  * 만든 파일을 잠깐 들고 있다가 한 번 내려주고 지운다. */
@@ -424,6 +425,21 @@ const server = createServer(async (req, res) => {
         .end(readFileSync(join(HERE, 'app.html'), 'utf8').replaceAll('__ICON_V__', v));
       return;
     }
+    // ── 피드백: 노션 매뉴얼의 피드백·QA 표로 보낸다 (feedback.mjs) ──
+    if (req.method === 'GET' && u.pathname === '/api/feedback/status') {
+      return json(res, 200, { ok: true, ...feedbackStatus(), board: FEEDBACK_DB_URL });
+    }
+    if (req.method === 'POST' && u.pathname === '/api/feedback') {
+      const b = await readBody(req);
+      const r = await sendFeedback({ kind: b.kind, title: b.title, body: b.body, name: b.name, ctx: b.ctx || {}, version: HEAD.slice(0, 7) });
+      return json(res, 200, r);
+    }
+    if (req.method === 'POST' && u.pathname === '/api/feedback/key') {
+      // 키는 이 컴퓨터에만 저장된다. 밖(터널)에서 온 요청이 이 컴퓨터의 키를 바꾸지 못하게
+      if (PUBLIC && !PASSWORD) return json(res, 403, { ok: false, error: '이 화면에서는 키를 바꿀 수 없어요' });
+      const b = await readBody(req);
+      return json(res, 200, await setupFeedback(b.token));
+    }
     // 앱 아이콘(icon.png)과 탭 아이콘·화면 머리 로고(favicon.png — 둥근 사각형만 잘라 낸 것)
     if (req.method === 'GET' && (u.pathname === '/icon.png' || u.pathname === '/favicon.png')) {
       const f = join(HERE, 'icon', u.pathname.slice(1));
@@ -650,6 +666,8 @@ server.listen(PORT, HOST, () => {
   if (process.platform === 'darwin' && !PUBLIC) spawn('open', [url], { stdio: 'ignore', detached: true }).unref();
   // 바탕화면의 실행 파일에 카메라 아이콘을 (한 번) 입힌다
   // 바탕화면에 터미널 없이 켜지는 "웹사이트 스냅샷.app" 을 만들거나 고쳐 쓴다
+  // 지난번에 못 보낸 피드백이 있으면 보낸다
+  flushOutbox().then((n) => { if (n) console.log(`  모아 둔 피드백 ${n}개를 노션에 보냈습니다`); }).catch(() => {});
   // 이 일들(아이콘 입히기, 앱 묶음 다시 만들기 — osacompile·sips·codesign)은 몇 초~십수 초 걸린다.
   // 서버 안에서 돌리면 그동안 화면의 요청이 전부 멈춘다. 따로 띄운 프로세스에서 한다.
   if (process.platform === 'darwin' && !PUBLIC) {
