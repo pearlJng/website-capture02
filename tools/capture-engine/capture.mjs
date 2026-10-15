@@ -461,6 +461,86 @@ function inPageGapRanges() {
 }
 
 /**
+ * 다 찍은 그림을 구간(섹션)으로 나눈다 — 카드의 "구간 다시 찍기"에서 구간마다 보고 고르게.
+ *
+ * 구간마다 그림에서의 위·아래(CSS px, 잘라 낸 빈 여백 반영)와, 크롬 창에서 그 요소를 다시 찾을
+ * 선택자를 남긴다. 다시 찍을 때는 살아 있는 페이지에서 그 요소의 자리를 재서 찍은 화면을 구간 안에
+ * 놓는다 — 그림을 맞춰 보며 자리를 추측하지 않는다. 구간 사이 빈 곳·맨 위·맨 아래도 구간으로 채운다.
+ */
+function inPageSectionMap({ gaps }) {
+  const clean = (t) => String(t || '').replace(/\s+/g, ' ').trim();
+  const vh = window.innerHeight, vw = window.innerWidth;
+  const docH = Math.max(document.documentElement.scrollHeight, document.body ? document.body.scrollHeight : 0);
+  const rect = (el) => { const r = el.getBoundingClientRect(); return { top: Math.round(r.top + window.scrollY), h: Math.round(r.height), w: r.width }; };
+  const cut = (y) => { let d = 0; for (const [a, b] of gaps || []) if (b <= y) d += b - a; else if (a < y) d += y - a; return y - d; };
+  const CHROME = 'header, footer, nav, [class*="header"], [class*="footer"], [id*="header"], [id*="footer"]';
+  const isChrome = (el) => {
+    for (let n = el; n && n !== document.body; n = n.parentElement) if (n.matches(CHROME) && n.getBoundingClientRect().height <= vh * 1.5) return true;
+    const cs = getComputedStyle(el); return cs.position === 'fixed' || cs.display === 'none';
+  };
+  const skipTag = /^(SCRIPT|STYLE|LINK|NOSCRIPT|TEMPLATE)$/;
+  // 1) 사이트가 표시한 구간 → 2) 포장을 벗겨 내려가며 여럿으로 갈리는 자리 → 3) 화면 폭 6할 넘는 큰 덩어리
+  let blocks = [...document.querySelectorAll('.doz_section, .section_wrap, main > section, body section')]
+    .filter((el) => !isChrome(el) && !(el.parentElement && el.parentElement.closest('section, .section_wrap')) && rect(el).h >= 60);
+  if (blocks.length < 3) {
+    let node = document.querySelector('main') || document.body;
+    for (let guard = 0; guard < 12 && node; guard++) {
+      const kids = [...node.children].filter((el) => !skipTag.test(el.tagName) && !isChrome(el) && rect(el).h >= 60);
+      if (kids.length >= 3) { blocks = kids; break; }
+      if (!kids.length) break;
+      node = kids.sort((a, b) => rect(b).h - rect(a).h)[0];
+    }
+  }
+  if (blocks.length < 3) {
+    const big = [...document.body.querySelectorAll('div, section, article, main')]
+      .filter((el) => !isChrome(el) && rect(el).h >= 250 && el.getBoundingClientRect().width >= vw * 0.6);
+    const outer = big.filter((el) => !big.some((o) => o !== el && o.contains(el) && rect(o).h < rect(el).h * 3));
+    if (outer.length >= 2) blocks = outer;
+  }
+  blocks = blocks.filter((el) => rect(el).w >= vw * 0.5).sort((a, b) => rect(a).top - rect(b).top);
+  const uniq = (sel) => { try { return document.querySelectorAll(sel).length === 1; } catch { return false; } };
+  const selOf = (el) => {
+    if (!el) return '';
+    const parts = [];
+    for (let n = el; n && n !== document.body && n !== document.documentElement && parts.length < 14; n = n.parentElement) {
+      if (n.id && uniq('#' + CSS.escape(n.id))) { parts.unshift('#' + CSS.escape(n.id)); return parts.join(' > '); }
+      const p = n.parentElement; if (!p) break;
+      parts.unshift(`${n.tagName.toLowerCase()}:nth-child(${[...p.children].indexOf(n) + 1})`);
+    }
+    return 'body > ' + parts.join(' > ');
+  };
+  const nameOf = (el, i) => {
+    const h = el && el.querySelector('h1, h2, h3, h4, [class*="title"], [class*="heading"]');
+    const t = clean(h && (h.innerText || h.textContent)).slice(0, 40);
+    if (t) return t;
+    if (el && el.querySelector('video, iframe[src*="youtube"], iframe[src*="vimeo"]')) return '동영상';
+    const any = clean(el && el.innerText).slice(0, 18);
+    return any || `구간 ${i + 1}`;
+  };
+  const out = [];
+  let cursor = 0;
+  const push = (top, bottom, el, label) => {
+    top = Math.max(top, cursor); bottom = Math.min(bottom, docH);
+    if (bottom - top < 24) return;
+    out.push({ top, bottom, sel: selOf(el), label });
+    cursor = bottom;
+  };
+  const footer = [...document.querySelectorAll('footer, #footer, [class*="footer"]')].find((f) => !isChrome(f) || f.getBoundingClientRect().height > 0);
+  blocks.forEach((el, i) => {
+    const r = rect(el);
+    if (r.top - cursor >= 40) {
+      const head = cursor === 0 ? [...document.querySelectorAll('header, #header, [class*="header"]')].find((h) => { const hr = h.getBoundingClientRect(); return hr.height > 0 && hr.top + window.scrollY <= 5 && hr.width >= vw * 0.5; }) : null;
+      push(cursor, r.top, head || null, cursor === 0 ? (head ? '맨 위 (헤더)' : '맨 위') : '사이');
+    }
+    push(r.top, r.top + r.h, el, nameOf(el, i));
+  });
+  if (docH - cursor >= 24) push(cursor, docH, footer && rect(footer).top >= cursor - 40 ? footer : null, out.length ? '맨 아래' : '페이지 전체');
+  // 그림 좌표로 (잘라 낸 빈 여백 반영) — 다 잘려 사라진 구간은 뺀다
+  return out.map((x, i) => ({ ...x, n: i + 1, top: cut(x.top), bottom: cut(x.bottom), docTop: x.top, docBottom: x.bottom }))
+    .filter((x) => x.bottom - x.top >= 24);
+}
+
+/**
  * 언어 검수 — 화면에 보이는 글자 중 그 언어 사이트에 있으면 안 되는 글자를 찾는다.
  *
  * 규칙(사용자가 정함): 영문 사이트는 영문만. 일문·중문 사이트는 그 언어 + 영문까지 괜찮다.
@@ -1775,6 +1855,12 @@ export async function captureSite(context, url, opts = {}) {
       } catch (e) { notes.push('빈 여백 잘라 내기 실패: ' + e.message.split('\n')[0]); }
     }
 
+    // 구간 지도 — "구간 다시 찍기"에서 구간마다 고르게 (화면 단위로 이어 붙인 그림만: 좌표가 문서와 같다)
+    // 그림 높이 밖으로 나간 구간은 그림 끝에 맞춘다 (재는 순간의 문서 높이와 이어 붙인 높이가 조금 다를 수 있다)
+    const imgH = docHeight - cutPx;
+    const sections = mode === 'stitch' ? (await page.evaluate(inPageSectionMap, { gaps }).catch(() => []))
+      .map((x) => ({ ...x, top: Math.min(x.top, imgH), bottom: Math.min(x.bottom, imgH) })).filter((x) => x.bottom - x.top >= 24) : [];
+
     const ready = await page.evaluate(inPageReadiness);
 
     // 언어 검수 — 외국어 사이트에 다른 언어(특히 국문)가 보이는지
@@ -1798,7 +1884,7 @@ export async function captureSite(context, url, opts = {}) {
     if (steps.has('sticky')) await page.evaluate(inPageRestoreFixed);
 
     return {
-      ok: true, url, title: m.title, docHeight: docHeight - cutPx, scale, slices, lang,
+      ok: true, url, title: m.title, docHeight: docHeight - cutPx, scale, slices, lang, sections,
       sliceCount: slices.length, notes, docWidth: m.docWidth, ready, mode, shotCount, stalled, pieces,
       motionLibs: motion.found,
       motionHandled: steps.has('motion'), reachedBottom: scrolled.reachedBottom,

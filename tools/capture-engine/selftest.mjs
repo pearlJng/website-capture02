@@ -19,6 +19,8 @@ import { createBrowserHost, isBrowserDeath } from './browser.mjs';
 import { extractSitemap } from './sitemap.mjs';
 import { mergePngsVertically, decodePng, stitchUserShots, cutRows, encodePng, splicePatch } from './png.mjs';
 import { fetchMedia, cachedMedia, serveCachedMedia } from './media.mjs';
+import { startManual, pressManual, finishManual } from './manual.mjs';
+import { replaceBand } from './png.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PORT = 8825;
@@ -722,6 +724,45 @@ const CASES = [
     },
   },
   {
+    // 구간 다시 찍기: 찍을 때 구간(섹션) 지도를 남기고, 크롬 창에서 고른 구간만 다시 찍어 그 자리를 바꾼다.
+    // 자리는 살아 있는 페이지에서 그 요소를 재서 정한다 — 그림을 맞춰 보며 추측하지 않는다.
+    // 화면보다 긴 구간은 내려가며 여러 장 찍고, 고정 헤더는 구간 사진에 끼지 않는다.
+    name: '구간 다시 찍기: 구간 지도를 남기고, 고른 구간만 크롬 창에서 다시 찍어 정확히 바꾼다 (화면보다 긴 구간 포함)',
+    unit: async ({ host, getStitchPage }) => {
+      const b = await host.get();
+      const ctx = await b.newContext(contextOptionsFor(DEVICES[1440], 1));
+      const r = await captureSite(ctx, BASE + 'sections.html', { steps: ['sticky', 'motion', 'anim'], mode: 'stitch', stitchPage: await getStitchPage(), scale: 1 });
+      await ctx.close();
+      if (!r.ok) return `실패: ${r.error}`;
+      const secs = r.sections || [];
+      const names = secs.map((x) => x.label).join(' | ');
+      for (const want of ['Cold chain', 'Built for the long haul', 'Our history', 'Ready to keep it cold?']) if (!secs.some((x) => x.label.startsWith(want))) return `구간 "${want}" 이 없다: ${names}`;
+      const H = r.slices.reduce((n, x) => n + decodePng(x).height, 0);
+      if (secs[0].top !== 0 || secs[secs.length - 1].bottom !== H) return `구간이 그림 전체를 덮지 않는다 (${secs[0].top}~${secs[secs.length - 1].bottom}, 그림 ${H}px)`;
+      for (let i = 1; i < secs.length; i++) if (secs[i].top !== secs[i - 1].bottom) return `구간 사이가 끊기거나 겹친다: ${names}`;
+      const idx = secs.findIndex((x) => x.label.startsWith('Our history'));
+      const sec = secs[idx];
+      if (sec.bottom - sec.top < 1200) return `연혁 구간이 ${sec.bottom - sec.top}px — 화면보다 긴 구간을 시험하려 했다`;
+      // 그 구간 가운데를 비운 그림을 만들고, 크롬 창에서 그 구간만 다시 찍어 바꾼다
+      const orig = decodePng(mergePngsVertically(r.slices));
+      const stride = orig.width * orig.bpp;
+      const broken = Buffer.from(orig.rows); broken.fill(255, (sec.top + 100) * stride, (sec.bottom - 100) * stride);
+      const m = await startManual({ url: BASE + 'sections.html', device: DEVICES[1440], scale: 1, headless: true, onFinish: () => {}, section: { ...sec, index: idx } });
+      let st = await pressManual(m.key, 'shot');
+      for (let k = 0; k < 4 && st.ok && st.tail; k++) { await pressManual(m.key, 'next'); st = await pressManual(m.key, 'shot'); }
+      if (!st.ok) return `찍기 실패: ${st.error}`;
+      if (st.tail || st.gaps.length) return `구간을 다 못 찍었다 (${JSON.stringify(st.merged)})`;
+      const res = await finishManual(m.key);
+      const out = replaceBand([encodePng({ ...orig, rows: broken })], sec.top, sec.bottom, res.shots.map((x) => ({ off: x.off, buf: x.buf })), res.covered ? res.liveHeight : sec.bottom - sec.top);
+      const got = decodePng(mergePngsVertically(out.slices));
+      if (got.height !== orig.height) return `높이가 ${got.height}px (원래 ${orig.height})`;
+      let bad = 0, first = -1;
+      for (let y = 0; y < got.height; y++) for (let x = 0; x < stride; x += 4 * orig.bpp) if (Math.abs(got.rows[y * stride + x] - orig.rows[y * stride + x]) > 8) { bad++; if (first < 0) first = y; break; }
+      if (bad > 2) return `원래 페이지와 다른 줄 ${bad}개 (처음 ${first}px — 구간 ${sec.top}~${sec.bottom})`;
+      return null;
+    },
+  },
+  {
     // 부분 다시 찍기: 원래 그림의 한 구간이 비었거나(그림이 안 떴다) 아예 접혀 있어도(효과가 안 펼쳐졌다)
     // 그 근처를 새로 찍은 화면 한 장의 위아래를 원래 그림에서 찾아 그 사이를 바꿔 넣는다.
     // 원래 그림이 두 장으로 나뉘어 있고, 고칠 곳이 장 경계에 걸쳐도 된다.
@@ -1133,7 +1174,7 @@ async function main() {
 
   /** 한 항목을 한 번 돌린다. 브라우저가 죽었으면 그 사실을 알려준다. */
   async function attempt(c) {
-    if (c.unit) return { shots: [null], cmp: null, unitResult: await c.unit({ host, getDiffPage }) };
+    if (c.unit) return { shots: [null], cmp: null, unitResult: await c.unit({ host, getDiffPage, getStitchPage }) };
     if (c.sitemap) {
       const browser = await host.get();
       const ctx = await browser.newContext({ viewport: VIEWPORT, locale: 'ko-KR' });
@@ -1165,6 +1206,7 @@ async function main() {
 
   let failed = 0;
   // ONLY=글자 로 이름에 그 글자가 든 항목만 돌린다 — 하나를 고칠 때 35개를 다 기다리지 않게.
+  process.env.CAP_MANUAL_FRESH = '1';   // 직접 찍기 창은 시험마다 빈 프로필로
   // 앱이 대신 받은 영상은 시험마다 새로 — 지난 시험에 받아 둔 게 있으면 "대신 받기"를 시험할 수 없다
   process.env.CAP_MEDIA_DIR = join(tmpdir(), `cap-media-${process.pid}`);
   const only = process.env.ONLY || '';

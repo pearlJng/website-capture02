@@ -232,6 +232,31 @@
   .fab.lift { bottom: 104px; }
   .fab[hidden] { display: none; }
   .fab .cnt { background: #fff; color: var(--accent-ink); border-radius: 99px; font-size: 11px; padding: 0 6px; line-height: 17px; }
+  dialog.secv { border: 0; border-radius: 18px; padding: 0; width: min(1040px, calc(100vw - 32px)); height: min(88vh, 1100px); box-shadow: 0 24px 64px rgba(16,24,40,.28); color: var(--ink); overflow: hidden; }
+  dialog.secv::backdrop { background: rgba(17,19,58,.45); backdrop-filter: blur(2px); }
+  .secv .wrap { display: grid; grid-template-columns: minmax(0, 1fr) 320px; height: 100%; }
+  .secv .pic { overflow: auto; background: #eef1f8; padding: 18px; }
+  .secv .stack { position: relative; width: 100%; max-width: 620px; margin: 0 auto; box-shadow: 0 4px 18px rgba(16,24,40,.12); background: #fff; }
+  .secv .stack img { display: block; width: 100%; }
+  .secv .band { position: absolute; left: 0; right: 0; border: 2px solid transparent; border-top: 1px dashed rgba(75,91,240,.55); cursor: pointer; transition: background .12s; }
+  .secv .band:hover { background: rgba(75,91,240,.10); border-color: rgba(75,91,240,.6); }
+  .secv .band.on { background: rgba(75,91,240,.18); border: 2px solid var(--accent); }
+  .secv .band .no { position: absolute; left: 6px; top: 6px; background: var(--grad); color: #fff; font-size: 11px; font-weight: 700; border-radius: 999px; padding: 1px 8px; box-shadow: 0 2px 6px rgba(75,91,240,.35); }
+  .secv .side { display: flex; flex-direction: column; border-left: 1px solid var(--line2); min-height: 0; }
+  .secv .side .hd { padding: 18px 18px 12px; background: var(--grad-soft); border-bottom: 1px solid var(--line2); }
+  .secv .side .hd h3 { margin: 0 0 6px; font-size: 16px; }
+  .secv .side .hd p { margin: 0; font-size: 12.5px; color: var(--mute); line-height: 1.55; }
+  .secv .list { list-style: none; margin: 0; padding: 8px; overflow: auto; flex: 1; }
+  .secv .list li { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 10px; cursor: pointer; font-size: 13.5px; }
+  .secv .list li:hover { background: var(--accent-bg); }
+  .secv .list li.on { background: var(--accent-bg); box-shadow: inset 0 0 0 1.5px var(--accent); }
+  .secv .list .no { flex: none; width: 24px; height: 24px; border-radius: 50%; background: var(--grad); color: #fff; font-size: 11.5px; font-weight: 700; display: grid; place-items: center; }
+  .secv .list .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .secv .list .px { flex: none; font-size: 11.5px; color: var(--mute); }
+  .secv .list .re { flex: none; font-size: 11px; color: var(--ok); }
+  .secv .side .ft { padding: 12px 14px 14px; border-top: 1px solid var(--line2); display: flex; flex-direction: column; gap: 10px; }
+  .secv .side .ft .r { display: flex; gap: 8px; justify-content: flex-end; }
+  @media (max-width: 760px) { .secv .wrap { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) auto; } .secv .side { border-left: 0; border-top: 1px solid var(--line2); max-height: 45vh; } }
   dialog.fb { border: 0; border-radius: 18px; padding: 0; width: min(520px, calc(100vw - 32px)); box-shadow: 0 24px 64px rgba(16,24,40,.28); color: var(--ink); }
   dialog.fb::backdrop { background: rgba(17,19,58,.35); backdrop-filter: blur(2px); }
   .fb .hd { padding: 20px 22px 14px; background: var(--grad-soft); border-bottom: 1px solid var(--line2); }
@@ -358,6 +383,16 @@
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-4.9A8 8 0 1 1 21 12z"/><path d="M8.5 11h7M8.5 14h4"/></svg>
   피드백<span class="cnt" id="fbWait" hidden></span>
 </button>
+<dialog class="secv" id="secv">
+  <div class="wrap">
+    <div class="pic" id="secPic"><div class="stack" id="secStack"></div></div>
+    <aside class="side">
+      <div class="hd"><h3 id="secTitle">구간 다시 찍기</h3><p>결과 그림을 구간으로 나눴어요. 잘못 찍힌 구간을 고르면 크롬 창이 그 구간에서 열리고, <b>원하는 순간에</b> 찍어 그 구간만 바꿉니다.</p></div>
+      <ol class="list" id="secList"></ol>
+      <div class="ft"><span class="mute" id="secPicked">구간을 골라 주세요</span><div class="r"><button type="button" class="sm" id="secClose">닫기</button><button type="button" class="primary" id="secGo" disabled>이 구간 다시 찍기</button></div></div>
+    </aside>
+  </div>
+</dialog>
 <dialog class="fb" id="fb">
   <form method="dialog" id="fbForm">
     <div class="hd">
@@ -701,6 +736,35 @@
   });
 
   const fileUrl = (id, f) => `/files/${encodeURIComponent(id)}/${encodeURIComponent(f)}`;
+  /* ── 구간 다시 찍기: 결과 그림을 구간으로 나눠 보여 주고, 고른 구간을 크롬 창에서 다시 찍게 한다 ── */
+  function openSections(row, parts, onPick) {
+    const dlg = $('#secv');
+    const secs = row.sections || [];
+    const total = Math.max(row.docHeight || 0, ...secs.map((x) => x.bottom));
+    let pick = -1;
+    $('#secTitle').textContent = `구간 다시 찍기 — ${row.path || row.name}`;
+    $('#secStack').innerHTML = parts.map((p) => `<img src="${p}" alt="">`).join('') +
+      secs.map((x, i) => `<div class="band" data-i="${i}" style="top:${(x.top / total * 100).toFixed(4)}%;height:${((x.bottom - x.top) / total * 100).toFixed(4)}%" title="${esc(`${x.n}. ${x.label}`)}"><span class="no">${x.n}</span></div>`).join('');
+    $('#secList').innerHTML = secs.map((x, i) => `<li data-i="${i}"><span class="no">${x.n}</span><span class="nm">${esc(x.label)}</span>${x.redone ? '<span class="re">✓ 다시 찍음</span>' : ''}<span class="px">${(x.bottom - x.top).toLocaleString('en-US')}px</span></li>`).join('');
+    const select = (i, scroll) => {
+      pick = i;
+      dlg.querySelectorAll('.band, .list li').forEach((el) => el.classList.toggle('on', Number(el.dataset.i) === i));
+      const x = secs[i];
+      $('#secPicked').innerHTML = `<b>${x.n}. ${esc(x.label)}</b> · ${(x.bottom - x.top).toLocaleString('en-US')}px`;
+      $('#secGo').disabled = false;
+      if (scroll === 'pic') { const b = dlg.querySelector(`.band[data-i="${i}"]`); if (b) $('#secPic').scrollTo({ top: Math.max(0, b.offsetTop - 40), behavior: 'smooth' }); }
+      if (scroll === 'list') { const li = dlg.querySelector(`.list li[data-i="${i}"]`); if (li) li.scrollIntoView({ block: 'nearest' }); }
+    };
+    $('#secStack').onclick = (e) => { const b = e.target.closest('.band'); if (b) select(Number(b.dataset.i), 'list'); };
+    $('#secList').onclick = (e) => { const li = e.target.closest('li'); if (li) select(Number(li.dataset.i), 'pic'); };
+    $('#secClose').onclick = () => dlg.close();
+    $('#secGo').disabled = true;
+    $('#secPicked').textContent = '구간을 골라 주세요 — 그림이나 목록에서 누르면 됩니다';
+    $('#secGo').onclick = () => { if (pick < 0) return; dlg.close(); onPick(pick); };
+    dlg.onclick = (e) => { if (e.target === dlg) dlg.close(); };   // 바깥을 누르면 닫는다
+    dlg.showModal();
+    $('#secPic').scrollTop = 0;
+  }
   function renderCard(card, row, id) {
     const cls = row.status === '확인됨' || row.status === '직접 찍음' ? 'ok' : row.status === '검수 필요' ? 'warn' : 'bad';
     const file = row.files && row.files[0] ? fileUrl(id, row.files[0]) : null;
@@ -724,7 +788,7 @@
       </div>
       <div class="acts">
         <button class="act go" title="이 페이지를 크롬 창에 열고, 화면을 하나씩 찍어 이어 붙입니다"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3.5"/></svg>직접 찍기</button>
-        ${file && (row.files || []).every((f) => /\.png$/i.test(f)) ? `<button class="act part" title="잘못 찍힌 곳 근처만 크롬 창에서 다시 찍어, 원래 그림의 같은 자리에 바꿔 넣습니다"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/><rect x="8" y="8" width="8" height="8" rx="1.5"/></svg>부분 다시 찍기</button>` : ''}
+        ${file && (row.files || []).every((f) => /\.png$/i.test(f)) ? `<button class="act part" title="${row.sections && row.sections.length ? '결과를 구간으로 나눠 보고, 고른 구간만 크롬 창에서 원하는 순간에 다시 찍어 바꿉니다' : '잘못 찍힌 곳 근처만 크롬 창에서 다시 찍어, 원래 그림의 같은 자리에 바꿔 넣습니다'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/><rect x="8" y="8" width="8" height="8" rx="1.5"/></svg>${row.sections && row.sections.length ? '구간 다시 찍기' : '부분 다시 찍기'}</button>` : ''}
         <button class="act up" title="직접 찍은 그림으로 바꿉니다 — 여러 장을 고르면 순서대로 이어 붙입니다"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><polyline points="6 10 12 4 18 10"/><path d="M4 20h16"/></svg>그림 바꾸기</button>
         <input type="file" class="upf" accept="image/png,image/jpeg" multiple hidden>
       </div>
@@ -775,18 +839,21 @@
     const HINT = {
       full: '크롬 창이 열렸어요. <b>그 창 위 가운데의 버튼</b>으로 화면을 하나씩 찍고, 다 찍으면 <b>완성</b>을 누르세요. 결과는 이 카드로 돌아옵니다.',
       part: '크롬 창이 열렸어요. <b>잘못 찍힌 곳으로 스크롤</b>해 화면을 만든 뒤 <b>이 화면 찍기</b>, 그리고 <b>바꿔 넣기</b>를 누르세요. 나머지는 그대로 두고 그 부분만 바뀝니다.',
+      sec: (x) => `크롬 창이 열렸어요. <b>점선 안이 ${x.n}번 구간(${esc(x.label)})</b>이에요. 원하는 순간에 <b>이 화면 찍기</b> → <b>바꿔 넣기</b>를 누르세요. 이 구간만 바뀝니다.`,
     };
     let patchMode = false;
-    const startMan = async (patch) => {
+    // opt: { patch: true } 부분 다시 찍기 · { section: i } 구간 다시 찍기 · 없으면 직접 찍기(전체)
+    const startMan = async (opt = {}) => {
       if (key) { man.hidden = false; return; }
-      const r = await api('/api/manual/start', { id, url: row.url, patch });
+      const r = await api('/api/manual/start', { id, url: row.url, patch: Boolean(opt.patch), ...(Number.isInteger(opt.section) ? { section: opt.section } : {}) });
       if (!r.ok) {
         if (r.local === false) { window.open(row.url, '_blank', 'noopener'); return; }
         alert(r.error); return;
       }
-      patchMode = patch;
-      q('.mhint').innerHTML = patch ? HINT.part : HINT.full;
-      key = r.key; man.hidden = false; q('.mlist').textContent = `${r.width}px 폭 창에서 ${patch ? '부분 다시 찍는' : '찍는'} 중`;
+      const sec = Number.isInteger(opt.section) ? row.sections[opt.section] : null;
+      patchMode = Boolean(opt.patch || sec);
+      q('.mhint').innerHTML = sec ? HINT.sec(sec) : opt.patch ? HINT.part : HINT.full;
+      key = r.key; man.hidden = false; q('.mlist').textContent = `${r.width}px 폭 창에서 ${sec ? `${sec.n}번 구간을 다시 찍는` : opt.patch ? '부분 다시 찍는' : '찍는'} 중`;
       // 창이 닫히거나 완성되면 카드 상태를 정리한다
       stopWatch();
       watch = setInterval(async () => {
@@ -795,8 +862,10 @@
         q('.mlist').textContent = `${st.shots.length}장 찍음` + (patchMode ? '' : st.tail ? ` · ${Number(st.tail[0]).toLocaleString('en-US')}px 아래 남음` : st.shots.length ? ' · 끝까지 찍음' : '');
       }, 1500);
     };
-    q('.go').onclick = () => startMan(false);
-    if (q('.part')) q('.part').onclick = () => startMan(true);
+    q('.go').onclick = () => startMan({});
+    if (q('.part')) q('.part').onclick = () => (row.sections && row.sections.length
+      ? openSections(row, parts, (i) => startMan({ section: i }))
+      : startMan({ patch: true }));
     q('.mc').onclick = async () => { stopWatch(); await call('cancel'); man.hidden = true; key = null; };
   }
 

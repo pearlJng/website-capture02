@@ -463,6 +463,7 @@ export async function shootAll({ args = {}, urls, host, pick, device, scale, out
       where: cmp && cmp.region ? `y ${cmp.region.y}~${cmp.region.y + cmp.region.h}` : '',
       notes: last.notes,
       lang: last.lang || null,
+      sections: last.sections || [],
     };
   };
   const rows = await mapLimit(urls, args.concurrency || 2, async (url) => {

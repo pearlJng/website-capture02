@@ -336,3 +336,45 @@ export function splicePatch(slices, patchBuf, { guessY = 0, maxHeight = Infinity
   }
   return { slices: out, top: a, bottom: b, how, height: outH };
 }
+
+/**
+ * 구간 다시 찍기: 원래 그림(여러 장일 수 있다)의 [top, bottom) 줄(그림 px)을 새 구간으로 바꾼다.
+ * 새 구간은 newH 줄이고, 다시 찍은 조각들을 구간 맨 위에서 off 줄 자리에 놓는다. 조각이 덮지 않은
+ * 곳은 원래 구간의 같은 자리 줄을 그대로 쓴다 — 자리를 그림으로 추측하지 않는다.
+ * @param pieces [{ off, buf }] — off 는 구간 맨 위에서의 줄(그림 px)
+ */
+export function replaceBand(slices, top, bottom, pieces, newH, { maxHeight = Infinity } = {}) {
+  const parts = slices.map(decodePng);
+  const width = parts[0].width;
+  const bpp = Math.max(...parts.map((p) => p.bpp));
+  const stride = width * bpp;
+  const H = parts.reduce((n, p) => n + p.height, 0);
+  const all = Buffer.alloc(stride * H);
+  let o = 0;
+  for (const p of parts) { toBpp(p, bpp).rows.copy(all, o); o += p.height * stride; }
+  top = Math.max(0, Math.min(H, top)); bottom = Math.max(top, Math.min(H, bottom));
+  const bandH = bottom - top;
+  newH = Math.max(1, Math.round(newH));
+  const band = Buffer.alloc(stride * newH, 255);
+  all.copy(band, 0, top * stride, (top + Math.min(bandH, newH)) * stride);
+  for (const pc of pieces) {
+    const img = toBpp(decodePng(pc.buf), bpp);
+    if (img.width !== width) throw new Error(`다시 찍은 화면(${img.width}px)과 원래 그림(${width}px)의 폭이 달라요`);
+    const off = Math.max(0, Math.round(pc.off));
+    const rows = Math.min(img.height, newH - off);
+    if (rows > 0) img.rows.copy(band, off * stride, 0, rows * stride);
+  }
+  const outH = top + newH + (H - bottom);
+  const out = Buffer.alloc(stride * outH);
+  all.copy(out, 0, 0, top * stride);
+  band.copy(out, top * stride);
+  all.copy(out, (top + newH) * stride, bottom * stride, H * stride);
+  const cap = Math.max(1, Math.min(Number.isFinite(maxHeight) ? maxHeight : outH, outH));
+  const n = Math.ceil(outH / cap), each = Math.ceil(outH / n);
+  const res = [];
+  for (let y = 0; y < outH; y += each) {
+    const hh = Math.min(each, outH - y);
+    res.push(encodePng({ width, height: hh, bpp, rows: out.subarray(y * stride, (y + hh) * stride) }));
+  }
+  return { slices: res, height: outH, delta: newH - bandH };
+}

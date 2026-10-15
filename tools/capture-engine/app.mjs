@@ -23,7 +23,7 @@ import { extractSitemap, renderTree } from './sitemap.mjs';
 import { shootAll, writeOutputs } from './shoot.mjs';
 import { writeFileSync, copyFileSync, readFileSync as readBytes } from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
-import { mergePngsVertically, stitchUserShots, splicePatch } from './png.mjs';
+import { mergePngsVertically, stitchUserShots, splicePatch, replaceBand } from './png.mjs';
 import { startManual, stateManual, scrollManual, shotManual, undoManual, finishManual, closeManual, closeAllManual, pressManual } from './manual.mjs';
 import AdmZip from 'adm-zip';
 import { sendFeedback, setupFeedback, feedbackStatus, flushOutbox, FEEDBACK_DB_URL, FEEDBACK_FORM_URL } from './feedback.mjs';
@@ -355,7 +355,7 @@ function applyManualResult(job, row, r) {
     return f;
   });
   row.previous = [...(row.previous || []), ...(row.files || [])];
-  Object.assign(row, { files, status: '직접 찍음', error: '', gaps: [], diffFile: '', pieceFiles: [], docHeight: r.height,
+  Object.assign(row, { files, status: '직접 찍음', error: '', gaps: [], diffFile: '', pieceFiles: [], docHeight: r.height, sections: [],
     notes: r.notes, manualNote: r.notes.join(' · '), manualKey: null });
   job.log.push(`  ✎ ${row.path || row.name} 크롬 창에서 직접 찍음 (${files.join(', ')})`);
   try { writeOutputs(job.rows, { ...job.meta, when: new Date().toLocaleString('ko-KR') }, job.outDir); } catch { /* 무시 */ }
@@ -398,11 +398,44 @@ function applyPatchResult(job, row, r) {
   const where = out.how === 'both' ? '위아래가 맞는 자리를 찾아' : out.how === 'guess' ? '맞는 자리를 그림으로 못 찾아 찍은 위치에' : '한쪽 끝이 맞는 자리를 찾아';
   const note = `${px(out.top)}~${px(out.bottom)}px 구간을 다시 찍은 화면으로 바꿨습니다 — ${where} 넣었어요${out.how === 'guess' ? '. 크게 보고 확인해 주세요' : ''}`;
   row.previous = [...(row.previous || []), ...(row.files || [])];
-  Object.assign(row, { files, status: '직접 찍음', error: '', diffFile: '', pieceFiles: [], docHeight: Math.round(out.height / scale),
+  Object.assign(row, { files, status: '직접 찍음', error: '', diffFile: '', pieceFiles: [], docHeight: Math.round(out.height / scale), sections: [],
     notes: [...(r.notes || []), note], manualNote: note, manualKey: null });
   job.log.push(`  ✎ ${row.path || row.name} 부분 다시 찍음 — ${note}`);
   try { writeOutputs(job.rows, { ...job.meta, when: new Date().toLocaleString('ko-KR') }, job.outDir); } catch { /* 무시 */ }
   return { files, notes: row.notes, how: out.how };
+}
+
+/**
+ * 구간 다시 찍기 결과를 그 구간 자리에 넣는다. 구간을 다 찍었으면 지금 페이지에서 잰 높이로,
+ * 일부만 찍었으면 원래 높이 그대로 두고 찍은 곳만 바꾼다. 아래 구간들의 자리는 그만큼 옮긴다.
+ */
+function applySectionResult(job, row, r) {
+  const scale = (job.meta && job.meta.scale) || 1;
+  const problem = patchProblem(job, row);
+  if (problem) throw new Error(problem);
+  const secs = row.sections || [];
+  const sec = secs[r.index];
+  if (!sec) throw new Error('그 구간을 찾지 못했어요 — 다시 찍은 뒤 구간이 바뀌었을 수 있어요');
+  const oldH = sec.bottom - sec.top;
+  const newH = r.covered ? r.liveHeight : oldH;
+  const out = replaceBand(row.files.map((f) => readBytes(join(job.outDir, f))), Math.round(sec.top * scale), Math.round(sec.bottom * scale),
+    r.shots.map((x) => ({ off: Math.round(x.off * scale), buf: x.buf })), Math.round(newH * scale), { maxHeight: Math.round(SAFE_PIXELS * scale) });
+  row.manual = (row.manual || 0) + 1;
+  const base = (row.name || 'page').replace(/ \((다시|직접|부분|구간) \d+\)$/, '');
+  const files = out.slices.map((buf, i) => {
+    const f = out.slices.length === 1 ? `${base} (구간 ${row.manual}).png` : `${base} (구간 ${row.manual}) (${i + 1}).png`;
+    writeFileSync(join(job.outDir, f), buf);
+    return f;
+  });
+  const delta = newH - oldH;
+  row.sections = secs.map((x, i) => (i < r.index ? x : i === r.index ? { ...x, bottom: x.top + newH, redone: (x.redone || 0) + 1 } : { ...x, top: x.top + delta, bottom: x.bottom + delta }));
+  const note = `${sec.n}번 구간(${sec.label})을 다시 찍어 바꿨습니다${delta ? ` — 높이 ${oldH.toLocaleString('en-US')}→${newH.toLocaleString('en-US')}px` : ''}${r.covered ? '' : ' (안 찍은 곳은 원래 그림)'}`;
+  row.previous = [...(row.previous || []), ...(row.files || [])];
+  Object.assign(row, { files, status: '직접 찍음', error: '', diffFile: '', pieceFiles: [], docHeight: Math.round(out.height / scale),
+    notes: [...(r.notes || []), note], manualNote: note, manualKey: null });
+  job.log.push(`  ✎ ${row.path || row.name} ${note}`);
+  try { writeOutputs(job.rows, { ...job.meta, when: new Date().toLocaleString('ko-KR') }, job.outDir); } catch { /* 무시 */ }
+  return { files, notes: row.notes };
 }
 
 /* ───────────── HTTP ───────────── */
@@ -572,7 +605,7 @@ const server = createServer(async (req, res) => {
       const name = `${base} (직접 ${row.manual})${ext}`;
       writeFileSync(join(job.outDir, name), buf);
       row.previous = [...(row.previous || []), ...(row.files || [])];
-      Object.assign(row, { files: [name], status: '직접 찍음', error: '', gaps: [], diffFile: '', pieceFiles: [],
+      Object.assign(row, { files: [name], status: '직접 찍음', error: '', gaps: [], diffFile: '', pieceFiles: [], sections: [],
         notes: ['직접 찍은 그림으로 바꿨습니다', ...stitchNotes],
         manualNote: multi ? `직접 찍은 조각을 이어 붙였습니다 — ${stitchNotes.join(' · ') || '겹침 없음'}` : '직접 찍은 그림으로 바꿨습니다' });
       job.log.push(`  ✎ ${row.path || row.name} 직접 찍은 그림으로 바꿈 (${name})`);
@@ -593,13 +626,23 @@ const server = createServer(async (req, res) => {
         await ensureBrowser();
         const device = DEVICES[job.width] || DEVICES[1920];
         const patch = Boolean(body.patch);
-        if (patch) { const why = patchProblem(job, row); if (why) return json(res, 200, { ok: false, error: why }); }
+        const secIdx = Number.isInteger(body.section) ? body.section : null;
+        const section = secIdx !== null && row.sections && row.sections[secIdx] ? { ...row.sections[secIdx], index: secIdx } : null;
+        if (secIdx !== null && !section) return json(res, 200, { ok: false, error: '그 구간을 찾지 못했어요 — 화면을 새로 고쳐 주세요' });
+        if (patch || section) { const why = patchProblem(job, row); if (why) return json(res, 200, { ok: false, error: why }); }
         try {
           const r = await startManual({
             url: row.url, device, scale: device.scale, channel: pick && pick.channel, executablePath: pick && pick.executablePath, headless: process.env.CAP_MANUAL_HEADLESS === '1',
-            patch, scrollTo: Number(body.scrollTo) || 0,
+            patch, scrollTo: Number(body.scrollTo) || 0, section,
             // 창 안의 "완성"·"바꿔 넣기" 버튼이 여기로 온다
             onFinish: (result) => {
+              if (result.section) {
+                try { return applySectionResult(job, row, result); } catch (e) {
+                  row.manualNote = `구간 바꿔 넣기를 못 했어요: ${e.message.split('\n')[0]}`;
+                  job.log.push(`  ✗ ${row.path || row.name} ${row.manualNote}`);
+                  throw e;
+                }
+              }
               if (!result.patch) return applyManualResult(job, row, result);
               // 창은 이미 닫혔다 — 못 끼우면 카드에 이유를 남긴다
               try { return applyPatchResult(job, row, result); } catch (e) {
@@ -625,7 +668,7 @@ const server = createServer(async (req, res) => {
           const row = job.rows.find((r) => normUrl(r.url) === normUrl(body.url || ''));
           if (!row) return json(res, 404, { ok: false, error: '그 페이지의 결과가 없습니다' });
           const r = await finishManual(body.key);
-          return json(res, 200, { ok: true, ...(r.patch ? applyPatchResult(job, row, r) : applyManualResult(job, row, r)) });
+          return json(res, 200, { ok: true, ...(r.section ? applySectionResult(job, row, r) : r.patch ? applyPatchResult(job, row, r) : applyManualResult(job, row, r)) });
         }
         return json(res, 404, { ok: false, error: '없는 동작' });
       } catch (e) { return json(res, 200, { ok: false, error: e.message.split('\n')[0] }); }

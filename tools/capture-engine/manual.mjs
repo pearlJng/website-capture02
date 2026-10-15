@@ -54,11 +54,13 @@ function inPageUiVisible(on) {
 /** 창 안에 떠 있는 버튼. 페이지 스크립트보다 먼저 심어 두고, 사이트가 지워도 다시 만든다. */
 function inPageFloatingUi(opt) {
   if (window.top !== window) return;
-  const patch = Boolean(opt && opt.patch);
+  const sec = opt && opt.section;
+  const patch = Boolean(opt && opt.patch) || Boolean(sec);
   const T = {
-    title: patch ? '부분 다시 찍기' : '직접 찍기',
+    title: sec ? `구간 다시 찍기 · ${sec.n}. ${sec.label}` : patch ? '부분 다시 찍기' : '직접 찍기',
     shot: '이 화면 찍기', next: '한 화면 아래로', undo: '마지막 취소', done: patch ? '바꿔 넣기' : '완성', quit: '그만두기',
-    start: patch ? '잘못 찍힌 곳으로 스크롤해 화면을 만든 뒤 찍어 주세요. 찍은 화면이 원래 그림의 같은 자리에 들어가요.'
+    start: sec ? '점선 안이 이 구간이에요. 원하는 순간에 찍어 주세요 — 구간이 화면보다 길면 내려가며 여러 장 찍으면 돼요.'
+      : patch ? '잘못 찍힌 곳으로 스크롤해 화면을 만든 뒤 찍어 주세요. 찍은 화면이 원래 그림의 같은 자리에 들어가요.'
       : '맨 위부터 차례로 찍어 주세요. 스크롤해서 원하는 화면을 만든 뒤 찍습니다.',
   };
   function make() {
@@ -130,6 +132,20 @@ function inPageFloatingUi(opt) {
       $('done').disabled = n === 0;
       const parts = [];
       // 부분 다시 찍기는 찍은 구간 사이만 본다 — 맨 위·맨 아래까지 찍을 필요가 없다
+      if (sec) {
+        // 구간 안에서 찍은 범위 — 안 찍은 곳은 원래 그림 그대로 둔다
+        const H = st.at ? st.at.height : 0;
+        if (n && st.tail) parts.push(`이 구간 ${fmt(H)}px 중 ${fmt(st.tail[0])}px 아래가 남았어요 — 더 찍거나, 그대로 두면 원래 그림을 써요.`);
+        if (n && st.gaps && st.gaps.length) parts.push(`<span class="warn">구간 안 ${st.gaps.map(([a, b]) => `${fmt(a)}~${fmt(b)}px`).join(', ')} 를 안 찍었어요 (원래 그림을 써요)</span>`);
+        if (n && !st.tail && !(st.gaps && st.gaps.length)) parts.push('<span class="ok">구간을 다 찍었어요 — 바꿔 넣기를 눌러 주세요</span>');
+        if (!n) parts.push(T.start);
+        $('status').innerHTML = parts.join('<br>');
+        sh.querySelector('.n').textContent = n; $('done').disabled = n === 0;
+        let bars = ''; const HH = Math.max(1, H);
+        for (const [a, b] of (st.merged || [])) bars += `<i style="left:${(a / HH * 100).toFixed(1)}%;width:${((b - a) / HH * 100).toFixed(1)}%"></i>`;
+        $('bar').innerHTML = bars;
+        return;
+      }
       const gaps = (st.gaps || []).filter(([a]) => !patch || (st.merged && st.merged.length && a >= st.merged[0][0]));
       if (gaps.length) parts.push(`<span class="warn">빈틈 ${gaps.map(([a, b]) => `${fmt(a)}~${fmt(b)}px`).join(', ')} — 조금 올려서 한 장 더 찍어 주세요</span>`);
       if (patch && n && !gaps.length) parts.push(`<span class="ok">${fmt(st.merged[0][0])}~${fmt(st.merged[st.merged.length - 1][1])}px 를 찍었어요 — 바꿔 넣기를 눌러 주세요</span>`);
@@ -168,6 +184,20 @@ function inPageFloatingUi(opt) {
       if (e.code === 'KeyN') { e.preventDefault(); act('next'); }
     }, true);
     window.__capRender = render;
+    // 구간 다시 찍기: 그 구간을 점선으로 둘러 보여 준다 (찍을 때는 숨긴다)
+    if (sec) {
+      const box = document.createElement('div');
+      box.id = 'cap-sec'; box.setAttribute('data-cap-ui', '');
+      box.style.cssText = 'all:initial;position:absolute;left:0;z-index:2147483646;pointer-events:none;box-sizing:border-box;border:3px dashed #4b5bf0;box-shadow:0 0 0 9999px rgba(17,19,58,.28);';
+      document.documentElement.appendChild(box);
+      const place = () => {
+        const r = window.__capSecRect ? window.__capSecRect() : null;
+        if (!r) { box.style.display = 'none'; return; }
+        box.style.display = 'block';
+        box.style.top = `${r.top}px`; box.style.height = `${r.h}px`; box.style.width = `${document.documentElement.clientWidth}px`;
+      };
+      place(); setInterval(place, 400);
+    }
     // 화면 안의 배경 영상이 아직 재생 전이면 알려 준다 — 영상 파일이 크면(50MB+) 받는 데 오래 걸린다.
     // 모르고 찍으면 영상 자리가 비어 찍힌다.
     // 3초 넘게 안 뜨면 앱이 영상 파일을 대신 받아(여러 줄로 나눠, 이 컴퓨터에 남긴다) 이 창에 건넨다.
@@ -284,7 +314,7 @@ async function applyMetrics(s, scaleView) {
   });
 }
 
-export async function startManual({ url, device, scale, channel, executablePath, headless = false, onFinish, patch = false, scrollTo = 0 }) {
+export async function startManual({ url, device, scale, channel, executablePath, headless = false, onFinish, patch = false, scrollTo = 0, section = null }) {
   const key = 'm' + (++seq) + '-' + Math.random().toString(36).slice(2, 8);
   // 데스크탑(1440·1920)은 노트북 화면보다 넓다. 그 폭의 창을 띄우면 맥이 화면에 맞춰 줄이면서
   // 페이지도 버튼도 아주 작아졌다. 창은 화면을 꽉 채워 열고, 페이지는 고른 폭 그대로 그리되
@@ -315,7 +345,7 @@ export async function startManual({ url, device, scale, channel, executablePath,
     ctx = await browser.newContext(opts);
     page = await ctx.newPage();
   }
-  const s = { key, url, device, scale, channel, executablePath, browser, ctx, page, persistent, shots: [], pinned: null, closed: false, onFinish, finishing: false, fitMode, fit: 1, patch: Boolean(patch) };
+  const s = { key, url, device, scale, channel, executablePath, browser, ctx, page, persistent, shots: [], pinned: null, closed: false, onFinish, finishing: false, fitMode, fit: 1, patch: Boolean(patch) || Boolean(section), section };
   if (fitMode) {
     s.cdp = await ctx.newCDPSession(page);
     await fitView(s, headless ? { w: Math.round(device.width * 0.75), h: Math.round(device.height * 0.75) } : null);
@@ -341,7 +371,7 @@ export async function startManual({ url, device, scale, channel, executablePath,
       }
       if (name === 'state') return await stateManual(key);
       if (name === 'ui') return { ok: true, scale: 1 / (s.fit || 1) };
-      if (name === 'shot') return await shotManual(key);
+      if (name === 'shot') return s.section ? await shotSection(key) : await shotManual(key);
       if (name === 'next') return await scrollManual(key, { page: 1 });
       if (name === 'undo') return await undoManual(key);
       if (name === 'quit') { setTimeout(() => closeManual(key).catch(() => {}), 50); return { ok: true, shots: [], gaps: [], merged: [] }; }
@@ -355,10 +385,18 @@ export async function startManual({ url, device, scale, channel, executablePath,
       return { ok: false, error: '없는 동작' };
     } catch (e) { return { ok: false, error: e.message.split('\n')[0] }; }
   });
-  await page.addInitScript(inPageFloatingUi, { patch: s.patch });
+  if (s.section) await page.addInitScript(inPageSectionRect, { sel: s.section.sel || '', docTop: s.section.docTop || 0, docBottom: s.section.docBottom || 0 });
+  await page.addInitScript(inPageFloatingUi, { patch: s.patch, section: s.section ? { n: s.section.n, label: s.section.label } : null });
   try { await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 }); } catch { /* 늦어도 창은 떠 있다 */ }
   // 부분 다시 찍기는 고칠 곳 근처에서 연다 (카드에서 고른 자리)
-  if (s.patch && scrollTo > 0) {
+  if (s.section) {
+    await page.waitForLoadState('load', { timeout: 8000 }).catch(() => {});
+    const r = await page.evaluate(() => window.__capSecRect && window.__capSecRect()).catch(() => null);
+    // 맨 위 구간이 아니면 떠 있는 헤더·버튼을 미리 숨긴다 — 찍을 때 숨기니 보이는 그대로가 찍힌다.
+    // 구간 시작이 버튼 띠에 가리지 않게 조금 위에서 보여 준다.
+    if (r && r.top > 2) await page.evaluate(inPageHideAllFixed).catch(() => {});
+    if (r) await page.evaluate(inPageScrollBy, { y: Math.max(0, r.top - (r.top > 2 ? 110 : 0)) }).catch(() => {});
+  } else if (s.patch && scrollTo > 0) {
     await page.waitForLoadState('load', { timeout: 8000 }).catch(() => {});
     await page.evaluate(inPageScrollBy, { y: scrollTo }).catch(() => {});
   }
@@ -367,6 +405,13 @@ export async function startManual({ url, device, scale, channel, executablePath,
 
 export async function stateManual(key) {
   const s = get(key);
+  if (s.section) {
+    // 구간 좌표로: 구간 맨 위가 0, 높이는 지금 페이지에서 잰 구간 높이
+    const r = await s.page.evaluate(() => window.__capSecRect && window.__capSecRect()).catch(() => null);
+    const H = r ? r.h : (s.section.bottom - s.section.top);
+    const segs = s.shots.map((x) => ({ y: x.off, height: x.h }));
+    return { ok: true, at: { height: H }, shots: segs, ...coverage(segs, H) };
+  }
   const at = await s.page.evaluate(inPageWhere);
   const cov = coverage(s.shots, at.height);
   return { ok: true, at, shots: s.shots.map((x) => ({ y: x.y, height: x.height })), ...cov };
@@ -436,6 +481,55 @@ export async function shotManual(key) {
   return { ok: true, at, hidden: s.pinned ? s.pinned.hidden : 0, shots: s.shots.map((x) => ({ y: x.y, height: x.height })), ...cov };
 }
 
+/**
+ * 그 구간이 지금 페이지의 어디에 있는지 (문서 좌표). 찍을 때 남긴 선택자로 찾고, 못 찾으면 찍을 때의 자리.
+ * 페이지 스크립트보다 먼저 심어 둔다 — 창 안의 점선과 찍기가 같은 답을 쓴다.
+ */
+function inPageSectionRect({ sel, docTop, docBottom }) {
+  window.__capSecRect = () => {
+    let el = null;
+    try { el = sel ? document.querySelector(sel) : null; } catch { el = null; }
+    if (el) {
+      const r = el.getBoundingClientRect();
+      if (r.height >= 10) return { top: Math.round(r.top + window.scrollY), h: Math.round(r.height), found: true };
+    }
+    return { top: docTop, h: Math.max(10, docBottom - docTop), found: false };
+  };
+}
+
+/** 구간 다시 찍기: 화면에 보이는 만큼의 그 구간을 찍고, 구간 안 어디인지(구간 맨 위에서 몇 px)를 같이 남긴다 */
+async function shotSection(key) {
+  const s = get(key);
+  const sec = await s.page.evaluate(() => window.__capSecRect()).catch(() => null);
+  if (!sec) throw new Error('구간을 찾지 못했어요');
+  const where = await s.page.evaluate(inPageWhere);
+  // 맨 위 구간(헤더가 든 자리)이 아니면 고정·스티키 요소를 숨긴다 — 구간 위에 떠 있는 헤더가 끼면 안 된다
+  if (sec.top > 2 || where.y > 2) await s.page.evaluate(inPageHideAllFixed).catch(() => {});
+  else await s.page.evaluate(inPageTameFixed, s.device.width).catch(() => {});
+  await s.page.waitForTimeout(120);
+  const vp = await s.page.evaluate(() => ({ y: window.scrollY, h: window.innerHeight, w: document.documentElement.clientWidth || window.innerWidth }));
+  const top = Math.max(vp.y, sec.top), bottom = Math.min(vp.y + vp.h, sec.top + sec.h);
+  if (bottom - top < 8) throw new Error('이 구간이 화면에 없어요 — 점선 안이 보이게 스크롤해 주세요');
+  await s.page.evaluate(inPageUiVisible, false);
+  await s.page.evaluate(() => { const b = document.getElementById('cap-sec'); if (b) b.style.visibility = 'hidden'; });
+  let buf;
+  try {
+    s.shooting = true;
+    if (!s.cdp) s.cdp = await s.ctx.newCDPSession(s.page);
+    const { data } = await s.cdp.send('Page.captureScreenshot', {
+      format: 'png', captureBeyondViewport: true, fromSurface: true,
+      clip: { x: 0, y: top, width: s.device.width, height: bottom - top, scale: 1 },
+    });
+    buf = Buffer.from(data, 'base64');
+  } finally {
+    s.shooting = false;
+    await s.page.evaluate(inPageUiVisible, true).catch(() => {});
+    await s.page.evaluate(() => { const b = document.getElementById('cap-sec'); if (b) b.style.visibility = ''; }).catch(() => {});
+  }
+  s.shots.push({ off: top - sec.top, h: bottom - top, buf });
+  return stateManual(key);
+}
+
 /** 창 안의 버튼을 누른 것과 같다 (자체 시험용 — 창 없이 돌릴 때 버튼 통로를 검사한다). */
 export async function pressManual(key, name) {
   const s = get(key);
@@ -455,6 +549,13 @@ export async function undoManual(key) {
 export async function finishManual(key) {
   const s = get(key);
   if (!s.shots.length) throw new Error('찍은 화면이 없습니다');
+  if (s.section) {
+    const st = await stateManual(key);
+    const out = { section: true, index: s.section.index, liveHeight: st.at.height, covered: !st.tail && !st.gaps.length && st.merged.length > 0 && st.merged[0][0] <= 1,
+      shots: s.shots.map((x) => ({ off: x.off, h: x.h, buf: x.buf })), notes: [`${s.section.n}번 구간(${s.section.label})을 크롬 창에서 ${s.shots.length}장 다시 찍었습니다`] };
+    await closeManual(key);
+    return out;
+  }
   const at = await s.page.evaluate(inPageWhere).catch(() => ({ height: 0 }));
   const top = s.patch ? Math.min(...s.shots.map((x) => x.y)) : 0;
   const cov = coverage(s.shots.map((x) => ({ ...x, y: x.y - top })), at.height ? at.height - top : 0);

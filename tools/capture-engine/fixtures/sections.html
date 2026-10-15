@@ -1,0 +1,22 @@
+<!doctype html><meta charset=utf-8><title>구간 다시 찍기 — 고정 헤더와 구간 넷 (하나는 화면보다 길다)</title>
+<style>
+body{margin:0;font:16px/1.6 system-ui}
+header{position:fixed;top:0;left:0;right:0;height:70px;background:#fff;border-bottom:1px solid #ddd;z-index:9;display:flex;align-items:center;padding:0 24px;font-weight:700}
+section{padding:60px 80px}
+.hero{height:520px;background:linear-gradient(135deg,#1d4f91,#3a7bd5);color:#fff}
+.cards{display:flex;gap:24px}.cards div{flex:1;height:220px;border-radius:12px;background:#e4e9f7}
+.tall{background:#f6f2ea}.tall p{height:60px;margin:0;border-bottom:1px solid #e3dccd}
+.cta{height:240px;background:#0b2a5e;color:#fff}
+footer{height:140px;background:#111;color:#999;padding:24px}
+</style>
+<header>LOGO · About · Products</header>
+<section class="hero"><h1>Cold chain, made reliable.</h1></section>
+<section><h2>Built for the long haul</h2><div class="cards"><div></div><div></div><div></div></div></section>
+<section class="tall"><h2>Our history</h2></section>
+<section class="cta"><h2>Ready to keep it cold?</h2></section>
+<footer>© 2026</footer>
+<script>
+// 줄마다 다른 내용 — 화면보다 긴 구간 (2,000px 남짓)
+const t = document.querySelector('.tall');
+for (let i = 0; i < 30; i++) { const p = document.createElement('p'); p.textContent = `${2000 + i}년 — 연혁 ${i} ${'·'.repeat(i % 9)}`; p.style.paddingLeft = `${(i * 37) % 300}px`; t.appendChild(p); }
+</script>
