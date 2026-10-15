@@ -18,7 +18,8 @@ import { homedir } from 'node:os';
 import { mkdirSync } from 'node:fs';
 import { stitchShots, repeatedTopBand } from './stitch.mjs';
 import { mergePngsVertically } from './png.mjs';
-import { SAFE_PIXELS, contextOptionsFor, inPageTameFixed, inPageHideAllFixed, inPageHidePinned } from './capture.mjs';
+import { cachedMedia, fetchMedia, serveCachedMedia } from './media.mjs';
+import { SAFE_PIXELS, contextOptionsFor, inPageTameFixed, inPageHideAllFixed, inPageHidePinned, DESKTOP_UA } from './capture.mjs';
 
 const sessions = new Map();
 const PROFILE_DIR = process.env.CAP_MANUAL_PROFILE || join(homedir(), '.website-snapshot', 'chrome-window');
@@ -169,24 +170,52 @@ function inPageFloatingUi(opt) {
     window.__capRender = render;
     // 화면 안의 배경 영상이 아직 재생 전이면 알려 준다 — 영상 파일이 크면(50MB+) 받는 데 오래 걸린다.
     // 모르고 찍으면 영상 자리가 비어 찍힌다.
-    let since = 0;
-    setInterval(() => {
+    // 3초 넘게 안 뜨면 앱이 영상 파일을 대신 받아(여러 줄로 나눠, 이 컴퓨터에 남긴다) 이 창에 건넨다.
+    let since = 0, asking = false;
+    const reloaded = new Set();
+    const mp4 = document.createElement('video').canPlayType('video/mp4; codecs="avc1.42E01E"') !== '';
+    const MB = (n) => Math.round((n || 0) / 1048576);
+    setInterval(async () => {
       const vh = window.innerHeight;
       let wait = 0, bad = 0;
+      const srcs = [];
       for (const v of document.querySelectorAll('video')) {
         const r = v.getBoundingClientRect();
         if (r.width < 80 || r.height < 60 || r.bottom < 0 || r.top > vh) continue;
         if (!(v.autoplay || (v.muted && v.loop))) continue;
-        if (v.error) { bad++; continue; }
         if (v.currentTime > 0 || v.ended) continue;
+        const src = v.currentSrc || v.src || '';
+        if (/^https?:/i.test(src) && !reloaded.has(src)) srcs.push(src);
+        if (v.error) { bad++; continue; }
         if (v.paused && v.readyState >= 2) v.play().catch(() => {});
         wait++;
       }
       const el = $('vid');
-      if (wait) { since = since || Date.now(); el.textContent = `⏳ 배경 영상을 불러오는 중이에요 (${Math.round((Date.now() - since) / 1000)}초째) — 영상 파일이 크면 오래 걸려요. 영상이 나오면 찍어 주세요.`; }
-      else if (bad) { since = 0; el.textContent = '⚠ 이 화면의 배경 영상이 이 브라우저에서 재생되지 않아요 (파일 주소가 막혔거나 지원하지 않는 형식)'; }
-      else since = 0;
-      el.classList.toggle('on', Boolean(wait || bad));
+      let text = '';
+      if (wait || srcs.length) {
+        since = since || Date.now();
+        const sec = Math.round((Date.now() - since) / 1000);
+        text = `⏳ 배경 영상을 불러오는 중이에요 (${sec}초째) — 영상이 나오면 찍어 주세요.`;
+        if (srcs.length && (sec >= 3 || bad) && window.__capAction && !asking) {
+          asking = true;
+          try {
+            const res = await window.__capAction('video', srcs);
+            for (const it of (res && res.items) || []) {
+              if (it.ready) {
+                reloaded.add(it.src);
+                for (const v of document.querySelectorAll('video')) if (v.currentSrc === it.src || v.src === it.src) { v.muted = true; v.src = it.src; v.load(); v.play().catch(() => {}); }
+              } else if (it.state === 'loading') {
+                text = `⏳ 영상이 늦어 앱이 대신 받는 중이에요 ${it.total ? `${Math.floor(it.got / it.total * 100)}% (${MB(it.got)}/${MB(it.total)}MB)` : `${MB(it.got)}MB`} — 다 받으면 바로 나와요. 한 번 받으면 다음부터는 바로 떠요.`;
+              } else if (it.state === 'error') {
+                text = `⚠ 앱이 영상을 대신 받지 못했어요 (${it.error})`;
+              }
+            }
+          } catch { /* 통로가 없다 */ } finally { asking = false; }
+        }
+        if (!mp4 && srcs.some((u) => /\.mp4(\?|$)/i.test(u))) text = '⚠ 이 브라우저는 MP4 영상을 틀 수 없어요 — 구글 크롬을 설치하면 영상이 나와요';
+      } else since = 0;
+      el.textContent = text;
+      el.classList.toggle('on', Boolean(text));
     }, 1000);
     if (window.__capAction) window.__capAction('state').then(render).catch(() => {});
   }
@@ -255,7 +284,7 @@ async function applyMetrics(s, scaleView) {
   });
 }
 
-export async function startManual({ url, device, scale, channel, headless = false, onFinish, patch = false, scrollTo = 0 }) {
+export async function startManual({ url, device, scale, channel, executablePath, headless = false, onFinish, patch = false, scrollTo = 0 }) {
   const key = 'm' + (++seq) + '-' + Math.random().toString(36).slice(2, 8);
   // 데스크탑(1440·1920)은 노트북 화면보다 넓다. 그 폭의 창을 띄우면 맥이 화면에 맞춰 줄이면서
   // 페이지도 버튼도 아주 작아졌다. 창은 화면을 꽉 채워 열고, 페이지는 고른 폭 그대로 그리되
@@ -264,7 +293,7 @@ export async function startManual({ url, device, scale, channel, headless = fals
   const fitMode = !device.mobile;
   const win = { width: device.width, height: device.height + 120 };
   const launch = {
-    headless, channel: channel || undefined,
+    headless, channel: channel || undefined, ...(!channel && executablePath ? { executablePath } : {}),
     args: ['--disable-dev-shm-usage', fitMode && !headless ? '--start-maximized' : `--window-size=${win.width},${win.height}`],
   };
   const opts = contextOptionsFor(device, scale);
@@ -286,7 +315,7 @@ export async function startManual({ url, device, scale, channel, headless = fals
     ctx = await browser.newContext(opts);
     page = await ctx.newPage();
   }
-  const s = { key, url, device, scale, channel, browser, ctx, page, persistent, shots: [], pinned: null, closed: false, onFinish, finishing: false, fitMode, fit: 1, patch: Boolean(patch) };
+  const s = { key, url, device, scale, channel, executablePath, browser, ctx, page, persistent, shots: [], pinned: null, closed: false, onFinish, finishing: false, fitMode, fit: 1, patch: Boolean(patch) };
   if (fitMode) {
     s.cdp = await ctx.newCDPSession(page);
     await fitView(s, headless ? { w: Math.round(device.width * 0.75), h: Math.round(device.height * 0.75) } : null);
@@ -298,8 +327,18 @@ export async function startManual({ url, device, scale, channel, headless = fals
   if (browser) browser.on('disconnected', () => { s.closed = true; });
   ctx.on('close', () => { s.closed = true; });
   // 창 안의 버튼이 부르는 통로. 페이지가 바뀌어도 살아 있다.
-  await page.exposeBinding('__capAction', async (_src, name) => {
+  await page.exposeBinding('__capAction', async (_src, name, arg) => {
     try {
+      if (name === 'video') {
+        // 늦는 배경 영상: 앱이 받아 둔 게 있으면 이 창에 건네고, 없으면 받기 시작한다
+        const items = [];
+        for (const src of (Array.isArray(arg) ? arg : []).slice(0, 4)) {
+          if (cachedMedia(src)) { await serveCachedMedia(s.page, src); items.push({ src, ready: true }); continue; }
+          const j = fetchMedia(src, { referer: s.page.url(), ua: DESKTOP_UA });
+          items.push({ src, state: j.state, got: j.got, total: j.total, error: j.error });
+        }
+        return { ok: true, items };
+      }
       if (name === 'state') return await stateManual(key);
       if (name === 'ui') return { ok: true, scale: 1 / (s.fit || 1) };
       if (name === 'shot') return await shotManual(key);
@@ -425,7 +464,7 @@ export async function finishManual(key) {
   const notes = s.patch ? [`${Math.round(top).toLocaleString('en-US')}~${Math.round(top + height).toLocaleString('en-US')}px 를 크롬 창에서 ${shots.length}장 다시 찍었습니다`]
     : [`크롬 창에서 ${shots.length}장 찍어 위치대로 이어 붙였습니다`];
   // 이어 붙이기는 사람 눈에 안 보이는 브라우저에서 (같은 프로필 창에 새 탭이 뜨지 않게)
-  const stitcher = s.browser || await chromium.launch({ headless: true, channel: s.channel || undefined }).catch(() => chromium.launch({ headless: true }));
+  const stitcher = s.browser || await chromium.launch({ headless: true, channel: s.channel || undefined, ...(!s.channel && s.executablePath ? { executablePath: s.executablePath } : {}) }).catch(() => chromium.launch({ headless: true }));
   const stitchPage = await (await stitcher.newContext({ viewport: { width: 200, height: 200 } })).newPage();
   let slices;
   try {

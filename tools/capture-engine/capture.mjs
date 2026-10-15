@@ -14,6 +14,7 @@
 
 import { stitchShots, repeatedTopBand } from './stitch.mjs';
 import { cutRows } from './png.mjs';
+import { cachedMedia, fetchMedia, serveCachedMedia, inPageReloadVideo, mb } from './media.mjs';
 
 export const VIEWPORT = { width: 1440, height: 900 };
 
@@ -74,6 +75,9 @@ const VIDEO_START_WAIT_MS = 12000; // 첫 화면 배경 영상이 재생을 시�
 // 영상 파일을 아직 받고 있으면(networkState LOADING) 이만큼까지 더 기다린다 — 글로쿼드텍 히어로는
 // 50MB 넘는 MP4 라 새 브라우저(캐시 없음)에서는 12초 안에 못 받았다
 const VIDEO_LOADING_WAIT_MS = 45000;
+// 그래도 늦으면 앱이 영상 파일을 대신 받는다(media.mjs) — 몇 초 기다려 보고 시작하고, 받는 동안은 이만큼까지 기다린다
+const MEDIA_KICK_MS = 3000;
+const MEDIA_WAIT_MS = 150000;
 const REVEAL_GRACE_MS = 700; // 화면에 들어왔는데 아직 비어 있는 것이 스스로 나타나기를 기다리는 시간
 const PROBE_SETTLE_MS = 120; // 거기서 자리를 재기 전에 기다리는 시간
 const SHOT_SETTLE_FIRST_MS = 600;
@@ -1223,7 +1227,8 @@ async function neutralizeStuckFrames(page) {
 async function waitVideosStarted(page, maxMs) {
   const started = Date.now();
   const VIDEO_HOST = /vimeo\.com|youtube(-nocookie)?\.com|youtu\.be|wistia|jwplayer|kollus|vod|video|player/i;
-  let pending = 0, seen = 0, big = false;
+  let pending = 0, seen = 0, big = false, noMp4 = false;
+  const helped = new Map();   // 영상 주소 → { job, served }
   for (let round = 0; ; round++) {
     // 화면 위아래 한 화면 안의 후보를 표시한다
     const info = await page.evaluate((hostSrc) => {
@@ -1231,9 +1236,14 @@ async function waitVideosStarted(page, maxMs) {
       const vh = window.innerHeight;
       const near = (el) => { const r = el.getBoundingClientRect(); return r.width >= 80 && r.height >= 60 && r.bottom > -vh * 0.25 && r.top < vh * 1.25; };
       let wait = 0, ifr = 0, loading = 0;
+      const srcs = [];
+      const mp4 = document.createElement('video').canPlayType('video/mp4; codecs="avc1.42E01E"') !== '';
       for (const v of document.querySelectorAll('video')) {
         if (!near(v) || !(v.autoplay || (v.muted && v.loop))) continue;   // 배경 영상 꼴만
-        if (v.currentTime > 0 || v.ended || v.error) continue;
+        if (v.currentTime > 0 || v.ended) continue;
+        const src = v.currentSrc || v.src || (v.querySelector('source[src]') || {}).src || '';
+        if (/^https?:/i.test(src)) srcs.push({ src, err: v.error ? v.error.code : 0 });
+        if (v.error) continue;
         wait++;
         if (v.networkState === 2) loading++;   // 아직 받는 중 — 큰 파일
         if (v.paused && v.readyState >= 2) v.play().catch(() => {});
@@ -1250,10 +1260,26 @@ async function waitVideosStarted(page, maxMs) {
       for (const s of document.querySelectorAll('[data-vimeo-id], [data-youtube-id], ._section_vg')) {
         if (near(s) && !s.querySelector('iframe, video')) wait++;
       }
-      return { wait, ifr, loading };
-    }, VIDEO_HOST.source).catch(() => ({ wait: 0, ifr: 0, loading: 0 }));
+      return { wait, ifr, loading, srcs, mp4 };
+    }, VIDEO_HOST.source).catch(() => ({ wait: 0, ifr: 0, loading: 0, srcs: [], mp4: true }));
     pending = info.wait;
     if (info.loading) big = true;
+    if (!info.mp4 && info.srcs.some((x) => /\.mp4(\?|$)/i.test(x.src))) noMp4 = true;
+    // 늦는(또는 못 받은) 배경 영상은 앱이 대신 받아 건넨다. 받아 둔 게 있으면 바로.
+    for (const { src, err } of info.srcs) {
+      const h = helped.get(src) || {};
+      if (h.served) continue;
+      if (cachedMedia(src)) {
+        await serveCachedMedia(page, src).catch(() => false);
+        await page.evaluate(inPageReloadVideo, src).catch(() => 0);
+        helped.set(src, { ...h, served: true, at: Date.now() });
+        pending = Math.max(pending, 1);
+        continue;
+      }
+      if (!h.job && (err || Date.now() - started >= MEDIA_KICK_MS)) {
+        helped.set(src, { job: fetchMedia(src, { referer: page.url(), ua: DESKTOP_UA }) });
+      }
+    }
     if (info.ifr) {
       for (const h of await page.$$('iframe[data-cap-vwait]').catch(() => [])) {
         const fr = await h.contentFrame().catch(() => null);
@@ -1267,10 +1293,19 @@ async function waitVideosStarted(page, maxMs) {
       }
     }
     if (round === 0) seen = pending;
-    if (!pending || Date.now() - started > (big ? Math.max(maxMs, VIDEO_LOADING_WAIT_MS) : maxMs)) break;
+    // 앱이 받는 중인 영상이 있으면 다 받을 때까지(최대 MEDIA_WAIT_MS) — 받다 실패하면 원래 시간까지만
+    const fetching = [...helped.values()].some((h) => h.job && !h.served && h.job.state === 'loading');
+    const servedAt = Math.max(0, ...[...helped.values()].map((h) => h.at || 0));
+    let limit = fetching ? MEDIA_WAIT_MS : big ? Math.max(maxMs, VIDEO_LOADING_WAIT_MS) : maxMs;
+    if (servedAt) limit = Math.max(limit, servedAt - started + 15000);   // 건넨 뒤 재생이 시작될 시간
+    if (!pending || Date.now() - started > limit) break;
     await page.waitForTimeout(400);
   }
-  return { seen, pending, ms: Date.now() - started, big };
+  const media = [...helped.entries()].filter(([, h]) => h.served || h.job).map(([src, h]) => {
+    const j = h.served ? cachedMedia(src) : null;
+    return { src, served: Boolean(h.served), size: j ? j.total : (h.job && h.job.total) || 0, error: h.job && h.job.state === 'error' ? h.job.error : '' };
+  });
+  return { seen, pending, ms: Date.now() - started, big, media, noMp4 };
 }
 
 async function holdVideosEverywhere(page) {
@@ -1467,6 +1502,11 @@ export async function captureSite(context, url, opts = {}) {
     if (steps.has('anim')) {
       // 늦게 뜨는 배경 영상이 돌기 시작한 뒤에 멈춘다 — 먼저 멈추면 영상 상자가 영영 안 보인다
       const vw0 = await waitVideosStarted(page, VIDEO_START_WAIT_MS * slow).catch(() => null);
+      for (const m of (vw0 && vw0.media) || []) {
+        notes.push(m.served ? `배경 영상이 늦어 앱이 영상 파일(${mb(m.size)})을 대신 받아 넣었습니다 — 다음부터는 바로 뜹니다`
+          : m.error ? `배경 영상을 앱이 대신 받으려 했지만 못 받았습니다 (${m.error})` : `배경 영상(${mb(m.size)})을 앱이 받는 중이었지만 시간 안에 못 받았습니다`);
+      }
+      if (vw0 && vw0.noMp4) notes.push('이 브라우저는 MP4 영상을 틀 수 없습니다 — 구글 크롬을 설치하면 영상이 찍힙니다');
       if (vw0 && vw0.seen) {
         notes.push(vw0.pending
           ? `배경 영상 ${vw0.pending}개가 ${Math.round(vw0.ms / 1000)}초 안에 재생을 시작하지 않았습니다${vw0.big ? ' (영상 파일이 커서 아직 받는 중)' : ''} — 영상 자리가 비어 찍혔을 수 있어요`

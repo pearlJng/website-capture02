@@ -56,7 +56,7 @@ async function main() {
   // 동영상 코덱 — 번들 크로미움에는 H.264·AAC 가 없다. 특허 때문이다.
   {
     const b = await chromium.launch({ args: ['--disable-dev-shm-usage'],
-      ...(pick.channel ? { channel: pick.channel } : {}) });
+      ...(pick.channel ? { channel: pick.channel } : pick.executablePath ? { executablePath: pick.executablePath } : {}) });
     const p2 = await b.newPage();
     const c = await p2.evaluate(() => {
       const v = document.createElement('video');

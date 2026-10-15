@@ -10,6 +10,7 @@
  */
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join, dirname, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { captureSite, VIEWPORT, SAFE_PIXELS, DEVICES, contextOptionsFor } from './capture.mjs';
@@ -17,6 +18,7 @@ import { compareCaptures, renderDiffStrip, VERDICT } from './diff.mjs';
 import { createBrowserHost, isBrowserDeath } from './browser.mjs';
 import { extractSitemap } from './sitemap.mjs';
 import { mergePngsVertically, decodePng, stitchUserShots, cutRows, encodePng, splicePatch } from './png.mjs';
+import { fetchMedia, cachedMedia, serveCachedMedia } from './media.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PORT = 8825;
@@ -26,6 +28,8 @@ const BASE = `http://127.0.0.1:${PORT}/`;
 const CROSS = `http://localhost:${CROSS_PORT}`;
 
 const same = (v) => v === VERDICT.SAME || v === VERDICT.SAME_PIXELS;
+// 앱이 여러 줄로 나눠 받는 시험용 큰 파일 (7MB, 바이트마다 다른 값)
+const BIG_FILE = Buffer.from(Array.from({ length: 7 * 1024 * 1024 + 123 }, (_, i) => (i * 31 + (i >> 11)) & 255));
 
 /**
  * 각 항목은 파이프라인을 한 번(또는 두 번) 돌리고 결과를 확인한다.
@@ -452,6 +456,45 @@ const CASES = [
       if (extra.rows.top < 400) return `히어로에 영상 장면이 ${extra.rows.top}줄뿐이다 — 영상을 다 받기 전에 찍었다 (${(r.notes || []).join(' / ')})`;
       const waited = (r.notes || []).find((n) => /재생을 시작할 때까지/.test(n));
       if (!waited || !/파일이 큽니다/.test(waited)) return `큰 영상을 기다린 기록이 없다 (${(r.notes || []).join(' / ')})`;
+      return null;
+    },
+  },
+  {
+    // 앱이 영상 파일을 여러 줄로 나눠 받아 한 파일로 정확히 잇고, 브라우저가 나눠 달라는 대로 잘라 준다
+    name: '앱이 큰 영상 파일을 나눠 받아 바이트 그대로 저장하고, 브라우저의 일부 요청(Range)에 맞게 건넨다',
+    unit: async ({ host }) => {
+      const url = BASE + '큰영상.mp4';
+      const j = fetchMedia(url, { referer: BASE });
+      await j.promise;
+      if (j.state !== 'done') return `못 받았다: ${j.error}`;
+      const c = cachedMedia(url);
+      if (!c || c.total !== BIG_FILE.length) return `크기가 ${c && c.total} (기대 ${BIG_FILE.length})`;
+      const got = await readFile(c.file);
+      if (!got.equals(BIG_FILE)) return '받은 파일이 원본과 다르다 — 나눠 받은 조각을 잘못 이었다';
+      const b = await host.get();
+      const ctx = await b.newContext();
+      const pg = await ctx.newPage();
+      await pg.goto(BASE + 'static.html');
+      await serveCachedMedia(pg, url);
+      const r = await pg.evaluate(async (u) => {
+        const x = await fetch(u, { headers: { range: 'bytes=5000000-5000099' } });
+        return { status: x.status, range: x.headers.get('content-range'), bytes: [...new Uint8Array(await x.arrayBuffer())] };
+      }, url);
+      await ctx.close();
+      if (r.status !== 206 || r.range !== `bytes 5000000-5000099/${BIG_FILE.length}`) return `일부 요청 응답이 ${r.status} ${r.range}`;
+      if (Buffer.from(r.bytes).compare(BIG_FILE.subarray(5000000, 5000100)) !== 0) return '잘라 준 바이트가 다르다';
+      return null;
+    },
+  },
+  {
+    // 브라우저가 영상을 직접 못 받으면(멈추거나 너무 느리면) 앱이 대신 받아 이 컴퓨터에서 건넨다.
+    // 한 번 받으면 다음 페이지·다음 캡처에서는 받을 필요 없이 바로 뜬다.
+    name: '브라우저가 못 받는 배경 영상은 앱이 대신 받아 넣어 히어로에 장면이 찍힌다',
+    file: 'stallvideo.html', mode: 'stitch', steps: ['sticky', 'motion', 'anim'], color: 640, colorFrac: 0.9,
+    check: (r, cmp, shots, extra) => {
+      if (!extra || !extra.rows) return '색을 못 셌다';
+      if (extra.rows.top < 400) return `히어로에 영상 장면이 ${extra.rows.top}줄뿐이다 (${(r.notes || []).join(' / ')})`;
+      if (!(r.notes || []).some((n) => /앱이 영상 파일\(.*\)을 대신 받아 넣었습니다/.test(n))) return `앱이 대신 받은 기록이 없다 (${(r.notes || []).join(' / ')})`;
       return null;
     },
   },
@@ -979,6 +1022,11 @@ function makeServer() {
     // 아주 큰 배경 영상 흉내 — 페이지마다 첫 요청만 22초 걸린다 (기다리기 시작한 뒤 12초를 넘긴다)(글로쿼드텍 히어로는 50MB 넘는 MP4).
     // 그 뒤 장면을 옮기며(seek) 다시 받는 요청은 바로 준다 — 받아 둔 것처럼. 일부 요청(Range)에도 답한다.
     let name2 = name;
+    // 브라우저가 직접 받으면 영영 안 오는 영상 (앱이 대신 받는 요청은 바로 준다) — 브라우저 쪽 받기가 멈춘 경우
+    if (name === '멈춘영상.webm') {
+      if (req.headers['sec-fetch-dest'] === 'video') return;   // 응답하지 않는다
+      name2 = 'fadein.webm';
+    }
     if (name === '느린영상.webm') {
       const who = req.headers.referer || '';
       name2 = 'fadein.webm';
@@ -993,7 +1041,7 @@ function makeServer() {
       return;
     }
     try {
-      let body = await readFile(join(HERE, 'fixtures', name2));
+      let body = name2 === '큰영상.mp4' ? BIG_FILE : await readFile(join(HERE, 'fixtures', name2));
       if (extname(name) === '.html') {
         body = body.toString('utf8')
           .replaceAll('__CROSS_ORIGIN__', CROSS)
@@ -1117,6 +1165,8 @@ async function main() {
 
   let failed = 0;
   // ONLY=글자 로 이름에 그 글자가 든 항목만 돌린다 — 하나를 고칠 때 35개를 다 기다리지 않게.
+  // 앱이 대신 받은 영상은 시험마다 새로 — 지난 시험에 받아 둔 게 있으면 "대신 받기"를 시험할 수 없다
+  process.env.CAP_MEDIA_DIR = join(tmpdir(), `cap-media-${process.pid}`);
   const only = process.env.ONLY || '';
   const RUN = only ? CASES.filter((c) => c.name.includes(only)) : CASES;
   try {

@@ -176,6 +176,7 @@
   .card .u { color: var(--faint); font-size: 12px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .card .why { font-size: 12px; color: var(--mute); margin-top: 6px; line-height: 1.45; }
   .card .why.warn { color: var(--warn); } .card .why.bad { color: var(--bad); }
+  #m1 .warn { color: var(--warn); font-weight: 600; }
   .card .acts { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 10px 10px; border-top: 1px solid var(--line2); }
   .card .act { flex: 1 1 auto; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 12.5px; padding: 7px 8px; border-radius: 8px; color: var(--ink2); }
   .card .act svg { width: 15px; height: 15px; }
@@ -450,6 +451,8 @@
       if (!r.ok) { $('#m1').innerHTML = `<span class="err">실패: ${esc(r.error)}</span>`; return; }
       analysis = r;
       $('#m1').textContent = `${r.title || ''} — 메뉴 ${r.menuCount}개, 찍을 수 있는 페이지 ${r.pages.length}개`;
+      // 크롬 계열을 못 찾아 코덱 없는 기본 브라우저로 찍으면 MP4·유튜브 영상이 비어 찍힌다 — 미리 알린다
+      if (r.codecs === false) $('#m1').insertAdjacentHTML('beforeend', '<br><span class="warn">⚠ 구글 크롬을 찾지 못해 기본 브라우저로 찍어요. MP4·유튜브 영상이 비어 찍힐 수 있어요 — 크롬을 설치한 뒤 앱을 다시 켜 주세요.</span>');
       renderTree(r);
       $('#s2').hidden = false; $('#s3').hidden = false;
       $('#s2').scrollIntoView({ behavior: 'smooth', block: 'start' });

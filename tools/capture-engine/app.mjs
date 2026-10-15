@@ -511,7 +511,7 @@ const server = createServer(async (req, res) => {
         writeFileSync(join(diagDir, '진단.json'), JSON.stringify({ url, finalUrl: r.finalUrl, method: r.method, aliases: r.aliases, languages: r.languages, diag: r.diag, menu: r.menu, utility: r.utility, loose: r.loose }, null, 2));
         writeFileSync(join(diagDir, '메뉴구조.txt'), renderTree(r));
       } catch { /* 무시 */ }
-      return json(res, 200, { ...rest, pages: pagesFrom(r, url), tree: renderTree(r), browser: pick && pick.name, diagDir });
+      return json(res, 200, { ...rest, pages: pagesFrom(r, url), tree: renderTree(r), browser: pick && pick.name, codecs: pick ? pick.codecs : true, diagDir });
     }
     if (req.method === 'POST' && u.pathname === '/api/capture') {
       const { pages, width, check, lang } = await readBody(req);
@@ -596,7 +596,7 @@ const server = createServer(async (req, res) => {
         if (patch) { const why = patchProblem(job, row); if (why) return json(res, 200, { ok: false, error: why }); }
         try {
           const r = await startManual({
-            url: row.url, device, scale: device.scale, channel: pick && pick.channel, headless: process.env.CAP_MANUAL_HEADLESS === '1',
+            url: row.url, device, scale: device.scale, channel: pick && pick.channel, executablePath: pick && pick.executablePath, headless: process.env.CAP_MANUAL_HEADLESS === '1',
             patch, scrollTo: Number(body.scrollTo) || 0,
             // 창 안의 "완성"·"바꿔 넣기" 버튼이 여기로 온다
             onFinish: (result) => {

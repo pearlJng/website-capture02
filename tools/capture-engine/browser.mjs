@@ -10,6 +10,9 @@
  * 죽어 있으면 알아서 새로 띄운다.
  */
 import { chromium } from 'playwright';
+import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 
 const BASE_ARGS = ['--disable-dev-shm-usage'];
 
@@ -27,6 +30,26 @@ const BASE_ARGS = ['--disable-dev-shm-usage'];
  */
 const CHANNELS = ['chrome', 'msedge'];
 
+/**
+ * 표준 자리가 아닌 곳에 깔린 크롬 계열(코덱이 있다). 크롬을 내 응용 프로그램(~/Applications)에 깔았거나
+ * 웨일·브레이브만 쓰는 사람도 있다 — 못 찾으면 코덱 없는 크로미움으로 찍혀 MP4 영상이 비어 나온다.
+ */
+const MAC_APPS = [
+  ['Google Chrome', '크롬'], ['Google Chrome Beta', '크롬 베타'], ['Google Chrome Canary', '크롬 카나리'],
+  ['Microsoft Edge', '엣지'], ['Naver Whale', '웨일'], ['Whale', '웨일'], ['Brave Browser', '브레이브'],
+];
+function extraBrowsers() {
+  if (process.platform !== 'darwin') return [];
+  const out = [];
+  for (const root of [join(homedir(), 'Applications'), '/Applications']) {
+    for (const [app, name] of MAC_APPS) {
+      const exe = join(root, `${app}.app`, 'Contents', 'MacOS', app);
+      if (existsSync(exe)) out.push({ executablePath: exe, name });
+    }
+  }
+  return out;
+}
+
 /** 이 컴퓨터에서 쓸 수 있는 브라우저를 한 번만 찾아 기억한다. */
 let picked = null;
 export async function pickBrowser(prefer) {
@@ -40,6 +63,16 @@ export async function pickBrowser(prefer) {
       picked = { channel, name: channel === 'chrome' ? '크롬' : '엣지', codecs: true };
       return picked;
     } catch { /* 안 깔려 있으면 다음 후보로 */ }
+  }
+  if (!prefer || prefer === 'auto') {
+    for (const c of extraBrowsers()) {
+      try {
+        const b = await chromium.launch({ executablePath: c.executablePath, args: BASE_ARGS });
+        await b.close();
+        picked = { channel: null, executablePath: c.executablePath, name: c.name, codecs: true };
+        return picked;
+      } catch { /* 다음 후보로 */ }
+    }
   }
   picked = { channel: null, name: '크로미움(번들)', codecs: false };
   return picked;
@@ -63,6 +96,7 @@ export function createBrowserHost(launchOpts = {}) {
           const opts = { args: BASE_ARGS, ...launchOpts };
           delete opts.prefer;
           if (pick.channel) opts.channel = pick.channel;
+          else if (pick.executablePath) opts.executablePath = pick.executablePath;
           return chromium.launch(opts);
         })
         .then((b) => { browser = b; launching = null; return b; })
