@@ -8,9 +8,13 @@
  * 헤더는 맨 위에 한 번만: 첫 장은 자동 캡처와 같은 정리(헤더 1개 유지, 플로팅 숨김)를 하고,
  * 둘째 장부터는 고정·스티키·"스크롤해도 같은 자리에 남는 것"을 숨긴 채 찍는다. 그래도 남으면
  * 완성할 때 그림을 보고 둘째 장부터 위쪽 띠를 잘라낸다.
+ *
+ * 부분 다시 찍기(patch): 잘못 찍힌 곳 근처만 찍는다. 찍은 구간만 이어 붙여 돌려주고,
+ * 앱이 원래 그림에서 그 자리를 찾아 바꿔 넣는다(png.mjs splicePatch). 헤더는 맨 위에서 찍을 때만 남긴다.
  */
 import { chromium } from 'playwright';
 import { stitchShots, repeatedTopBand } from './stitch.mjs';
+import { mergePngsVertically } from './png.mjs';
 import { SAFE_PIXELS, contextOptionsFor, inPageTameFixed, inPageHideAllFixed, inPageHidePinned } from './capture.mjs';
 
 const sessions = new Map();
@@ -43,10 +47,14 @@ function inPageUiVisible(on) {
 }
 
 /** 창 안에 떠 있는 버튼. 페이지 스크립트보다 먼저 심어 두고, 사이트가 지워도 다시 만든다. */
-function inPageFloatingUi() {
+function inPageFloatingUi(opt) {
   if (window.top !== window) return;
+  const patch = Boolean(opt && opt.patch);
   const T = {
-    shot: '이 화면 찍기', next: '한 화면 아래로', undo: '마지막 취소', done: '완성', quit: '그만두기',
+    title: patch ? '부분 다시 찍기' : '직접 찍기',
+    shot: '이 화면 찍기', next: '한 화면 아래로', undo: '마지막 취소', done: patch ? '바꿔 넣기' : '완성', quit: '그만두기',
+    start: patch ? '잘못 찍힌 곳으로 스크롤해 화면을 만든 뒤 찍어 주세요. 찍은 화면이 원래 그림의 같은 자리에 들어가요.'
+      : '맨 위부터 차례로 찍어 주세요. 스크롤해서 원하는 화면을 만든 뒤 찍습니다.',
   };
   function make() {
     if (document.getElementById('cap-fab') || !document.documentElement) return;
@@ -95,13 +103,13 @@ function inPageFloatingUi() {
 </style>
 <div class="wrap" role="group" aria-label="웹사이트 스냅샷 직접 찍기">
   <div class="line">
-    <div class="title"><span class="dot"></span>직접 찍기</div><div class="count"><b class="n">0</b>장</div>
+    <div class="title"><span class="dot"></span>${T.title}</div><div class="count"><b class="n">0</b>장</div>
     <button class="main" id="shot"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg><span>${T.shot}</span></button>
     <button id="next" class="opt">↓ ${T.next}</button><button id="undo" class="opt">↶ ${T.undo}</button>
     <button id="done" class="done" disabled>✓ ${T.done}</button><button id="quit" class="quit opt">${T.quit}</button>
     <button id="fold" class="fold" title="작게 접기 / 펼치기">–</button>
   </div>
-  <div class="sub"><div class="status" id="status">맨 위부터 차례로 찍어 주세요. 스크롤해서 원하는 화면을 만든 뒤 찍습니다.</div><div class="bar" id="bar"></div><div class="hint"><kbd>⇧</kbd>+<kbd>S</kbd> 찍기 · <kbd>⇧</kbd>+<kbd>N</kbd> 아래로</div></div>
+  <div class="sub"><div class="status" id="status">${T.start}</div><div class="bar" id="bar"></div><div class="hint"><kbd>⇧</kbd>+<kbd>S</kbd> 찍기 · <kbd>⇧</kbd>+<kbd>N</kbd> 아래로</div></div>
 </div><div class="flash" id="flash"></div>`;
     document.documentElement.appendChild(host);
     const $ = (id) => sh.getElementById(id);
@@ -113,10 +121,13 @@ function inPageFloatingUi() {
       sh.querySelector('.n').textContent = n;
       $('done').disabled = n === 0;
       const parts = [];
-      if (st.gaps && st.gaps.length) parts.push(`<span class="warn">빈틈 ${st.gaps.map(([a, b]) => `${fmt(a)}~${fmt(b)}px`).join(', ')} — 조금 올려서 한 장 더 찍어 주세요</span>`);
-      if (n && st.tail) parts.push(`${fmt(st.tail[0])}px 아래가 남았어요`);
-      if (n && !st.tail && !(st.gaps && st.gaps.length)) parts.push('<span class="ok">끝까지 찍었어요 — 완성을 눌러 주세요</span>');
-      if (!n) parts.push('맨 위부터 차례로 찍어 주세요.');
+      // 부분 다시 찍기는 찍은 구간 사이만 본다 — 맨 위·맨 아래까지 찍을 필요가 없다
+      const gaps = (st.gaps || []).filter(([a]) => !patch || (st.merged && st.merged.length && a >= st.merged[0][0]));
+      if (gaps.length) parts.push(`<span class="warn">빈틈 ${gaps.map(([a, b]) => `${fmt(a)}~${fmt(b)}px`).join(', ')} — 조금 올려서 한 장 더 찍어 주세요</span>`);
+      if (patch && n && !gaps.length) parts.push(`<span class="ok">${fmt(st.merged[0][0])}~${fmt(st.merged[st.merged.length - 1][1])}px 를 찍었어요 — 바꿔 넣기를 눌러 주세요</span>`);
+      if (!patch && n && st.tail) parts.push(`${fmt(st.tail[0])}px 아래가 남았어요`);
+      if (!patch && n && !st.tail && !gaps.length) parts.push('<span class="ok">끝까지 찍었어요 — 완성을 눌러 주세요</span>');
+      if (!n) parts.push(T.start);
       $('status').innerHTML = parts.join('<br>');
       // 덮은 범위 막대
       const H = Math.max(1, st.at ? st.at.height : 1);
@@ -132,7 +143,7 @@ function inPageFloatingUi() {
         if (name === 'shot') { const f = $('flash'); f.style.opacity = '.8'; setTimeout(() => { f.style.opacity = '0'; }, 120); }
         const st = await window.__capAction(name);
         render(st);
-        if (name === 'done' && st && st.ok) { $('status').innerHTML = '<span class="ok">이어 붙였어요. 앱으로 돌아가세요 — 이 창은 곧 닫힙니다.</span>'; }
+        if (name === 'done' && st && st.ok) { $('status').innerHTML = `<span class="ok">${patch ? '원래 그림에 바꿔 넣는 중이에요' : '이어 붙였어요'}. 앱으로 돌아가세요 — 이 창은 곧 닫힙니다.</span>`; }
       } catch (e) { $('status').innerHTML = `<span class="warn">${(e && e.message) || e}</span>`; }
       finally { busy = false; $('shot').disabled = false; }
     };
@@ -216,7 +227,7 @@ async function applyMetrics(s, scaleView) {
   });
 }
 
-export async function startManual({ url, device, scale, channel, headless = false, onFinish }) {
+export async function startManual({ url, device, scale, channel, headless = false, onFinish, patch = false, scrollTo = 0 }) {
   const key = 'm' + (++seq) + '-' + Math.random().toString(36).slice(2, 8);
   // 데스크탑(1440·1920)은 노트북 화면보다 넓다. 그 폭의 창을 띄우면 맥이 화면에 맞춰 줄이면서
   // 페이지도 버튼도 아주 작아졌다. 창은 화면을 꽉 채워 열고, 페이지는 고른 폭 그대로 그리되
@@ -232,7 +243,7 @@ export async function startManual({ url, device, scale, channel, headless = fals
   if (fitMode) { opts.viewport = null; delete opts.deviceScaleFactor; delete opts.isMobile; delete opts.hasTouch; }
   const ctx = await browser.newContext(opts);
   const page = await ctx.newPage();
-  const s = { key, url, device, scale, browser, ctx, page, shots: [], pinned: null, closed: false, onFinish, finishing: false, fitMode, fit: 1 };
+  const s = { key, url, device, scale, browser, ctx, page, shots: [], pinned: null, closed: false, onFinish, finishing: false, fitMode, fit: 1, patch: Boolean(patch) };
   if (fitMode) {
     s.cdp = await ctx.newCDPSession(page);
     await fitView(s, headless ? { w: Math.round(device.width * 0.75), h: Math.round(device.height * 0.75) } : null);
@@ -261,8 +272,13 @@ export async function startManual({ url, device, scale, channel, headless = fals
       return { ok: false, error: '없는 동작' };
     } catch (e) { return { ok: false, error: e.message.split('\n')[0] }; }
   });
-  await page.addInitScript(inPageFloatingUi);
+  await page.addInitScript(inPageFloatingUi, { patch: s.patch });
   try { await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 }); } catch { /* 늦어도 창은 떠 있다 */ }
+  // 부분 다시 찍기는 고칠 곳 근처에서 연다 (카드에서 고른 자리)
+  if (s.patch && scrollTo > 0) {
+    await page.waitForLoadState('load', { timeout: 8000 }).catch(() => {});
+    await page.evaluate(inPageScrollBy, { y: scrollTo }).catch(() => {});
+  }
   return { key, width: device.width, height: device.height };
 }
 
@@ -286,7 +302,9 @@ export async function shotManual(key) {
   // 첫 장: 자동 캡처와 같은 첫 화면 정리(헤더 1개 유지, 플로팅 숨김, 스티키는 제자리에).
   // 둘째 장부터: 고정·스티키 전부 + 스크롤해도 같은 자리에 남는 것을 숨긴다. 숨긴 채로 둔다 —
   // 헤더는 첫 장에 이미 찍혔으니 창에서도 안 보이는 편이 "이미 찍혔다"를 말해 준다.
-  if (!s.shots.length) {
+  // 부분 다시 찍기는 맨 위에서 찍을 때만 헤더를 남긴다 — 중간에서 찍은 화면에 헤더가 끼면 원래 그림과 안 맞는다
+  const top0 = s.patch && !s.shots.length ? (await s.page.evaluate(inPageWhere)).y <= 2 : true;
+  if (!s.shots.length && top0) {
     await s.page.evaluate(inPageTameFixed, vw).catch(() => {});
     s.pinned = await s.page.evaluate(inPageHidePinned, null).catch(() => null);
   } else {
@@ -347,20 +365,26 @@ export async function undoManual(key) {
   return stateManual(key);
 }
 
-/** 찍은 조각을 위치대로 이어 붙여 PNG 들(길면 여러 장)을 돌려주고 창을 닫는다. */
+/**
+ * 찍은 조각을 위치대로 이어 붙여 PNG 들(길면 여러 장)을 돌려주고 창을 닫는다.
+ * 부분 다시 찍기면 찍은 구간만 한 장으로: { patch: PNG, y: 구간 시작(CSS px), height }
+ */
 export async function finishManual(key) {
   const s = get(key);
   if (!s.shots.length) throw new Error('찍은 화면이 없습니다');
   const at = await s.page.evaluate(inPageWhere).catch(() => ({ height: 0 }));
-  const cov = coverage(s.shots, at.height);
-  const shots = [...s.shots].sort((a, b) => a.y - b.y).map((x) => ({ ...x, crop: 0 }));
+  const top = s.patch ? Math.min(...s.shots.map((x) => x.y)) : 0;
+  const cov = coverage(s.shots.map((x) => ({ ...x, y: x.y - top })), at.height ? at.height - top : 0);
+  if (s.patch && cov.gaps.length) throw new Error('찍은 화면 사이에 빈틈이 있어요 — 이어지게 한 장 더 찍어 주세요');
+  const shots = [...s.shots].sort((a, b) => a.y - b.y).map((x) => ({ ...x, y: x.y - top, crop: 0 }));
   const height = cov.bottom;
-  const notes = [`크롬 창에서 ${shots.length}장 찍어 위치대로 이어 붙였습니다`];
+  const notes = s.patch ? [`${Math.round(top).toLocaleString('en-US')}~${Math.round(top + height).toLocaleString('en-US')}px 를 크롬 창에서 ${shots.length}장 다시 찍었습니다`]
+    : [`크롬 창에서 ${shots.length}장 찍어 위치대로 이어 붙였습니다`];
   const stitchPage = await (await s.browser.newContext({ viewport: { width: 200, height: 200 } })).newPage();
   let slices;
   try {
     // 마지막 안전망: 둘째 장부터 위쪽에 똑같은 띠(헤더)가 남아 있으면 그림을 보고 잘라낸다
-    if (shots.length >= 3) {
+    if (shots.length >= 3 && !s.patch) {
       const px = await repeatedTopBand(stitchPage, shots.slice(1).map((x) => x.buf), Math.round(320 * s.scale), 0).catch(() => 0);
       const band = Math.ceil(px / s.scale);
       // 헤더라 할 만큼 두껍고(40px+), 앞 장이 그 자리를 덮고 있을 때만 잘라낸다 — 아니면 흰 줄이 남는다
@@ -379,6 +403,7 @@ export async function finishManual(key) {
   } finally {
     await closeManual(key);
   }
+  if (s.patch) return { patch: slices.length === 1 ? slices[0] : mergePngsVertically(slices), y: top, height, notes };
   if (cov.gaps.length) notes.push(`빈틈 ${cov.gaps.map(([a, b]) => `${a.toLocaleString('en-US')}~${b.toLocaleString('en-US')}px`).join(', ')} 은 안 찍혀 비어 있습니다`);
   if (cov.tail) notes.push(`맨 아래 ${cov.tail[0].toLocaleString('en-US')}px 아래는 안 찍었습니다`);
   return { slices, notes, height };

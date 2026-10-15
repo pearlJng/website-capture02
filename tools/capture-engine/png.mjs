@@ -239,3 +239,100 @@ export function cutRows(slices, gaps, scale = 1) {
   }
   return out;
 }
+
+/* ───────────── 부분 다시 찍기: 조각을 원래 그림의 제자리에 바꿔 넣기 ───────────── */
+
+const toBpp = (img, bpp) => {
+  if (img.bpp === bpp) return img;
+  const n = img.width * img.height, rows = Buffer.alloc(n * bpp);
+  for (let p = 0; p < n; p++) {
+    rows[p * bpp] = img.rows[p * img.bpp]; rows[p * bpp + 1] = img.rows[p * img.bpp + 1]; rows[p * bpp + 2] = img.rows[p * img.bpp + 2];
+    if (bpp === 4) rows[p * 4 + 3] = 255;
+  }
+  return { ...img, bpp, rows };
+};
+
+/** from~to 줄 안에서 내용이 가장 많은 K 줄 토막의 시작. 밋밋하면 -1 (어디에나 맞아 기준이 못 된다) */
+function richBand(img, from, to, K) {
+  const stride = img.width * img.bpp;
+  let best = -1, bestVar = -1;
+  for (let s = Math.max(0, from); s + K <= Math.min(to, img.height); s += 4) {
+    let v = 0;
+    for (let y = 0; y < K; y += 4) v += rowVariance(img.rows, (s + y) * stride, stride, img.bpp);
+    if (v > bestVar) { bestVar = v; best = s; }
+  }
+  return bestVar > 4 * (K / 4) ? best : -1;
+}
+
+/** 조각의 s 줄부터 K 줄과 똑같은 곳을 원래 그림에서 찾는다. 비슷하게 맞는 곳이 여럿이면 expect 에 가까운 곳 */
+function findBand(orig, patch, s, K, expect) {
+  const stride = orig.width * orig.bpp;
+  const cands = [];
+  for (let o = 0; o + K <= orig.height; o++) {
+    if (rowDiff(patch.rows, s * stride, orig.rows, o * stride, stride, orig.bpp) > 6) continue;
+    let err = 0;
+    for (let y = 0; y < K; y += 2) err += rowDiff(patch.rows, (s + y) * stride, orig.rows, (o + y) * stride, stride, orig.bpp);
+    err /= K / 2;
+    if (err <= 4) cands.push({ o, err });
+  }
+  if (!cands.length) return -1;
+  const min = Math.min(...cands.map((c) => c.err));
+  return cands.filter((c) => c.err <= min + 1).sort((a, b) => Math.abs(a.o - expect) - Math.abs(b.o - expect))[0].o;
+}
+
+/**
+ * 원래 그림(여러 장일 수 있다)의 한 구간을 새로 찍은 조각으로 바꾼다.
+ *
+ * 조각의 위쪽 토막과 아래쪽 토막을 원래 그림에서 찾아 그 사이를 바꿔 넣는다 — 고칠 곳(빈 이미지 등)은
+ * 보통 가운데에 있고, 위아래 가장자리는 원래 그림과 같기 때문이다. 원래 그림에서 그 구간 높이가
+ * 달랐어도(덜 펼쳐진 효과·빈 칸) 위아래가 맞으면 그 사이를 통째로 바꾼다.
+ * 한쪽만 찾으면 그쪽에 맞춰 조각 높이만큼, 둘 다 못 찾으면 찍은 자리(guessY, 그림 px)에 넣는다.
+ *
+ * @returns {{ slices: Buffer[], top: number, bottom: number, how: 'both'|'top'|'bottom'|'guess', height: number }}
+ */
+export function splicePatch(slices, patchBuf, { guessY = 0, maxHeight = Infinity } = {}) {
+  const parts = slices.map(decodePng);
+  const width = parts[0].width;
+  if (parts.some((p) => p.width !== width)) throw new Error('원래 그림들의 폭이 서로 달라요');
+  const bpp = Math.max(...parts.map((p) => p.bpp));
+  let patch = decodePng(patchBuf);
+  if (patch.width !== width) throw new Error(`새로 찍은 화면(${patch.width}px)과 원래 그림(${width}px)의 폭이 달라요 — 직접 찍기로 전체를 다시 찍어 주세요`);
+  patch = toBpp(patch, bpp);
+  const stride = width * bpp;
+  const H = parts.reduce((n, p) => n + p.height, 0);
+  const all = Buffer.alloc(stride * H);
+  let off = 0;
+  for (const p of parts) { toBpp(p, bpp).rows.copy(all, off); off += p.height * stride; }
+  const orig = { width, height: H, bpp, rows: all };
+
+  const h = patch.height, K = Math.min(64, Math.floor(h / 4));
+  const edge = Math.max(K, Math.min(600, Math.floor(h * 0.3)));
+  let top = -1, bottom = -1;
+  if (K >= 16) {
+    const sT = richBand(patch, 0, edge, K);
+    if (sT >= 0) { const o = findBand(orig, patch, sT, K, guessY + sT); if (o >= 0) top = o - sT; }
+    const sB = richBand(patch, h - edge, h, K);
+    if (sB >= 0 && sB > sT) { const o = findBand(orig, patch, sB, K, guessY + sB); if (o >= 0) bottom = o + (h - sB); }
+  }
+  let a, b, how;
+  if (top >= 0 && bottom > top && bottom - top >= h * 0.3 && bottom - top <= h * 3) { a = top; b = bottom; how = 'both'; }
+  else if (top >= 0) { a = top; b = top + h; how = 'top'; }
+  else if (bottom >= 0) { a = bottom - h; b = bottom; how = 'bottom'; }
+  else { a = guessY; b = guessY + h; how = 'guess'; }
+  a = Math.max(0, Math.min(H, a)); b = Math.max(a, Math.min(H, b));
+
+  const outH = a + h + (H - b);
+  const rows = Buffer.alloc(stride * outH);
+  all.copy(rows, 0, 0, a * stride);
+  patch.rows.copy(rows, a * stride);
+  all.copy(rows, (a + h) * stride, b * stride, H * stride);
+  // 원래처럼 나눠 담는다 (한 장이 너무 길면 보기도 붙이기도 버겁다)
+  const cap = Math.max(1, Math.min(Number.isFinite(maxHeight) ? maxHeight : outH, outH));
+  const n = Math.ceil(outH / cap), each = Math.ceil(outH / n);
+  const out = [];
+  for (let y = 0; y < outH; y += each) {
+    const hh = Math.min(each, outH - y);
+    out.push(encodePng({ width, height: hh, bpp, rows: rows.subarray(y * stride, (y + hh) * stride) }));
+  }
+  return { slices: out, top: a, bottom: b, how, height: outH };
+}

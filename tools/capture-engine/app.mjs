@@ -17,13 +17,13 @@ import { readFileSync, existsSync, mkdirSync, statSync, createReadStream } from 
 import { dirname, join, resolve, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn, execFileSync } from 'node:child_process';
-import { DEVICES, contextOptionsFor } from './capture.mjs';
+import { DEVICES, contextOptionsFor, SAFE_PIXELS } from './capture.mjs';
 import { createBrowserHost, pickBrowser } from './browser.mjs';
 import { extractSitemap, renderTree } from './sitemap.mjs';
 import { shootAll, writeOutputs } from './shoot.mjs';
 import { writeFileSync, copyFileSync, readFileSync as readBytes } from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
-import { mergePngsVertically, stitchUserShots } from './png.mjs';
+import { mergePngsVertically, stitchUserShots, splicePatch } from './png.mjs';
 import { startManual, stateManual, scrollManual, shotManual, undoManual, finishManual, closeManual, closeAllManual, pressManual } from './manual.mjs';
 import AdmZip from 'adm-zip';
 import { sendFeedback, setupFeedback, feedbackStatus, flushOutbox, FEEDBACK_DB_URL, FEEDBACK_FORM_URL } from './feedback.mjs';
@@ -362,6 +362,49 @@ function applyManualResult(job, row, r) {
   return { files, notes: r.notes };
 }
 
+/**
+ * 부분 다시 찍기를 할 수 있는 그림인가. 원래 그림이 PNG 이고 고른 폭으로 찍혀 있어야
+ * 새로 찍은 화면을 제자리에 끼울 수 있다. 안 되면 사람 말로 이유를 준다.
+ */
+function patchProblem(job, row) {
+  const files = row.files || [];
+  if (!files.length) return '아직 찍힌 그림이 없어요 — 직접 찍기로 전체를 찍어 주세요';
+  if (files.some((f) => !/\.png$/i.test(f))) return '올린 JPG 그림에는 부분만 바꿔 넣을 수 없어요 — 직접 찍기로 전체를 다시 찍어 주세요';
+  const scale = (job.meta && job.meta.scale) || 1;
+  try {
+    const head = readBytes(join(job.outDir, files[0])).subarray(0, 24);
+    const w = head.readUInt32BE(16);
+    if (job.width && w !== Math.round(job.width * scale)) return `원래 그림의 폭(${w}px)이 찍는 창(${Math.round(job.width * scale)}px)과 달라요 — 직접 올린 그림이면 직접 찍기로 전체를 다시 찍어 주세요`;
+  } catch { return '원래 그림을 읽지 못했어요'; }
+  return null;
+}
+
+/** 부분 다시 찍기 결과를 원래 그림의 제자리에 끼워 넣는다 (창 안의 "바꿔 넣기"와 HTTP 둘 다 여기로) */
+function applyPatchResult(job, row, r) {
+  const scale = (job.meta && job.meta.scale) || 1;
+  const problem = patchProblem(job, row);
+  if (problem) throw new Error(problem);
+  const out = splicePatch(row.files.map((f) => readBytes(join(job.outDir, f))), r.patch, {
+    guessY: Math.round(r.y * scale), maxHeight: Math.round(SAFE_PIXELS * scale),
+  });
+  row.manual = (row.manual || 0) + 1;
+  const base = (row.name || 'page').replace(/ \((다시|직접|부분) \d+\)$/, '');
+  const files = out.slices.map((buf, i) => {
+    const f = out.slices.length === 1 ? `${base} (부분 ${row.manual}).png` : `${base} (부분 ${row.manual}) (${i + 1}).png`;
+    writeFileSync(join(job.outDir, f), buf);
+    return f;
+  });
+  const px = (v) => Math.round(v / scale).toLocaleString('en-US');
+  const where = out.how === 'both' ? '위아래가 맞는 자리를 찾아' : out.how === 'guess' ? '맞는 자리를 그림으로 못 찾아 찍은 위치에' : '한쪽 끝이 맞는 자리를 찾아';
+  const note = `${px(out.top)}~${px(out.bottom)}px 구간을 다시 찍은 화면으로 바꿨습니다 — ${where} 넣었어요${out.how === 'guess' ? '. 크게 보고 확인해 주세요' : ''}`;
+  row.previous = [...(row.previous || []), ...(row.files || [])];
+  Object.assign(row, { files, status: '직접 찍음', error: '', diffFile: '', pieceFiles: [], docHeight: Math.round(out.height / scale),
+    notes: [...(r.notes || []), note], manualNote: note, manualKey: null });
+  job.log.push(`  ✎ ${row.path || row.name} 부분 다시 찍음 — ${note}`);
+  try { writeOutputs(job.rows, { ...job.meta, when: new Date().toLocaleString('ko-KR') }, job.outDir); } catch { /* 무시 */ }
+  return { files, notes: row.notes, how: out.how };
+}
+
 /* ───────────── HTTP ───────────── */
 
 const readBody = (req) => new Promise((res, rej) => {
@@ -549,10 +592,22 @@ const server = createServer(async (req, res) => {
         if (!row) return json(res, 404, { ok: false, error: '그 페이지의 결과가 없습니다' });
         await ensureBrowser();
         const device = DEVICES[job.width] || DEVICES[1920];
+        const patch = Boolean(body.patch);
+        if (patch) { const why = patchProblem(job, row); if (why) return json(res, 200, { ok: false, error: why }); }
         try {
           const r = await startManual({
             url: row.url, device, scale: device.scale, channel: pick && pick.channel, headless: process.env.CAP_MANUAL_HEADLESS === '1',
-            onFinish: (result) => applyManualResult(job, row, result),   // 창 안의 "완성" 버튼이 여기로 온다
+            patch, scrollTo: Number(body.scrollTo) || 0,
+            // 창 안의 "완성"·"바꿔 넣기" 버튼이 여기로 온다
+            onFinish: (result) => {
+              if (!result.patch) return applyManualResult(job, row, result);
+              // 창은 이미 닫혔다 — 못 끼우면 카드에 이유를 남긴다
+              try { return applyPatchResult(job, row, result); } catch (e) {
+                row.manualNote = `부분 바꿔 넣기를 못 했어요: ${e.message.split('\n')[0]}`;
+                job.log.push(`  ✗ ${row.path || row.name} ${row.manualNote}`);
+                throw e;
+              }
+            },
           });
           return json(res, 200, { ok: true, ...r });
         } catch (e) { return json(res, 500, { ok: false, error: `크롬 창을 못 띄웠습니다: ${e.message.split('\n')[0]}` }); }
@@ -570,7 +625,7 @@ const server = createServer(async (req, res) => {
           const row = job.rows.find((r) => normUrl(r.url) === normUrl(body.url || ''));
           if (!row) return json(res, 404, { ok: false, error: '그 페이지의 결과가 없습니다' });
           const r = await finishManual(body.key);
-          return json(res, 200, { ok: true, ...applyManualResult(job, row, r) });
+          return json(res, 200, { ok: true, ...(r.patch ? applyPatchResult(job, row, r) : applyManualResult(job, row, r)) });
         }
         return json(res, 404, { ok: false, error: '없는 동작' });
       } catch (e) { return json(res, 200, { ok: false, error: e.message.split('\n')[0] }); }

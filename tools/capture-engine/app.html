@@ -176,8 +176,8 @@
   .card .u { color: var(--faint); font-size: 12px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .card .why { font-size: 12px; color: var(--mute); margin-top: 6px; line-height: 1.45; }
   .card .why.warn { color: var(--warn); } .card .why.bad { color: var(--bad); }
-  .card .acts { display: flex; gap: 6px; padding: 8px 10px 10px; border-top: 1px solid var(--line2); }
-  .card .act { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 12.5px; padding: 7px 8px; border-radius: 8px; color: var(--ink2); }
+  .card .acts { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 10px 10px; border-top: 1px solid var(--line2); }
+  .card .act { flex: 1 1 auto; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 12.5px; padding: 7px 8px; border-radius: 8px; color: var(--ink2); }
   .card .act svg { width: 15px; height: 15px; }
   .card .man { padding: 0 12px 12px; font-size: 12px; color: var(--mute); }
   .card .man .r { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
@@ -717,11 +717,12 @@
       </div>
       <div class="acts">
         <button class="act go" title="이 페이지를 크롬 창에 열고, 화면을 하나씩 찍어 이어 붙입니다"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3.5"/></svg>직접 찍기</button>
+        ${file && (row.files || []).every((f) => /\.png$/i.test(f)) ? `<button class="act part" title="잘못 찍힌 곳 근처만 크롬 창에서 다시 찍어, 원래 그림의 같은 자리에 바꿔 넣습니다"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8V5a2 2 0 0 1 2-2h3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/><rect x="8" y="8" width="8" height="8" rx="1.5"/></svg>부분 다시 찍기</button>` : ''}
         <button class="act up" title="직접 찍은 그림으로 바꿉니다 — 여러 장을 고르면 순서대로 이어 붙입니다"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4"/><polyline points="6 10 12 4 18 10"/><path d="M4 20h16"/></svg>그림 바꾸기</button>
         <input type="file" class="upf" accept="image/png,image/jpeg" multiple hidden>
       </div>
       <div class="man" hidden>
-        <div class="mhint">크롬 창이 열렸어요. <b>그 창 위 가운데의 버튼</b>으로 화면을 하나씩 찍고, 다 찍으면 <b>완성</b>을 누르세요. 결과는 이 카드로 돌아옵니다.</div>
+        <div class="mhint"></div>
         <div class="r"><button class="mc sm">창 닫기</button><span class="mute mlist"></span></div>
       </div>`;
     // 자동 캡처가 못 잡는 페이지는 사람이 크롬에서 전체 페이지를 찍어 올린다 (PNG·JPG).
@@ -764,22 +765,31 @@
     let key = null, watch = null;
     const call = async (action, extra) => api(`/api/manual/${action}`, { key, id, url: row.url, ...(extra || {}) });
     const stopWatch = () => { if (watch) { clearInterval(watch); watch = null; } };
-    q('.go').onclick = async () => {
+    const HINT = {
+      full: '크롬 창이 열렸어요. <b>그 창 위 가운데의 버튼</b>으로 화면을 하나씩 찍고, 다 찍으면 <b>완성</b>을 누르세요. 결과는 이 카드로 돌아옵니다.',
+      part: '크롬 창이 열렸어요. <b>잘못 찍힌 곳으로 스크롤</b>해 화면을 만든 뒤 <b>이 화면 찍기</b>, 그리고 <b>바꿔 넣기</b>를 누르세요. 나머지는 그대로 두고 그 부분만 바뀝니다.',
+    };
+    let patchMode = false;
+    const startMan = async (patch) => {
       if (key) { man.hidden = false; return; }
-      const r = await api('/api/manual/start', { id, url: row.url });
+      const r = await api('/api/manual/start', { id, url: row.url, patch });
       if (!r.ok) {
         if (r.local === false) { window.open(row.url, '_blank', 'noopener'); return; }
         alert(r.error); return;
       }
-      key = r.key; man.hidden = false; q('.mlist').textContent = `${r.width}px 폭 창에서 찍는 중`;
+      patchMode = patch;
+      q('.mhint').innerHTML = patch ? HINT.part : HINT.full;
+      key = r.key; man.hidden = false; q('.mlist').textContent = `${r.width}px 폭 창에서 ${patch ? '부분 다시 찍는' : '찍는'} 중`;
       // 창이 닫히거나 완성되면 카드 상태를 정리한다
       stopWatch();
       watch = setInterval(async () => {
         const st = await call('state');
         if (!st.ok) { stopWatch(); man.hidden = true; key = null; card.dataset.stamp = ''; poll(id); return; }
-        q('.mlist').textContent = `${st.shots.length}장 찍음` + (st.tail ? ` · ${Number(st.tail[0]).toLocaleString('en-US')}px 아래 남음` : st.shots.length ? ' · 끝까지 찍음' : '');
+        q('.mlist').textContent = `${st.shots.length}장 찍음` + (patchMode ? '' : st.tail ? ` · ${Number(st.tail[0]).toLocaleString('en-US')}px 아래 남음` : st.shots.length ? ' · 끝까지 찍음' : '');
       }, 1500);
     };
+    q('.go').onclick = () => startMan(false);
+    if (q('.part')) q('.part').onclick = () => startMan(true);
     q('.mc').onclick = async () => { stopWatch(); await call('cancel'); man.hidden = true; key = null; };
   }
 
@@ -843,7 +853,7 @@
     for (const row of j.rows) {
       const card = document.querySelector(`.card[data-url="${CSS.escape(norm(row.url))}"]`);
       if (!card) continue;
-      const stamp = `${row.status}|${(row.files || []).join(',')}|${row.retakes || 0}|${row.manual || 0}`;
+      const stamp = `${row.status}|${(row.files || []).join(',')}|${row.retakes || 0}|${row.manual || 0}|${row.manualNote || ''}`;
       if (card.dataset.stamp === stamp) continue;
       card.dataset.stamp = stamp;
       card.classList.remove('pending');

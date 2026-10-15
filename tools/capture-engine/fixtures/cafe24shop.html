@@ -1,0 +1,39 @@
+<!doctype html><meta charset=utf-8><title>카페24 쇼핑몰 — 첫 화면에 늦게 뜨는 상품 목록</title>
+<style>
+body{margin:0;font:16px/1.6 system-ui}
+#header{display:flex;align-items:center;gap:40px;padding:16px 24px;border-bottom:1px solid #ddd}
+.gnb ul{list-style:none;margin:0;padding:0;display:flex;gap:24px}
+.gnb li{position:relative}
+.gnb .sub{display:none;position:absolute;left:0;top:100%;background:#fff;padding:8px;min-width:200px}
+.gnb li:hover > .sub{display:block}
+section{height:1200px}
+.prdList{list-style:none;margin:0;padding:0;display:flex;gap:24px}
+.prdList .thumb{display:block;width:200px;height:200px;background:#cbd}
+.displaynone{display:none}
+</style>
+<header id="header" class="xans-element- xans-layout xans-layout-header">
+  <a href="/index.html">SHOPPY</a>
+  <nav class="gnb xans-element- xans-layout xans-layout-category">
+    <ul>
+      <li><a href="/product/list.html?cate_no=24">BEST</a>
+        <!-- 메뉴 안의 추천 상품 — 상세 예시로 고르면 안 된다 -->
+        <div class="sub"><a href="/product/detail.html?product_no=99">메뉴 속 추천 상품</a></div></li>
+      <li><a href="/product/list.html?cate_no=25">NEW</a></li>
+      <li><a href="/board/free/list.html?board_no=1">Q&amp;A</a></li>
+    </ul>
+  </nav>
+</header>
+<main>
+  <section><h1>히어로</h1></section>
+  <!-- 스크롤해서 닿아야 그려지는 상품 목록 (카페24 메인의 지연 로딩 진열) -->
+  <section id="best"><h2>BEST ITEM</h2><ul class="prdList"></ul></section>
+</main>
+<script>
+const box = document.querySelector('#best .prdList');
+new IntersectionObserver((es, io) => {
+  if (!es.some((e) => e.isIntersecting)) return;
+  io.disconnect();
+  box.innerHTML = '<li class="xans-record-"><a class="thumb" href="/product/detail.html?cate_no=24&product_no=7"></a>' +
+    '<div class="name"><a href="/product/detail.html?cate_no=24&product_no=7"><span class="title displaynone">상품명 :</span> 울 니트 가디건</a></div></li>';
+}).observe(document.querySelector('#best'));
+</script>

@@ -16,7 +16,7 @@ import { captureSite, VIEWPORT, SAFE_PIXELS, DEVICES, contextOptionsFor } from '
 import { compareCaptures, renderDiffStrip, VERDICT } from './diff.mjs';
 import { createBrowserHost, isBrowserDeath } from './browser.mjs';
 import { extractSitemap } from './sitemap.mjs';
-import { mergePngsVertically, decodePng, stitchUserShots, cutRows, encodePng } from './png.mjs';
+import { mergePngsVertically, decodePng, stitchUserShots, cutRows, encodePng, splicePatch } from './png.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PORT = 8825;
@@ -666,6 +666,50 @@ const CASES = [
     },
   },
   {
+    // 부분 다시 찍기: 원래 그림의 한 구간이 비었거나(그림이 안 떴다) 아예 접혀 있어도(효과가 안 펼쳐졌다)
+    // 그 근처를 새로 찍은 화면 한 장의 위아래를 원래 그림에서 찾아 그 사이를 바꿔 넣는다.
+    // 원래 그림이 두 장으로 나뉘어 있고, 고칠 곳이 장 경계에 걸쳐도 된다.
+    name: '부분 다시 찍기: 새로 찍은 화면을 원래 그림의 제자리에 바꿔 넣는다 (빈 칸·접힌 구간·장 경계)',
+    unit: async ({ host }) => {
+      const b = await host.get();
+      const ctx = await b.newContext({ viewport: { width: 1000, height: 900 } });
+      const pg = await ctx.newPage();
+      await pg.goto(BASE + 'userstitch.html'); await pg.waitForTimeout(300);
+      // 700~1600 을 다시 찍은 것. 직접 찍기 창처럼 고정 헤더는 숨기고 찍는다
+      await pg.evaluate(() => { scrollTo(0, 700); document.querySelector('header').style.visibility = 'hidden'; }); await pg.waitForTimeout(150);
+      const shot = await pg.screenshot();
+      await pg.evaluate(() => { scrollTo(0, 0); document.querySelector('header').style.visibility = ''; }); await pg.waitForTimeout(150);
+      const ref = decodePng(await pg.screenshot({ fullPage: true }));
+      await ctx.close();
+      const stride = ref.width * ref.bpp;
+      const cut = (img, a, b) => ({ ...img, height: b - a, rows: img.rows.subarray(a * stride, b * stride) });
+      const cat = (...ims) => ({ ...ref, height: ims.reduce((n, i) => n + i.height, 0), rows: Buffer.concat(ims.map((i) => i.rows)) });
+      const same = (img) => {
+        if (img.height !== ref.height) return `높이 ${img.height}px (기대 ${ref.height})`;
+        let bad = 0; for (let y = 0; y < ref.height; y += 3) for (let x = 0; x < stride; x += 4 * ref.bpp) if (Math.abs(img.rows[y * stride + x] - ref.rows[y * stride + x]) > 8) { bad++; break; }
+        return bad > 3 ? `원래 페이지와 다른 줄 ${bad}개` : null;
+      };
+      const join = (r) => decodePng(mergePngsVertically(r.slices));
+      // 1) 1000~1300 이 하얗게 빈 그림 (그림이 안 떴다)
+      const blank = Buffer.from(ref.rows); blank.fill(255, 1000 * stride, 1300 * stride);
+      let r = splicePatch([encodePng({ ...ref, rows: blank })], shot, { guessY: 700 });
+      let e = same(join(r)); if (e) return `빈 칸: ${e} (${r.how} ${r.top}~${r.bottom})`;
+      // 2) 1000~1300 이 아예 접힌 그림 (300px 짧다) — 위아래를 찾아 사이를 통째로 바꾼다
+      const folded = cat(cut(ref, 0, 1000), cut(ref, 1300, ref.height));
+      r = splicePatch([encodePng(folded)], shot, { guessY: 700 });
+      e = same(join(r)); if (e) return `접힌 구간: ${e} (${r.how} ${r.top}~${r.bottom})`;
+      if (r.how !== 'both') return `접힌 구간을 위아래 둘 다로 못 맞췄다 (${r.how})`;
+      // 3) 두 장으로 나뉜 그림, 고칠 곳이 경계(1100)에 걸친다. 결과도 최대 높이로 다시 나눈다
+      const two = [encodePng(cut({ ...ref, rows: blank }, 0, 1100)), encodePng(cut({ ...ref, rows: blank }, 1100, ref.height))];
+      r = splicePatch(two, shot, { guessY: 650, maxHeight: 1500 });
+      if (r.slices.length < 2) return `나눠 담지 않았다 (${r.slices.length}장)`;
+      e = same(join(r)); if (e) return `장 경계: ${e} (${r.how} ${r.top}~${r.bottom})`;
+      // 4) 폭이 다른 조각은 받지 않는다
+      try { splicePatch([encodePng(ref)], encodePng({ width: 10, height: 10, bpp: 3, rows: Buffer.alloc(300) })); return '폭이 다른 조각을 받았다'; } catch { /* 기대 */ }
+      return null;
+    },
+  },
+  {
     // 오띠인터내셔널: imweb.me 주소로 들어갔는데 메뉴 링크는 연결한 도메인(en.ottieintl.com)으로
     // 적혀 있어 전부 "외부 링크"가 되고 하위 메뉴가 빠졌다. 그 도메인을 같은 사이트로 보고,
     // 주소는 들어온 쪽으로 바꿔 찍는다. 진짜 외부(인스타그램)는 여전히 외부다.
@@ -740,7 +784,26 @@ const CASES = [
       const std = (r.utility || []).find((x) => x.label === '카페24 기본 화면');
       if (!std) return '카페24 기본 화면(회원가입·주문조회…)을 채우지 않았다';
       const names = std.children.map((c) => c.label).join('|');
-      if (names !== '회원가입|주문조회|최근 본 상품|관심상품') return `카페24 기본 화면이 ${names}`;
+      if (names !== '회원가입|주문조회|최근 본 상품|관심상품|상품 상세 (린넨 셔츠)') return `카페24 기본 화면이 ${names}`;
+      // 상품 상세는 메뉴에 없다 — 첫 화면에 상품이 없으면 SHOP(상품 목록)을 열어 첫 상품을 고른다
+      const prod = std.children.find((c) => c.product);
+      if (!/\/product\/[^/]+\/12\//.test(prod.href)) return `상품 상세 주소가 ${prod.href}`;
+      return null;
+    },
+  },
+  {
+    // 카페24 메인의 진열 상품은 스크롤해서 닿아야 그려진다. 다 내려 본 뒤에 찾고,
+    // 메뉴(드롭다운) 속 추천 상품은 예시로 고르지 않는다.
+    name: '메뉴구조(카페24): 첫 화면에 늦게 뜬 상품으로 상품 상세 한 곳을 넣는다',
+    file: 'cafe24shop.html', sitemap: true,
+    check: (r) => {
+      if (!r.ok) return `실패: ${r.error}`;
+      const std = (r.utility || []).find((x) => x.label === '카페24 기본 화면');
+      const prod = std && std.children.find((c) => c.product);
+      if (!prod) return `상품 상세가 없다 (${std ? std.children.map((c) => c.label).join(', ') : '카페24 기본 화면 없음'})`;
+      if (prod.label !== '상품 상세 (울 니트 가디건)') return `이름이 ${prod.label}`;
+      if (!/product_no=7\b/.test(prod.href)) return `메뉴 속 상품이나 엉뚱한 곳을 골랐다: ${prod.href}`;
+      if (prod.kind !== '페이지') return `종류가 ${prod.kind}`;
       return null;
     },
   },
@@ -766,7 +829,9 @@ const CASES = [
       if (util.some((x) => x.label === 'LOGIN' || x.label === 'CART')) return `드롭다운 항목이 맨 위에도 따로 나왔다: ${desc}`;
       if (util.some((x) => x.label === '검색' && (x.children || []).length)) return `돋보기에 하위가 붙었다: ${desc}`;
       if (util.some((x) => (x.children || []).some((c) => c.label === 'SHOP'))) return `≡ 버튼 뒤의 메뉴를 아이콘 메뉴로 가져갔다: ${desc}`;
-      if (util.some((x) => x.label === '카페24 기본 화면')) return `드롭다운에 다 있는데 카페24 기본 화면을 또 붙였다: ${desc}`;
+      // 기본 화면은 드롭다운에 다 있다 — 카페24 기본 화면에는 메뉴에 없는 상품 상세만 남는다
+      const std = util.find((x) => x.label === '카페24 기본 화면');
+      if (std && std.children.some((c) => !c.product)) return `드롭다운에 다 있는데 카페24 기본 화면을 또 붙였다: ${desc}`;
       return null;
     },
   },
