@@ -428,6 +428,8 @@ function applySectionResult(job, row, r) {
     return f;
   });
   const delta = newH - oldH;
+  // 언어 검수 위치(위치 보기)도 바뀐 구간 아래는 그만큼 옮긴다
+  if (delta && row.lang && Array.isArray(row.lang.items)) row.lang.items = row.lang.items.map((it) => (it.y >= sec.bottom ? { ...it, y: it.y + delta } : it));
   row.sections = secs.map((x, i) => (i < r.index ? x : i === r.index ? { ...x, bottom: x.top + newH, redone: (x.redone || 0) + 1 } : { ...x, top: x.top + delta, bottom: x.bottom + delta }));
   const note = `${sec.n}번 구간(${sec.label})을 다시 찍어 바꿨습니다${delta ? ` — 높이 ${oldH.toLocaleString('en-US')}→${newH.toLocaleString('en-US')}px` : ''}${r.covered ? '' : ' (안 찍은 곳은 원래 그림)'}`;
   row.previous = [...(row.previous || []), ...(row.files || [])];
