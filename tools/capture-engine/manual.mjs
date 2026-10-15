@@ -13,11 +13,15 @@
  * 앱이 원래 그림에서 그 자리를 찾아 바꿔 넣는다(png.mjs splicePatch). 헤더는 맨 위에서 찍을 때만 남긴다.
  */
 import { chromium } from 'playwright';
+import { join } from 'node:path';
+import { homedir } from 'node:os';
+import { mkdirSync } from 'node:fs';
 import { stitchShots, repeatedTopBand } from './stitch.mjs';
 import { mergePngsVertically } from './png.mjs';
 import { SAFE_PIXELS, contextOptionsFor, inPageTameFixed, inPageHideAllFixed, inPageHidePinned } from './capture.mjs';
 
 const sessions = new Map();
+const PROFILE_DIR = process.env.CAP_MANUAL_PROFILE || join(homedir(), '.website-snapshot', 'chrome-window');
 let seq = 0;
 
 function inPageWhere() {
@@ -92,6 +96,8 @@ function inPageFloatingUi(opt) {
   .sub { display: flex; align-items: center; gap: 10px; margin-top: 7px; padding-right: 6px; }
   .status { flex: 1; font-size: 12px; line-height: 1.45; color: #c9c4d4; min-height: 17px; }
   .status .warn { color: #ffcc66; } .status .ok { color: #7fe0b0; }
+  .vid { display: none; margin-top: 6px; font-size: 12px; color: #ffcc66; }
+  .vid.on { display: block; }
   .bar { width: 140px; height: 4px; border-radius: 2px; background: rgba(255,255,255,.12); overflow: hidden; position: relative; flex: none; }
   .bar i { position: absolute; top: 0; height: 100%; background: #7fe0b0; }
   .bar i.gap { background: #ffcc66; }
@@ -110,6 +116,7 @@ function inPageFloatingUi(opt) {
     <button id="fold" class="fold" title="작게 접기 / 펼치기">–</button>
   </div>
   <div class="sub"><div class="status" id="status">${T.start}</div><div class="bar" id="bar"></div><div class="hint"><kbd>⇧</kbd>+<kbd>S</kbd> 찍기 · <kbd>⇧</kbd>+<kbd>N</kbd> 아래로</div></div>
+  <div class="vid" id="vid"></div>
 </div><div class="flash" id="flash"></div>`;
     document.documentElement.appendChild(host);
     const $ = (id) => sh.getElementById(id);
@@ -160,6 +167,27 @@ function inPageFloatingUi(opt) {
       if (e.code === 'KeyN') { e.preventDefault(); act('next'); }
     }, true);
     window.__capRender = render;
+    // 화면 안의 배경 영상이 아직 재생 전이면 알려 준다 — 영상 파일이 크면(50MB+) 받는 데 오래 걸린다.
+    // 모르고 찍으면 영상 자리가 비어 찍힌다.
+    let since = 0;
+    setInterval(() => {
+      const vh = window.innerHeight;
+      let wait = 0, bad = 0;
+      for (const v of document.querySelectorAll('video')) {
+        const r = v.getBoundingClientRect();
+        if (r.width < 80 || r.height < 60 || r.bottom < 0 || r.top > vh) continue;
+        if (!(v.autoplay || (v.muted && v.loop))) continue;
+        if (v.error) { bad++; continue; }
+        if (v.currentTime > 0 || v.ended) continue;
+        if (v.paused && v.readyState >= 2) v.play().catch(() => {});
+        wait++;
+      }
+      const el = $('vid');
+      if (wait) { since = since || Date.now(); el.textContent = `⏳ 배경 영상을 불러오는 중이에요 (${Math.round((Date.now() - since) / 1000)}초째) — 영상 파일이 크면 오래 걸려요. 영상이 나오면 찍어 주세요.`; }
+      else if (bad) { since = 0; el.textContent = '⚠ 이 화면의 배경 영상이 이 브라우저에서 재생되지 않아요 (파일 주소가 막혔거나 지원하지 않는 형식)'; }
+      else since = 0;
+      el.classList.toggle('on', Boolean(wait || bad));
+    }, 1000);
     if (window.__capAction) window.__capAction('state').then(render).catch(() => {});
   }
   if (document.documentElement) make();
@@ -235,15 +263,30 @@ export async function startManual({ url, device, scale, channel, headless = fals
   // 모바일(375)은 화면보다 작으니 그 크기의 창 그대로.
   const fitMode = !device.mobile;
   const win = { width: device.width, height: device.height + 120 };
-  const browser = await chromium.launch({
+  const launch = {
     headless, channel: channel || undefined,
     args: ['--disable-dev-shm-usage', fitMode && !headless ? '--start-maximized' : `--window-size=${win.width},${win.height}`],
-  });
+  };
   const opts = contextOptionsFor(device, scale);
   if (fitMode) { opts.viewport = null; delete opts.deviceScaleFactor; delete opts.isMobile; delete opts.hasTouch; }
-  const ctx = await browser.newContext(opts);
-  const page = await ctx.newPage();
-  const s = { key, url, device, scale, browser, ctx, page, shots: [], pinned: null, closed: false, onFinish, finishing: false, fitMode, fit: 1, patch: Boolean(patch) };
+  // 창은 늘 같은 프로필로 연다 — 받아 둔 파일(큰 배경 영상)이 남아 다음 번엔 바로 뜨고, 로그인도 남는다.
+  // 프로필은 한 창만 쓸 수 있다. 이미 열린 창이 있거나 못 열면 예전처럼 빈 프로필로.
+  let browser = null, ctx = null, page = null;
+  const busy = [...sessions.values()].some((x) => x.persistent && !x.closed);
+  if (!busy && !process.env.CAP_MANUAL_FRESH) {
+    try {
+      mkdirSync(PROFILE_DIR, { recursive: true });
+      ctx = await chromium.launchPersistentContext(PROFILE_DIR, { ...launch, ...opts });
+      page = ctx.pages()[0] || await ctx.newPage();
+    } catch { ctx = null; }
+  }
+  const persistent = Boolean(ctx);
+  if (!ctx) {
+    browser = await chromium.launch(launch);
+    ctx = await browser.newContext(opts);
+    page = await ctx.newPage();
+  }
+  const s = { key, url, device, scale, channel, browser, ctx, page, persistent, shots: [], pinned: null, closed: false, onFinish, finishing: false, fitMode, fit: 1, patch: Boolean(patch) };
   if (fitMode) {
     s.cdp = await ctx.newCDPSession(page);
     await fitView(s, headless ? { w: Math.round(device.width * 0.75), h: Math.round(device.height * 0.75) } : null);
@@ -252,7 +295,8 @@ export async function startManual({ url, device, scale, channel, headless = fals
   }
   sessions.set(key, s);
   page.on('close', () => { s.closed = true; });
-  browser.on('disconnected', () => { s.closed = true; });
+  if (browser) browser.on('disconnected', () => { s.closed = true; });
+  ctx.on('close', () => { s.closed = true; });
   // 창 안의 버튼이 부르는 통로. 페이지가 바뀌어도 살아 있다.
   await page.exposeBinding('__capAction', async (_src, name) => {
     try {
@@ -380,7 +424,9 @@ export async function finishManual(key) {
   const height = cov.bottom;
   const notes = s.patch ? [`${Math.round(top).toLocaleString('en-US')}~${Math.round(top + height).toLocaleString('en-US')}px 를 크롬 창에서 ${shots.length}장 다시 찍었습니다`]
     : [`크롬 창에서 ${shots.length}장 찍어 위치대로 이어 붙였습니다`];
-  const stitchPage = await (await s.browser.newContext({ viewport: { width: 200, height: 200 } })).newPage();
+  // 이어 붙이기는 사람 눈에 안 보이는 브라우저에서 (같은 프로필 창에 새 탭이 뜨지 않게)
+  const stitcher = s.browser || await chromium.launch({ headless: true, channel: s.channel || undefined }).catch(() => chromium.launch({ headless: true }));
+  const stitchPage = await (await stitcher.newContext({ viewport: { width: 200, height: 200 } })).newPage();
   let slices;
   try {
     // 마지막 안전망: 둘째 장부터 위쪽에 똑같은 띠(헤더)가 남아 있으면 그림을 보고 잘라낸다
@@ -401,6 +447,7 @@ export async function finishManual(key) {
       width: s.device.width, height, scale: s.scale, maxHeight: Math.floor(SAFE_PIXELS / s.scale), background: '#ffffff',
     });
   } finally {
+    if (stitcher !== s.browser) await stitcher.close().catch(() => {});
     await closeManual(key);
   }
   if (s.patch) return { patch: slices.length === 1 ? slices[0] : mergePngsVertically(slices), y: top, height, notes };
@@ -414,7 +461,8 @@ export async function closeManual(key) {
   if (!s) return;
   sessions.delete(key);
   if (s.fitTimer) clearInterval(s.fitTimer);
-  await s.browser.close().catch(() => {});
+  if (s.browser) await s.browser.close().catch(() => {});
+  else await s.ctx.close().catch(() => {});
 }
 
 export async function closeAllManual() {

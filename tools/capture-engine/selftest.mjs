@@ -443,6 +443,19 @@ const CASES = [
     },
   },
   {
+    // 글로쿼드텍 홈: 히어로 배경 영상이 50MB 넘는 MP4 라 캐시 없는 새 브라우저에서는 12초 안에 못 받아
+    // 영상 없이(덮개 색만) 찍혔다. 영상 파일을 아직 받는 중이면 더 기다린다.
+    name: '받는 데 오래 걸리는 큰 배경 영상도 받을 때까지 기다려 히어로에 장면이 찍힌다',
+    file: 'bigvideo.html', mode: 'stitch', steps: ['sticky', 'motion', 'anim'], color: 640, colorFrac: 0.9,
+    check: (r, cmp, shots, extra) => {
+      if (!extra || !extra.rows) return '색을 못 셌다';
+      if (extra.rows.top < 400) return `히어로에 영상 장면이 ${extra.rows.top}줄뿐이다 — 영상을 다 받기 전에 찍었다 (${(r.notes || []).join(' / ')})`;
+      const waited = (r.notes || []).find((n) => /재생을 시작할 때까지/.test(n));
+      if (!waited || !/파일이 큽니다/.test(waited)) return `큰 영상을 기다린 기록이 없다 (${(r.notes || []).join(' / ')})`;
+      return null;
+    },
+  },
+  {
     // 동인써모 홈: 아임웹 비주얼 섹션의 비메오 배경 영상은 문서 끝 스크립트가 조금 뒤에 만들고, 플레이어가 'play' 를
     // 알려야 영상 상자가 보인다. 그보다 먼저 재생을 막으면 'play' 가 안 와 히어로가 회색 빈 상자로 찍혔다.
     name: '늦게 뜨는 비메오 배경 영상도 재생이 시작된 뒤 멈춰 히어로에 장면이 찍힌다',
@@ -949,6 +962,7 @@ const MIME = { '.html': 'text/html; charset=utf-8', '.css': 'text/css', '.js': '
 let jitter = 0;
 
 function makeServer() {
+  const bigVideoSeen = new Set();
   return createServer(async (req, res) => {
     const name = decodeURIComponent(req.url.split('?')[0]).replace(/^\/+/, '') || 'index.html';
     if (name.includes('..')) { res.writeHead(400).end(); return; }
@@ -962,6 +976,14 @@ function makeServer() {
       }, 2500);
       return;
     }
+    // 아주 큰 배경 영상 흉내 — 페이지마다 첫 요청만 22초 걸린다 (기다리기 시작한 뒤 12초를 넘긴다)(글로쿼드텍 히어로는 50MB 넘는 MP4).
+    // 그 뒤 장면을 옮기며(seek) 다시 받는 요청은 바로 준다 — 받아 둔 것처럼. 일부 요청(Range)에도 답한다.
+    let name2 = name;
+    if (name === '느린영상.webm') {
+      const who = req.headers.referer || '';
+      name2 = 'fadein.webm';
+      if (!bigVideoSeen.has(who)) { bigVideoSeen.add(who); await new Promise((r) => setTimeout(r, 22000)); }
+    }
     if (name === '느린그림.svg') {
       setTimeout(() => {
         res.writeHead(200, { 'content-type': 'image/svg+xml' }).end(
@@ -971,7 +993,7 @@ function makeServer() {
       return;
     }
     try {
-      let body = await readFile(join(HERE, 'fixtures', name));
+      let body = await readFile(join(HERE, 'fixtures', name2));
       if (extname(name) === '.html') {
         body = body.toString('utf8')
           .replaceAll('__CROSS_ORIGIN__', CROSS)

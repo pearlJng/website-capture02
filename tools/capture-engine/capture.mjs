@@ -71,6 +71,9 @@ const SHOT_TIMEOUT = 60000;
 const SHOT_SETTLE_MS = 250;
 const PROBE_PX = 160;        // 둘째 조각부터, 목표 자리 조금 위에 먼저 서는 거리
 const VIDEO_START_WAIT_MS = 12000; // 첫 화면 배경 영상이 재생을 시작하기를 기다리는 최대 시간
+// 영상 파일을 아직 받고 있으면(networkState LOADING) 이만큼까지 더 기다린다 — 글로쿼드텍 히어로는
+// 50MB 넘는 MP4 라 새 브라우저(캐시 없음)에서는 12초 안에 못 받았다
+const VIDEO_LOADING_WAIT_MS = 45000;
 const REVEAL_GRACE_MS = 700; // 화면에 들어왔는데 아직 비어 있는 것이 스스로 나타나기를 기다리는 시간
 const PROBE_SETTLE_MS = 120; // 거기서 자리를 재기 전에 기다리는 시간
 const SHOT_SETTLE_FIRST_MS = 600;
@@ -909,10 +912,18 @@ async function inPageHoldVideos() {
       if (Math.abs(el.currentTime - t) > 0.05 || el.readyState < 2) {
         if (el.preload === 'none') el.preload = 'auto';
         waits.push(new Promise((r) => {
-          const on = () => { el.removeEventListener('seeked', on); el.removeEventListener('loadeddata', on2); r(); };
+          // 장면을 옮긴(seeked) 것만으론 모자라다 — 멈춘 영상은 그 장면이 화면에 그려지기 전에 찍히면 까맣게
+          // 나왔다(가끔, 5번에 1번꼴). 그 장면이 실제로 화면에 올라갈 때(requestVideoFrameCallback)까지 기다린다.
+          let done = false;
+          const fin = () => { if (!done) { done = true; r(); } };
+          const painted = () => {
+            if (el.requestVideoFrameCallback) { el.requestVideoFrameCallback(() => requestAnimationFrame(fin)); setTimeout(fin, 1500); }
+            else requestAnimationFrame(() => requestAnimationFrame(fin));
+          };
+          const on = () => { el.removeEventListener('seeked', on); el.removeEventListener('loadeddata', on2); painted(); };
           const on2 = () => { if (Math.abs(el.currentTime - t) <= 0.05 && el.readyState >= 2) on(); };
           el.addEventListener('seeked', on); el.addEventListener('loadeddata', on2);
-          setTimeout(on, 4000);
+          setTimeout(fin, 5000);
         }));
         el.currentTime = t; fixed++;
       }
@@ -1212,18 +1223,20 @@ async function neutralizeStuckFrames(page) {
 async function waitVideosStarted(page, maxMs) {
   const started = Date.now();
   const VIDEO_HOST = /vimeo\.com|youtube(-nocookie)?\.com|youtu\.be|wistia|jwplayer|kollus|vod|video|player/i;
-  let pending = 0, seen = 0;
+  let pending = 0, seen = 0, big = false;
   for (let round = 0; ; round++) {
     // 화면 위아래 한 화면 안의 후보를 표시한다
     const info = await page.evaluate((hostSrc) => {
       const HOST = new RegExp(hostSrc, 'i');
       const vh = window.innerHeight;
       const near = (el) => { const r = el.getBoundingClientRect(); return r.width >= 80 && r.height >= 60 && r.bottom > -vh * 0.25 && r.top < vh * 1.25; };
-      let wait = 0, ifr = 0;
+      let wait = 0, ifr = 0, loading = 0;
       for (const v of document.querySelectorAll('video')) {
         if (!near(v) || !(v.autoplay || (v.muted && v.loop))) continue;   // 배경 영상 꼴만
         if (v.currentTime > 0 || v.ended || v.error) continue;
         wait++;
+        if (v.networkState === 2) loading++;   // 아직 받는 중 — 큰 파일
+        if (v.paused && v.readyState >= 2) v.play().catch(() => {});
       }
       document.querySelectorAll('[data-cap-vwait]').forEach((f) => f.removeAttribute('data-cap-vwait'));
       for (const f of document.querySelectorAll('iframe')) {
@@ -1237,9 +1250,10 @@ async function waitVideosStarted(page, maxMs) {
       for (const s of document.querySelectorAll('[data-vimeo-id], [data-youtube-id], ._section_vg')) {
         if (near(s) && !s.querySelector('iframe, video')) wait++;
       }
-      return { wait, ifr };
-    }, VIDEO_HOST.source).catch(() => ({ wait: 0, ifr: 0 }));
+      return { wait, ifr, loading };
+    }, VIDEO_HOST.source).catch(() => ({ wait: 0, ifr: 0, loading: 0 }));
     pending = info.wait;
+    if (info.loading) big = true;
     if (info.ifr) {
       for (const h of await page.$$('iframe[data-cap-vwait]').catch(() => [])) {
         const fr = await h.contentFrame().catch(() => null);
@@ -1253,10 +1267,10 @@ async function waitVideosStarted(page, maxMs) {
       }
     }
     if (round === 0) seen = pending;
-    if (!pending || Date.now() - started > maxMs) break;
+    if (!pending || Date.now() - started > (big ? Math.max(maxMs, VIDEO_LOADING_WAIT_MS) : maxMs)) break;
     await page.waitForTimeout(400);
   }
-  return { seen, pending, ms: Date.now() - started };
+  return { seen, pending, ms: Date.now() - started, big };
 }
 
 async function holdVideosEverywhere(page) {
@@ -1455,8 +1469,8 @@ export async function captureSite(context, url, opts = {}) {
       const vw0 = await waitVideosStarted(page, VIDEO_START_WAIT_MS * slow).catch(() => null);
       if (vw0 && vw0.seen) {
         notes.push(vw0.pending
-          ? `배경 영상 ${vw0.pending}개가 ${Math.round(vw0.ms / 1000)}초 안에 재생을 시작하지 않았습니다 — 영상 자리가 비어 찍혔을 수 있어요`
-          : `늦게 뜨는 배경 영상이 재생을 시작할 때까지 ${(vw0.ms / 1000).toFixed(1)}초 기다렸습니다`);
+          ? `배경 영상 ${vw0.pending}개가 ${Math.round(vw0.ms / 1000)}초 안에 재생을 시작하지 않았습니다${vw0.big ? ' (영상 파일이 커서 아직 받는 중)' : ''} — 영상 자리가 비어 찍혔을 수 있어요`
+          : `늦게 뜨는 배경 영상이 재생을 시작할 때까지 ${(vw0.ms / 1000).toFixed(1)}초 기다렸습니다${vw0.big ? ' (영상 파일이 큽니다)' : ''}`);
         if (!vw0.pending) await page.waitForTimeout(800);   // 영상 상자가 나타나는 효과(페이드)가 끝나게
       }
       lap('영상 기다리기');
