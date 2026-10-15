@@ -894,59 +894,97 @@ const CAFE24_PAGES = [
  */
 const CAFE24_PRODUCT = /\/product\/detail\.html\?(?:[^#]*&)?product_no=\d+|\/product\/[^/?#]+\/\d+(?:\/|$)|\/surl\/p\/\d+/i;
 
-/** 화면에 보이는 첫 상품 상세 링크와 그 상품 이름 (헤더·메뉴 안의 것은 뺀다) */
-function inPageCafe24Product(src) {
+/** 화면에 보이는 상품 상세 링크들과 상품 이름 (헤더·메뉴 안의 것은 뺀다). 같은 상품은 한 번만. */
+function inPageCafe24Products([src, max]) {
   const re = new RegExp(src, 'i');
   const clean = (t) => String(t || '').replace(/\s+/g, ' ').trim();
+  const textOf = (el) => { const c = el.cloneNode(true); c.querySelectorAll('.displaynone, .title').forEach((x) => x.remove()); return clean(c.textContent); };
+  // 같은 상품이 사진·이름 두 링크로 나온다 — 상품 번호로 묶고, 분류 꼬리(/category/3/display/1/)는 뗀다
+  const keyOf = (u) => { const m = u.pathname.match(/\/product\/[^/]+\/(\d+)/i) || u.search.match(/product_no=(\d+)/i) || u.pathname.match(/\/surl\/p\/(\d+)/i); return m ? m[1] : u.href; };
+  const canon = (u) => {
+    const m = u.pathname.match(/^(.*?\/product\/[^/]+\/\d+\/)/i);
+    if (m) return u.origin + m[1];
+    if (/detail\.html/i.test(u.pathname)) return `${u.origin}${u.pathname}?product_no=${keyOf(u)}`;
+    u.hash = ''; return u.href;
+  };
+  const found = new Map();
   for (const a of document.querySelectorAll('a[href]')) {
     if (!re.test(a.href) || a.closest('header, nav, #header, .xans-layout-category')) continue;
     const r = a.getBoundingClientRect();
     if (r.width < 4 || r.height < 4) continue;
-    // 상품 이름: 사진의 alt → 링크 글자(숨긴 "상품명" 꼬리표 빼고) → 같은 상자의 .name
-    const img = a.querySelector('img[alt]');
-    let name = clean(img && img.alt);
-    if (!name) {
-      const c = a.cloneNode(true);
-      c.querySelectorAll('.displaynone, .title').forEach((x) => x.remove());
-      name = clean(c.textContent);
+    const u = new URL(a.href);
+    const key = keyOf(u);
+    const cur = found.get(key) || { href: canon(u), name: '' };
+    if (!cur.name) {
+      // 상품 이름: 사진의 alt → 링크 글자(숨긴 "상품명" 꼬리표 빼고) → 같은 상자의 .name
+      const img = a.querySelector('img[alt]');
+      let name = clean(img && img.alt) || textOf(a);
+      if (!name) {
+        const box = a.closest('li, .item, [class*="prd"]');
+        const n = box && box.querySelector('.name, .prdName, [class*="name"]');
+        if (n) name = textOf(n);
+      }
+      cur.name = name.replace(/^상품명\s*:?\s*/, '').replace(/^:\s*/, '').slice(0, 40);
     }
-    if (!name) {
-      const box = a.closest('li, .item, .prdList > *, [class*="prd"]');
-      const n = box && box.querySelector('.name, .prdName, [class*="name"]');
-      if (n) { const c = n.cloneNode(true); c.querySelectorAll('.displaynone, .title').forEach((x) => x.remove()); name = clean(c.textContent); }
-    }
-    const u = new URL(a.href); u.hash = '';
-    return { href: u.href, name: name.replace(/^상품명\s*:?\s*/, '').slice(0, 40) };
+    if (!found.has(key)) { if (found.size >= max) break; found.set(key, cur); }
   }
-  return null;
+  return [...found.values()];
 }
 
+const CAFE24_CATEGORY = /\/product\/list\.html|\/category\/[^/]+\/\d+/i;
+const MAX_CATEGORIES = 8;      // 분류가 많아도 여기까지만 연다 — 메뉴 읽기가 느려지지 않게
+const MAX_PRODUCTS = 20;       // 분류마다 보여 줄 상품 수
+
 /**
- * 카페24 상품 상세 한 곳을 "카페24 기본 화면"에 넣는다 — 상세는 상품마다 같은 틀이라 한 곳이면 된다.
- * 첫 화면에 상품이 없으면 메뉴의 첫 상품 목록(분류) 페이지를 따로 열어 찾는다.
+ * 카페24: 상품 상세는 메뉴에 없다. 메뉴의 상품 목록(분류) 페이지마다 들어가 상품들을 그 아래에
+ * 붙여 고를 수 있게 한다. 상세는 상품마다 같은 틀이라 첫 분류의 첫 상품만 기본으로 고른다.
+ * 하위 분류가 있는 분류는 건너뛴다(하위 분류에서 같은 상품이 또 나온다).
+ * 분류 페이지가 메뉴에 없으면 첫 화면의 첫 상품을 "카페24 기본 화면"에 넣는다.
  */
-async function addCafe24Product(context, page, home, origin) {
-  let prod = await page.evaluate(inPageCafe24Product, CAFE24_PRODUCT.source).catch(() => null);
-  if (!prod) {
-    const lists = [];
-    const walk = (items) => { for (const x of items || []) { if (x.kind === '페이지' && /\/product\/list\.html|\/category\//i.test(x.href)) lists.push(x.href); walk(x.children); } };
-    walk(home.menu);
-    if (lists.length) {
+async function addCafe24Products(context, page, home, origin, progress) {
+  const cats = [];
+  const walk = (items) => {
+    for (const x of items || []) {
+      const isCat = x.kind === '페이지' && CAFE24_CATEGORY.test(x.href || '');
+      const subCats = (x.children || []).some((c) => CAFE24_CATEGORY.test(c.href || ''));
+      if (isCat && !subCats) cats.push(x);
+      walk(x.children);
+    }
+  };
+  walk(home.menu);
+  const fix = (h) => { try { const u = new URL(h); return u.origin === origin ? h : origin + u.pathname + u.search; } catch { return h; } };
+  const seen = new Set();
+  let added = 0;
+  const list = cats.slice(0, MAX_CATEGORIES);
+  // 셋씩 동시에 연다
+  for (let i = 0; i < list.length; i += 3) {
+    progress(`상품 목록 읽는 중 ${Math.min(i + 3, list.length)}/${list.length}`);
+    const got = await Promise.all(list.slice(i, i + 3).map(async (cat) => {
       const p2 = await context.newPage();
       try {
-        await openPage(p2, lists[0]);
+        await openPage(p2, cat.href);
         await p2.waitForLoadState('networkidle', { timeout: 4000 }).catch(() => {});
-        prod = await p2.evaluate(inPageCafe24Product, CAFE24_PRODUCT.source).catch(() => null);
-      } catch { /* 목록을 못 열면 상세는 건너뛴다 */ } finally { await p2.close().catch(() => {}); }
-    }
+        return await p2.evaluate(inPageCafe24Products, [CAFE24_PRODUCT.source, MAX_PRODUCTS]);
+      } catch { return []; } finally { await p2.close().catch(() => {}); }
+    }));
+    list.slice(i, i + 3).forEach((cat, k) => {
+      for (const prod of got[k] || []) {
+        const href = fix(prod.href);
+        if (seen.has(href)) continue;
+        seen.add(href);
+        cat.children.push({ label: prod.name || '상품 상세', href, kind: '페이지', depth: cat.depth + 1, children: [], product: true, pick: added === 0 });
+        added++;
+      }
+    });
   }
-  if (!prod) return null;
-  try { if (new URL(prod.href).origin !== origin) prod.href = origin + new URL(prod.href).pathname + new URL(prod.href).search; } catch { return null; }
+  if (added) return added;
+  // 메뉴에 분류 페이지가 없다 — 첫 화면(다 내려 본 뒤라 늦게 뜬 진열 상품까지)의 첫 상품
+  const prod = (await page.evaluate(inPageCafe24Products, [CAFE24_PRODUCT.source, 1]).catch(() => []))[0];
+  if (!prod) return 0;
   let std = (home.utility || []).find((x) => x.std && x.label === '카페24 기본 화면');
   if (!std) { std = { label: '카페24 기본 화면', href: '', kind: '없음', depth: 0, children: [], std: true }; home.utility.push(std); }
-  const item = { label: prod.name ? `상품 상세 (${prod.name})` : '상품 상세', href: prod.href, kind: '페이지', depth: 1, children: [], std: true, product: true };
-  std.children.push(item);
-  return item;
+  std.children.push({ label: prod.name ? `상품 상세 (${prod.name})` : '상품 상세', href: fix(prod.href), kind: '페이지', depth: 1, children: [], std: true, product: true, pick: true });
+  return 1;
 }
 
 /**
@@ -1097,11 +1135,11 @@ export async function extractSitemap(context, url, opts = {}) {
     const main = await page.evaluate(inPageReadSections);
     lap('메인페이지 구성');
 
-    // 카페24: 상품 상세는 메뉴에 없다 — 첫 화면(다 내려 본 뒤라 늦게 뜬 상품 목록까지)이나 분류 페이지에서 한 곳 고른다
+    // 카페24: 상품 상세는 메뉴에 없다 — 분류(상품 목록) 페이지마다 상품을 그 아래에 붙인다
     if (home.platform === 'cafe24') {
-      progress('상품 상세 찾는 중');
-      await addCafe24Product(context, page, home, origin).catch(() => null);
-      lap('상품 상세 찾기');
+      progress('상품 찾는 중');
+      await addCafe24Products(context, page, home, origin, progress).catch(() => 0);
+      lap('상품 찾기');
     }
 
     // 홈 링크 표시: 사이트 루트로 가는 항목

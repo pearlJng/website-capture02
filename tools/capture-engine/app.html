@@ -472,7 +472,7 @@
       const dup = Boolean(it.href) && seen.has(k);
       const cap = Boolean(it.href) && !dup && (it.kind === '페이지' || it.home);
       if (cap) seen.add(k);
-      const n = { id: ++nodeSeq, label: it.label, href: it.href, cap, why: cap ? '' : why(it, dup), depth, path: p.join(' > '), util, kids: [] };
+      const n = { id: ++nodeSeq, label: it.label, href: it.href, cap, why: cap ? '' : why(it, dup), depth, path: p.join(' > '), util, kids: [], product: Boolean(it.product), pick: Boolean(it.pick) };
       n.kids = conv(it.children, depth + 1, p, util);
       return n;
     });
@@ -491,14 +491,16 @@
     const capKids = n.kids.some(hasCap);
     const leaf = !capKids;
     const skip = !n.cap && leaf;   // 캡처 못 하는 끝 항목 — 기본으로 숨김
+    // 카페24 상품은 상세 틀이 같아 기본으로 하나만 고른다 — 나머지는 필요한 것만 체크
+    const prods = n.kids.filter((k) => k.product).length;
     const cb = n.cap
-      ? `<input type="checkbox" class="pg" data-depth="${n.util ? n.depth + 1 : n.home ? 0 : n.depth + 1}"${n.util ? ' data-util="1"' : ''} data-url="${esc(n.href)}" data-label="${esc(n.path)}" checked>`
+      ? `<input type="checkbox" class="pg" data-depth="${n.util ? n.depth + 1 : n.home ? 0 : n.depth + 1}"${n.util ? ' data-util="1"' : ''}${n.product ? ' data-product="1"' : ''} data-url="${esc(n.href)}" data-label="${esc(n.path)}"${!n.product || n.pick ? ' checked' : ''}>`
       : capKids ? `<input type="checkbox" class="grp" title="아래 페이지를 한 번에">` : '';
-    return `<div class="node${leaf ? ' leaf' : ''}${skip ? ' skip' : ''}" data-d="${n.depth}" data-q="${esc((n.label + ' ' + (n.href ? shortUrl(n.href) : '')).toLowerCase())}">
+    return `<div class="node${leaf ? ' leaf' : ''}${skip ? ' skip' : ''}${prods > 3 ? ' closed' : ''}" data-d="${n.depth}" data-q="${esc((n.label + ' ' + (n.href ? shortUrl(n.href) : '')).toLowerCase())}">
       <div class="line${n.cap ? '' : ' nocap'}" style="--d:${n.depth}">
         <button type="button" class="chev${capKids ? '' : ' none'}" aria-label="접기·펼치기" tabindex="${capKids ? 0 : -1}">${ICON_CHEV}</button>
         <label class="lab">${cb}<span class="nm">${esc(n.label)}</span></label>
-        ${n.home ? '<span class="tag home">첫 화면</span>' : ''}${n.why ? `<span class="tag">${esc(n.why)}</span>` : ''}
+        ${n.home ? '<span class="tag home">첫 화면</span>' : ''}${n.product ? '<span class="tag prod">상품 상세</span>' : ''}${prods ? `<span class="tag">상품 ${prods}개</span>` : ''}${n.why ? `<span class="tag">${esc(n.why)}</span>` : ''}
         ${n.href && n.cap ? `<span class="url">${esc(shortUrl(n.href))}</span><a class="open" href="${esc(n.href)}" target="_blank" rel="noopener" title="새 탭에서 열어 보기">${ICON_OPEN}</a>` : ''}
         ${n.cap && capKids ? `<button type="button" class="kidsel" title="아래 페이지를 한 번에 고르거나 풉니다"></button>` : ''}
       </div>
@@ -624,7 +626,8 @@
     $('#fold').textContent = closing ? '모두 펼치기' : '모두 접기';
   };
   const norm = (h) => { try { const u = new URL(h); u.hash = ''; return u.href.replace(/\/$/, ''); } catch { return h || ''; } };
-  const shortUrl = (h) => { try { const u = new URL(h); return (u.pathname + u.search) || '/'; } catch { return h; } };
+  // 한글 주소(카페24 상품 이름)는 %EB%A6… 대신 읽을 수 있게 보여 준다
+  const shortUrl = (h) => { try { const u = new URL(h); const t = (u.pathname + u.search) || '/'; try { return decodeURI(t); } catch { return t; } } catch { return h; } };
   const selected = () => [...document.querySelectorAll('.pg:checked')].map((c) => ({ url: c.dataset.url, path: c.dataset.label.split(' > ') }));
   function updateCount() {
     const n = selected().length, t = document.querySelectorAll('#tree .pg').length;
@@ -635,11 +638,12 @@
   // 깊이로 고르기: 1depth = 홈 + 1차 메뉴, 2depth = 2차 메뉴까지 … 그보다 깊은 것은 체크를 푼다
   document.querySelectorAll('input[name=dep]').forEach((rd) => { rd.onchange = () => {
     const max = Number(rd.value);
-    document.querySelectorAll('#tree .pg').forEach((c) => { c.checked = Number(c.dataset.depth || 0) <= max; });
+    // 상품 상세는 깊이로 고르지 않는다 (수십 개가 한꺼번에 켜진다) — 사람이 고른 그대로 둔다
+    document.querySelectorAll('#tree .pg:not([data-product])').forEach((c) => { c.checked = Number(c.dataset.depth || 0) <= max; });
     refreshTree();
   }; });
   // 전체 선택·해제 — 찾는 중이면 찾은 것만
-  $('#all').onclick = () => { visiblePgs($('#tree')).forEach((c) => { c.checked = true; }); if (!$('#q').value.trim()) document.querySelector('input[name=dep][value="99"]').checked = true; refreshTree(); };
+  $('#all').onclick = () => { visiblePgs($('#tree')).filter((c) => $('#q').value.trim() || !c.dataset.product).forEach((c) => { c.checked = true; }); if (!$('#q').value.trim()) document.querySelector('input[name=dep][value="99"]').checked = true; refreshTree(); };
   $('#none').onclick = () => { visiblePgs($('#tree')).forEach((c) => { c.checked = false; }); refreshTree(); };
   // 머리 띠: 스크롤하면 아래 줄
   window.addEventListener('scroll', () => $('#appbar').classList.toggle('scrolled', window.scrollY > 4), { passive: true });

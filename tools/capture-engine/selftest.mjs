@@ -784,17 +784,21 @@ const CASES = [
       const std = (r.utility || []).find((x) => x.label === '카페24 기본 화면');
       if (!std) return '카페24 기본 화면(회원가입·주문조회…)을 채우지 않았다';
       const names = std.children.map((c) => c.label).join('|');
-      if (names !== '회원가입|주문조회|최근 본 상품|관심상품|상품 상세 (린넨 셔츠)') return `카페24 기본 화면이 ${names}`;
-      // 상품 상세는 메뉴에 없다 — 첫 화면에 상품이 없으면 SHOP(상품 목록)을 열어 첫 상품을 고른다
-      const prod = std.children.find((c) => c.product);
-      if (!/\/product\/[^/]+\/12\//.test(prod.href)) return `상품 상세 주소가 ${prod.href}`;
+      if (names !== '회원가입|주문조회|최근 본 상품|관심상품') return `카페24 기본 화면이 ${names}`;
+      // 상품 상세는 메뉴에 없다 — SHOP(상품 목록)을 열어 그 아래에 상품들을 붙인다. 첫 상품만 기본으로 고른다.
+      // 사진·이름 두 링크가 같은 상품이면 하나로, 분류 꼬리(/category/4/display/1/)는 뗀다
+      const shop = r.menu[0];
+      const prods = shop.children.filter((c) => c.product);
+      if (prods.map((c) => c.label).join('|') !== '린넨 셔츠|코튼 팬츠') return `SHOP 아래 상품이 ${prods.map((c) => c.label).join(' / ') || '(없음)'}`;
+      if (!/\/product\/[^/]+\/12\/$/.test(prods[0].href)) return `상품 주소가 ${prods[0].href}`;
+      if (!prods[0].pick || prods[1].pick) return `기본 선택이 ${prods.map((c) => `${c.label}:${c.pick}`).join(', ')} (첫 상품만 기대)`;
       return null;
     },
   },
   {
     // 카페24 메인의 진열 상품은 스크롤해서 닿아야 그려진다. 다 내려 본 뒤에 찾고,
     // 메뉴(드롭다운) 속 추천 상품은 예시로 고르지 않는다.
-    name: '메뉴구조(카페24): 첫 화면에 늦게 뜬 상품으로 상품 상세 한 곳을 넣는다',
+    name: '메뉴구조(카페24): 상품 목록 페이지가 메뉴에 없으면 첫 화면에 늦게 뜬 상품으로 상품 상세 한 곳을 넣는다',
     file: 'cafe24shop.html', sitemap: true,
     check: (r) => {
       if (!r.ok) return `실패: ${r.error}`;
