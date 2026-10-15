@@ -763,6 +763,35 @@ const CASES = [
     },
   },
   {
+    // 이원이노텍: 구간 다시 찍기에서 찍는 순간 사업분야 카드가 흐려지고 자리가 틀어졌다. 화면 밖까지 원래
+    // 크기로 찍느라 크롬이 잠깐 화면 크기를 바꾸면 페이지가 resize 를 받아 등장 효과(AOS)를 처음부터 다시
+    // 돌렸다. 찍는 동안은 페이지를 멈춰 세운다 — 크기 변화를 모르게 하고 CSS 효과는 그 장면에 멈춘다.
+    name: '구간 다시 찍기: 찍는 순간 페이지가 창 크기 변화를 몰라 등장 효과가 다시 돌지 않는다 (여러 장 찍어도)',
+    unit: async () => {
+      const m = await startManual({ url: BASE + 'aosresize.html', device: DEVICES[1440], scale: 1, headless: true, onFinish: () => {},
+        section: { index: 1, n: 2, label: '사업분야', sel: '#biz', top: 700, bottom: 1400, docTop: 700, docBottom: 1400 } });
+      try {
+        const s = (await import('./manual.mjs')).__debugSession(m.key);
+        await s.page.waitForTimeout(2000);
+        const before = await s.page.evaluate(() => window.__ev.refresh);
+        for (let k = 0; k < 2; k++) {
+          const st = await pressManual(m.key, 'shot');
+          if (!st.ok) return `찍기 실패: ${st.error}`;
+          await s.page.waitForTimeout(300);
+        }
+        const after = await s.page.evaluate(() => ({ refresh: window.__ev.refresh, on: document.querySelectorAll('.card.on').length }));
+        if (after.refresh !== before) return `찍는 동안 페이지가 창 크기 변화를 받아 효과를 ${after.refresh - before}번 다시 돌렸다`;
+        if (after.on !== 3) return `찍은 뒤 카드 ${after.on}/3 개만 보인다 — 효과가 처음부터 다시 돌았다`;
+        for (const [i, shot] of s.shots.entries()) {
+          const im = decodePng(shot.buf); const st = im.width * im.bpp;
+          let blue = 0; for (let y = 0; y < im.height; y += 4) { const o = y * st + 150 * im.bpp; if (im.rows[o] < 90 && im.rows[o + 2] > 180) blue++; }
+          if (blue < 30) return `${i + 1}번째 사진에 카드가 ${blue}줄뿐이다 — 흐려지거나 내려간 채 찍혔다`;
+        }
+        return null;
+      } finally { await (await import('./manual.mjs')).closeManual(m.key); }
+    },
+  },
+  {
     // 부분 다시 찍기: 원래 그림의 한 구간이 비었거나(그림이 안 떴다) 아예 접혀 있어도(효과가 안 펼쳐졌다)
     // 그 근처를 새로 찍은 화면 한 장의 위아래를 원래 그림에서 찾아 그 사이를 바꿔 넣는다.
     // 원래 그림이 두 장으로 나뉘어 있고, 고칠 곳이 장 경계에 걸쳐도 된다.

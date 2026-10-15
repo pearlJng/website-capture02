@@ -45,6 +45,47 @@ function inPageScrollBy(arg) {
   window.scrollTo(0, Math.max(0, Math.min(max, target)));
 }
 
+/**
+ * 찍는 순간 페이지를 멈춰 세우는 장치. 페이지 스크립트보다 먼저 심는다.
+ *
+ * 화면 밖까지 원래 크기로 찍으려고 크롬이 잠깐 화면 크기를 바꾸면, 페이지는 창 크기가 바뀐 줄 알고
+ * resize 를 받아 등장 효과(AOS 등)를 처음부터 다시 돌렸다 — 이원이노텍 사업분야 카드가 찍는 순간
+ * 흐려지고 자리가 틀어졌다. 멈춰 있는 동안(__capFreeze)은 resize·scroll 과 크기·화면 감시자
+ * (ResizeObserver·IntersectionObserver) 알림을 페이지에 건네지 않는다.
+ */
+function inPageFreezeGuard() {
+  if (window.__capGuard) return;
+  window.__capGuard = true;
+  window.__capFreeze = false;
+  const block = (e) => { if (window.__capFreeze) e.stopImmediatePropagation(); };
+  for (const t of ['resize', 'scroll', 'orientationchange']) window.addEventListener(t, block, true);
+  const wrap = (name) => {
+    const O = window[name];
+    if (!O) return;
+    window[name] = class extends O {
+      constructor(cb, opt) { super((entries, obs) => { if (!window.__capFreeze) cb(entries, obs); }, opt); }
+    };
+  };
+  wrap('ResizeObserver'); wrap('IntersectionObserver');
+}
+
+/**
+ * 누른 순간 그대로 멈춘다(on) / 다시 움직인다(off). CSS 애니메이션·전환은 그 장면에서 멈추고,
+ * 찍느라 생긴 크기 변화는 페이지가 모르게 한다. 다시 움직이기 전에 크기가 돌아오는 것까지 기다린다.
+ */
+async function freeze(s, on) {
+  if (!s.cdp) s.cdp = await s.ctx.newCDPSession(s.page);
+  if (on) {
+    await s.page.evaluate(() => { window.__capFreeze = true; }).catch(() => {});
+    await s.cdp.send('Animation.enable').catch(() => {});
+    await s.cdp.send('Animation.setPlaybackRate', { playbackRate: 0 }).catch(() => {});
+  } else {
+    await s.page.waitForTimeout(350);   // 찍은 뒤 크기가 되돌아오며 생기는 resize 도 막는다
+    await s.cdp.send('Animation.setPlaybackRate', { playbackRate: 1 }).catch(() => {});
+    await s.page.evaluate(() => { window.__capFreeze = false; }).catch(() => {});
+  }
+}
+
 /** 찍는 순간 우리 버튼을 숨긴다 / 되돌린다 */
 function inPageUiVisible(on) {
   const el = document.getElementById('cap-fab');
@@ -385,6 +426,7 @@ export async function startManual({ url, device, scale, channel, executablePath,
       return { ok: false, error: '없는 동작' };
     } catch (e) { return { ok: false, error: e.message.split('\n')[0] }; }
   });
+  await page.addInitScript(inPageFreezeGuard);
   if (s.section) await page.addInitScript(inPageSectionRect, { sel: s.section.sel || '', docTop: s.section.docTop || 0, docBottom: s.section.docBottom || 0 });
   await page.addInitScript(inPageFloatingUi, { patch: s.patch, section: s.section ? { n: s.section.n, label: s.section.label } : null });
   try { await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 }); } catch { /* 늦어도 창은 떠 있다 */ }
@@ -455,6 +497,7 @@ export async function shotManual(key) {
   }
   await s.page.waitForTimeout(120);
   const at = await s.page.evaluate(inPageWhere);
+  await freeze(s, true);
   await s.page.evaluate(inPageUiVisible, false);
   let buf;
   try {
@@ -475,6 +518,7 @@ export async function shotManual(key) {
   } finally {
     s.shooting = false;
     await s.page.evaluate(inPageUiVisible, true).catch(() => {});
+    await freeze(s, false);
   }
   s.shots.push({ y: at.y, height: at.innerHeight, buf });
   const cov = coverage(s.shots, at.height);
@@ -502,6 +546,16 @@ async function shotSection(key) {
   const s = get(key);
   const sec = await s.page.evaluate(() => window.__capSecRect()).catch(() => null);
   if (!sec) throw new Error('구간을 찾지 못했어요');
+  // 누른 순간 그대로 멈춘다 — 그 뒤의 준비(헤더 숨기기)와 찍기 동안 페이지가 움직이지 않게
+  await freeze(s, true);
+  try {
+    return await shotSectionFrozen(s, key, sec);
+  } finally {
+    await freeze(s, false);
+  }
+}
+
+async function shotSectionFrozen(s, key, sec) {
   const where = await s.page.evaluate(inPageWhere);
   // 맨 위 구간(헤더가 든 자리)이 아니면 고정·스티키 요소를 숨긴다 — 구간 위에 떠 있는 헤더가 끼면 안 된다
   if (sec.top > 2 || where.y > 2) await s.page.evaluate(inPageHideAllFixed).catch(() => {});

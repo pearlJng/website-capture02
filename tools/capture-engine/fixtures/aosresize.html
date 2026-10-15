@@ -1,0 +1,19 @@
+<!doctype html><meta charset=utf-8><title>찍는 순간 창 크기가 바뀌면 등장 효과를 처음부터 다시 도는 페이지 (이원이노텍 사업분야 — AOS 흉내)</title>
+<style>
+body{margin:0;font:16px system-ui}
+section{height:700px;padding:40px;border-bottom:1px solid #ddd}
+.card{display:inline-block;width:200px;height:200px;margin:10px;background:#3a7bd5;opacity:0;transform:translateY(60px);transition:opacity 1.2s,transform 1.2s}
+.card.on{opacity:1;transform:none}
+</style>
+<section><h1>top</h1></section>
+<section id="biz"><h2>사업분야</h2><div class="card"></div><div class="card"></div><div class="card"></div></section>
+<section><h2>next</h2></section>
+<script>
+window.__ev = { resize: 0, scroll: 0, refresh: 0, vh: [] };
+const cards = [...document.querySelectorAll('.card')];
+const check = () => { for (const c of cards) { const r = c.getBoundingClientRect(); if (r.top < innerHeight - 50) c.classList.add('on'); } };
+addEventListener('scroll', () => { __ev.scroll++; check(); });
+// AOS 처럼: 창 크기가 바뀌면 다시 계산하며 효과를 처음부터
+addEventListener('resize', () => { __ev.resize++; __ev.vh.push(innerHeight); cards.forEach((c) => c.classList.remove('on')); __ev.refresh++; setTimeout(check, 50); });
+check();
+</script>
